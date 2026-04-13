@@ -1,7 +1,6 @@
 'use client';
 
 import { useState } from 'react';
-import type { BrowserProvider, Signer } from 'ethers';
 import { ethers } from 'ethers';
 
 const FACTORY_ADDRESS = '0xf729BBf09B236068d40ef9d50A515d78C02f3e59';
@@ -9,11 +8,11 @@ const SEPOLIA_CHAIN_ID = 11155111;
 
 export default function Dashboard() {
   const [account, setAccount] = useState('');
-  const [provider, setProvider] = useState<BrowserProvider | null>(null);
-  const [signer, setSigner] = useState<Signer | null>(null);
+  const [provider, setProvider] = useState(null);
+  const [signer, setSigner] = useState(null);
   const [isConnecting, setIsConnecting] = useState(false);
-  const [activeTab, setActiveTab] = useState<'deploy' | 'issue' | 'verify'>('deploy');
-  const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+  const [activeTab, setActiveTab] = useState('deploy');
+  const [message, setMessage] = useState(null);
 
   const [univName, setUnivName] = useState('');
   const [univSymbol, setUnivSymbol] = useState('');

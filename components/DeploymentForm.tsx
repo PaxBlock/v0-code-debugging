@@ -15,8 +15,10 @@ interface DeploymentFormProps {
 export default function DeploymentForm({ onDeployment }: DeploymentFormProps) {
   const [privateKey, setPrivateKey] = useState('');
   const [rpcUrl, setRpcUrl] = useState('https://eth-sepolia.g.alchemy.com/v2/');
+  const [bytecode, setBytecode] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [showKey, setShowKey] = useState(false);
+  const [showBytecode, setShowBytecode] = useState(false);
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
@@ -30,9 +32,12 @@ export default function DeploymentForm({ onDeployment }: DeploymentFormProps) {
       if (!rpcUrl.trim()) {
         throw new Error('RPC URL is required');
       }
+      if (!bytecode.trim()) {
+        throw new Error('Contract bytecode is required');
+      }
 
-      console.log('[v0] Starting deployment with key and RPC');
-      const result = await deployFactory(privateKey, rpcUrl);
+      console.log('[v0] Starting deployment with key, RPC, and bytecode');
+      const result = await deployFactory(privateKey, rpcUrl, bytecode);
       console.log('[v0] Deployment result:', result);
 
       onDeployment({
@@ -76,7 +81,7 @@ export default function DeploymentForm({ onDeployment }: DeploymentFormProps) {
             {showKey ? '👁️' : '👁️‍🗨️'}
           </button>
         </div>
-        <p className="text-xs text-slate-500 mt-1">🔒 Your key stays in your browser only</p>
+        <p className="text-xs text-slate-500 mt-1">Your key stays in your browser only</p>
       </div>
 
       {/* RPC URL Input */}
@@ -92,6 +97,24 @@ export default function DeploymentForm({ onDeployment }: DeploymentFormProps) {
           className="w-full px-4 py-3 bg-slate-700/50 border border-slate-600 rounded-lg text-white placeholder-slate-500 focus:outline-none focus:border-cyan-500 focus:ring-2 focus:ring-cyan-500/20 transition font-mono text-sm"
         />
         <p className="text-xs text-slate-500 mt-1">Get a free one from <a href="https://alchemy.com" target="_blank" rel="noopener noreferrer" className="text-cyan-400 hover:underline">Alchemy</a></p>
+      </div>
+
+      {/* Bytecode Input */}
+      <div>
+        <label className="block text-sm font-medium text-slate-300 mb-2">
+          Contract Bytecode (from Remix)
+        </label>
+        <div className="relative">
+          <textarea
+            value={bytecode}
+            onChange={(e) => setBytecode(e.target.value)}
+            placeholder="0x608060405234801561001057600080fd5b50..."
+            className="w-full px-4 py-3 bg-slate-700/50 border border-slate-600 rounded-lg text-white placeholder-slate-500 focus:outline-none focus:border-cyan-500 focus:ring-2 focus:ring-cyan-500/20 transition font-mono text-xs h-24 resize-none"
+          />
+        </div>
+        <p className="text-xs text-slate-500 mt-1">
+          Compile your Factory.sol in <a href="https://remix.ethereum.org" target="_blank" rel="noopener noreferrer" className="text-cyan-400 hover:underline">Remix</a>, then copy the bytecode from the Compiler output
+        </p>
       </div>
 
       {/* Submit Button */}
@@ -114,12 +137,14 @@ export default function DeploymentForm({ onDeployment }: DeploymentFormProps) {
 
       {/* Instructions */}
       <div className="bg-slate-700/30 p-4 rounded-lg text-sm text-slate-300 space-y-2">
-        <p className="font-semibold text-slate-200">Requirements:</p>
-        <ul className="list-disc list-inside space-y-1 text-xs">
-          <li>At least 0.01 Sepolia ETH in your wallet</li>
-          <li>Valid Sepolia RPC URL (from Alchemy, Infura, etc.)</li>
-          <li>Your private key (256-bit hex string)</li>
-        </ul>
+        <p className="font-semibold text-slate-200">How to get the bytecode:</p>
+        <ol className="list-decimal list-inside space-y-1 text-xs">
+          <li>Go to <a href="https://remix.ethereum.org" target="_blank" rel="noopener noreferrer" className="text-cyan-400 hover:underline">remix.ethereum.org</a></li>
+          <li>Create file &quot;Factory.sol&quot; and paste your contract code</li>
+          <li>Click Compile (left sidebar)</li>
+          <li>Click &quot;Bytecode&quot; in Compiler output</li>
+          <li>Copy the entire bytecode starting with &quot;0x&quot; and paste it here</li>
+        </ol>
       </div>
     </form>
   );

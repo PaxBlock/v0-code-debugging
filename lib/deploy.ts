@@ -1,4 +1,4 @@
-export async function deployFactory(privateKey: string, rpcUrl: string) {
+export async function deployFactory(privateKey: string, rpcUrl: string, bytecode: string) {
   console.log('[v0] Starting deployment...');
   
   // Validate inputs
@@ -8,6 +8,10 @@ export async function deployFactory(privateKey: string, rpcUrl: string) {
 
   if (!rpcUrl) {
     throw new Error('RPC URL is required');
+  }
+
+  if (!bytecode || !bytecode.startsWith('0x')) {
+    throw new Error('Invalid bytecode. Must start with 0x');
   }
 
   // Dynamically import ethers
@@ -34,11 +38,11 @@ export async function deployFactory(privateKey: string, rpcUrl: string) {
     const balanceInEth = ethers.formatEther(balance);
     console.log('[v0] Account balance:', balanceInEth, 'ETH');
 
-    if (balance < ethers.parseEther('0.01')) {
-      throw new Error(`Insufficient balance. You have ${balanceInEth} ETH but need at least 0.01 ETH`);
+    if (balance < ethers.parseEther('0.001')) {
+      throw new Error(`Insufficient balance. You have ${balanceInEth} ETH but need at least 0.001 ETH`);
     }
 
-    // FACTORY CONTRACT ABI - The actual interface of your Factory
+    // FACTORY CONTRACT ABI
     const factoryAbi = [
       {
         "type": "constructor",
@@ -72,16 +76,12 @@ export async function deployFactory(privateKey: string, rpcUrl: string) {
       }
     ];
 
-    // The actual compiled bytecode from your Factory.sol
-    // This needs to come from your Hardhat artifacts
-    const factoryBytecode = '0x608060405234801561001057600080fd5b50610300806100206000396000f3fe608060405234801561001057600080fd5b50600436106100415760003560e01c806301ffc9a7146100465780634a97c90014610079578063d69d1b1c146100d6575b600080fd5b6100636004803603602081101561005c57600080fd5b50356100f3565b604080519115158252519081900360200190f35b6100d46004803603606081101561008f57600080fd5b8101906020810135600160201b8111156100a857600080fd5b8201836020820111156100ba57600080fd5b803590602001918460018302840111600160201b831117156100db57600080fd5b5050929550919350505050505b005b6100de610113565b604080516001600160a01b039092168252519081900360200190f35b60015b92915050565b6040805160208101909152600081525b90565b6001600160a01b03169056fea264697066735822122000000000000000000000000000000000000000000000000000000000000000064736f6c63430008140033';
-
     console.log('[v0] Creating contract factory...');
-    const contractFactory = new ethers.ContractFactory(factoryAbi, factoryBytecode, wallet);
+    const contractFactory = new ethers.ContractFactory(factoryAbi, bytecode, wallet);
 
     console.log('[v0] Deploying contract with gas settings...');
     const deployTx = await contractFactory.deploy({
-      gasLimit: 3000000,
+      gasLimit: 5000000,
       maxFeePerGas: ethers.parseUnits('50', 'gwei'),
       maxPriorityFeePerGas: ethers.parseUnits('2', 'gwei'),
     });

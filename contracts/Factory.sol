@@ -2,7 +2,7 @@
 pragma solidity ^0.8.20;
 
 import "@openzeppelin/contracts/access/AccessControl.sol";
-import {AcademicCertificate} from "./Main.sol";
+import {AcademicCertificate} from "./AcademicCertificate.sol";
 
 contract UniversityFactory is AccessControl {
     bytes32 public constant FACTORY_ADMIN_ROLE = keccak256("FACTORY_ADMIN_ROLE");

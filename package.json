@@ -1,0 +1,19 @@
+{
+  "name": "academic-certificate-contracts",
+  "version": "1.0.0",
+  "description": "Soulbound NFT Academic Certificate System",
+  "scripts": {
+    "deploy:sepolia": "hardhat run scripts/deploy.js --network sepolia",
+    "deploy:base": "hardhat run scripts/deploy.js --network base",
+    "verify:sepolia": "hardhat verify --network sepolia",
+    "verify:base": "hardhat verify --network base"
+  },
+  "devDependencies": {
+    "@nomicfoundation/hardhat-toolbox": "^4.0.0",
+    "hardhat": "^2.19.0",
+    "dotenv": "^16.3.1"
+  },
+  "dependencies": {
+    "@openzeppelin/contracts": "^5.0.0"
+  }
+}

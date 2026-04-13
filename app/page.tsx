@@ -100,7 +100,6 @@ export default function Dashboard() {
     issuedDate: string;
   } | null>(null);
   const [isVerifying, setIsVerifying] = useState(false);
-
   const [message, setMessage] = useState<{
     type: 'success' | 'error' | 'info';
     text: string;

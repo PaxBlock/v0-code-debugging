@@ -10,15 +10,22 @@ export async function deployFactory(privateKey: string, rpcUrl: string, bytecode
     throw new Error('RPC URL is required');
   }
 
-  // Validate and normalize bytecode
+  // Validate and normalize bytecode - MUST have 0x prefix
   let normalizedBytecode = bytecode.trim();
-  if (!normalizedBytecode.startsWith('0x')) {
+  
+  console.log('[v0] Raw bytecode starts with:', normalizedBytecode.substring(0, 20));
+  console.log('[v0] Raw bytecode length:', normalizedBytecode.length);
+  
+  // Add 0x prefix if missing
+  if (!normalizedBytecode.startsWith('0x') && !normalizedBytecode.startsWith('0X')) {
+    console.log('[v0] Adding 0x prefix to bytecode');
     normalizedBytecode = '0x' + normalizedBytecode;
   }
 
-  console.log('[v0] Bytecode length:', normalizedBytecode.length, 'characters');
+  console.log('[v0] Normalized bytecode starts with:', normalizedBytecode.substring(0, 20));
+  console.log('[v0] Normalized bytecode length:', normalizedBytecode.length);
   console.log('[v0] Bytecode size:', (normalizedBytecode.length - 2) / 2, 'bytes');
-
+  
   if (normalizedBytecode.length < 4) {
     throw new Error('Bytecode appears to be invalid (too short)');
   }
@@ -73,7 +80,7 @@ export async function deployFactory(privateKey: string, rpcUrl: string, bytecode
     }
 
     if (receipt.status === 0) {
-      throw new Error('Transaction reverted. The bytecode may be invalid or the contract constructor failed. Check the bytecode from Remix carefully.');
+      throw new Error('Transaction reverted during deployment. This typically means: 1) The bytecode is corrupted - copy it again from Remix "Bytecode" section, 2) Missing 0x prefix - ensure bytecode starts with "0x", 3) Constructor error - check your contract constructor logic. Try copying the bytecode fresh from Remix.');
     }
 
     const contractAddress = receipt.contractAddress;

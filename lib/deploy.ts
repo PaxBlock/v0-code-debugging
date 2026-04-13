@@ -10,8 +10,17 @@ export async function deployFactory(privateKey: string, rpcUrl: string, bytecode
     throw new Error('RPC URL is required');
   }
 
-  if (!bytecode || !bytecode.startsWith('0x')) {
-    throw new Error('Invalid bytecode. Must start with 0x');
+  // Validate and normalize bytecode
+  let normalizedBytecode = bytecode.trim();
+  if (!normalizedBytecode.startsWith('0x')) {
+    normalizedBytecode = '0x' + normalizedBytecode;
+  }
+
+  console.log('[v0] Bytecode length:', normalizedBytecode.length, 'characters');
+  console.log('[v0] Bytecode size:', (normalizedBytecode.length - 2) / 2, 'bytes');
+
+  if (normalizedBytecode.length < 4) {
+    throw new Error('Bytecode appears to be invalid (too short)');
   }
 
   // Dynamically import ethers
@@ -42,66 +51,44 @@ export async function deployFactory(privateKey: string, rpcUrl: string, bytecode
       throw new Error(`Insufficient balance. You have ${balanceInEth} ETH but need at least 0.001 ETH`);
     }
 
-    // FACTORY CONTRACT ABI
-    const factoryAbi = [
-      {
-        "type": "constructor",
-        "inputs": [],
-        "stateMutability": "nonpayable"
-      },
-      {
-        "type": "function",
-        "name": "deployUniversity",
-        "inputs": [
-          {"name": "universityName", "type": "string"},
-          {"name": "symbol", "type": "string"},
-          {"name": "universityAdmin", "type": "address"}
-        ],
-        "outputs": [{"type": "address"}],
-        "stateMutability": "nonpayable"
-      },
-      {
-        "type": "function",
-        "name": "getUniversityCount",
-        "inputs": [],
-        "outputs": [{"type": "uint256"}],
-        "stateMutability": "view"
-      },
-      {
-        "type": "function",
-        "name": "getUniversities",
-        "inputs": [],
-        "outputs": [{"type": "address[]"}],
-        "stateMutability": "view"
-      }
-    ];
-
-    console.log('[v0] Creating contract factory...');
-    const contractFactory = new ethers.ContractFactory(factoryAbi, bytecode, wallet);
-
-    console.log('[v0] Deploying contract with gas settings...');
-    console.log('[v0] Bytecode size:', bytecode.length / 2, 'bytes');
+    // Simple deployment - just send the bytecode as a contract creation transaction
+    console.log('[v0] Creating deployment transaction...');
     
-    const deployTx = await contractFactory.deploy({
-      gasLimit: 8000000,
-      maxFeePerGas: ethers.parseUnits('2', 'gwei'),
+    const deployTx = {
+      data: normalizedBytecode,
+      gasLimit: 10000000,
+      maxFeePerGas: ethers.parseUnits('3', 'gwei'),
       maxPriorityFeePerGas: ethers.parseUnits('1', 'gwei'),
-    });
+    };
 
-    console.log('[v0] Transaction sent:', deployTx.deploymentTransaction()?.hash);
-    console.log('[v0] Waiting for deployment confirmation...');
+    console.log('[v0] Sending deployment transaction...');
+    const tx = await wallet.sendTransaction(deployTx);
+    console.log('[v0] Transaction hash:', tx.hash);
+    console.log('[v0] Waiting for confirmation...');
+
+    const receipt = await tx.wait();
     
-    const deployedContract = await deployTx.waitForDeployment();
-    const contractAddress = await deployedContract.getAddress();
+    if (!receipt) {
+      throw new Error('Transaction receipt is null');
+    }
 
-    const txHash = deployTx.deploymentTransaction()?.hash;
+    if (receipt.status === 0) {
+      throw new Error('Transaction reverted. The bytecode may be invalid or the contract constructor failed. Check the bytecode from Remix carefully.');
+    }
+
+    const contractAddress = receipt.contractAddress;
+
+    if (!contractAddress) {
+      throw new Error('No contract address in receipt');
+    }
+
     console.log('[v0] Deployment successful!');
     console.log('[v0] Factory address:', contractAddress);
-    console.log('[v0] Transaction hash:', txHash);
+    console.log('[v0] Transaction hash:', tx.hash);
 
     return {
       factoryAddress: contractAddress,
-      txHash: txHash || '',
+      txHash: tx.hash,
     };
   } catch (error) {
     console.error('[v0] Deployment error:', error);

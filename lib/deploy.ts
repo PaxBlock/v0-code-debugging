@@ -80,8 +80,10 @@ export async function deployFactory(privateKey: string, rpcUrl: string, bytecode
     const contractFactory = new ethers.ContractFactory(factoryAbi, bytecode, wallet);
 
     console.log('[v0] Deploying contract with gas settings...');
+    console.log('[v0] Bytecode size:', bytecode.length / 2, 'bytes');
+    
     const deployTx = await contractFactory.deploy({
-      gasLimit: 3000000,
+      gasLimit: 8000000,
       maxFeePerGas: ethers.parseUnits('2', 'gwei'),
       maxPriorityFeePerGas: ethers.parseUnits('1', 'gwei'),
     });

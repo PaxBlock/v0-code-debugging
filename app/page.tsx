@@ -1,13 +1,12 @@
 'use client';
 
 import { useState } from 'react';
-import type { BrowserProvider, Signer, Contract } from 'ethers';
+import type { BrowserProvider, Signer } from 'ethers';
 import { ethers } from 'ethers';
 
 const FACTORY_ADDRESS = '0xf729BBf09B236068d40ef9d50A515d78C02f3e59';
 const SEPOLIA_CHAIN_ID = 11155111;
 
-// Factory ABI - simplified for main functions
 const FACTORY_ABI = [
   {
     name: 'deployUniversity',
@@ -24,13 +23,6 @@ const FACTORY_ABI = [
     name: 'getUniversities',
     inputs: [],
     outputs: [{ name: '', type: 'address[]' }],
-    stateMutability: 'view',
-    type: 'function',
-  },
-  {
-    name: 'getUniversityCount',
-    inputs: [],
-    outputs: [{ name: '', type: 'uint256' }],
     stateMutability: 'view',
     type: 'function',
   },
@@ -61,36 +53,26 @@ const CERTIFICATE_ABI = [
     stateMutability: 'view',
     type: 'function',
   },
-  {
-    name: 'tokenURI',
-    inputs: [{ name: 'tokenId', type: 'uint256' }],
-    outputs: [{ name: '', type: 'string' }],
-    stateMutability: 'view',
-    type: 'function',
-  },
 ];
 
 export default function Dashboard() {
-  const [account, setAccount] = useState<string>('');
+  const [account, setAccount] = useState('');
   const [provider, setProvider] = useState<BrowserProvider | null>(null);
   const [signer, setSigner] = useState<Signer | null>(null);
   const [isConnecting, setIsConnecting] = useState(false);
   const [activeTab, setActiveTab] = useState<'deploy' | 'issue' | 'verify'>('deploy');
 
-  // Deploy University state
   const [univName, setUnivName] = useState('');
   const [univSymbol, setUnivSymbol] = useState('');
   const [univAdmin, setUnivAdmin] = useState('');
   const [isDeploying, setIsDeploying] = useState(false);
 
-  // Issue Certificate state
   const [univAddress, setUnivAddress] = useState('');
   const [studentAddress, setStudentAddress] = useState('');
   const [certificateName, setCertificateName] = useState('');
   const [courseName, setCourseName] = useState('');
   const [isIssuing, setIsIssuing] = useState(false);
 
-  // Verify Certificate state
   const [verifyStudent, setVerifyStudent] = useState('');
   const [verifyUniv, setVerifyUniv] = useState('');
   const [certificate, setCertificate] = useState<{
@@ -100,12 +82,12 @@ export default function Dashboard() {
     issuedDate: string;
   } | null>(null);
   const [isVerifying, setIsVerifying] = useState(false);
+
   const [message, setMessage] = useState<{
     type: 'success' | 'error' | 'info';
     text: string;
   } | null>(null);
 
-  // Connect Wallet
   const connectWallet = async () => {
     setIsConnecting(true);
     try {
@@ -139,7 +121,6 @@ export default function Dashboard() {
     }
   };
 
-  // Deploy University
   const deployUniversity = async () => {
     if (!signer || !account) {
       setMessage({ type: 'error', text: 'Wallet not connected' });
@@ -163,7 +144,6 @@ export default function Dashboard() {
     }
   };
 
-  // Issue Certificate
   const issueCertificate = async () => {
     if (!signer) {
       setMessage({ type: 'error', text: 'Wallet not connected' });
@@ -173,7 +153,7 @@ export default function Dashboard() {
     setIsIssuing(true);
     try {
       const certContract = new ethers.Contract(univAddress, CERTIFICATE_ABI, signer);
-      const tokenURI = `ipfs://Qm${Date.now()}`; // Placeholder - in production use real IPFS
+      const tokenURI = `ipfs://Qm${Date.now()}`;
       const tx = await certContract.issueCertificate(
         studentAddress,
         tokenURI,
@@ -193,7 +173,6 @@ export default function Dashboard() {
     }
   };
 
-  // Verify Certificate
   const verifyCertificate = async () => {
     if (!provider) {
       setMessage({ type: 'error', text: 'Provider not connected' });
@@ -222,7 +201,6 @@ export default function Dashboard() {
   return (
     <main className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900">
       <div className="max-w-6xl mx-auto px-4 py-8">
-        {/* Header */}
         <div className="flex justify-between items-center mb-8">
           <div>
             <h1 className="text-4xl font-bold bg-gradient-to-r from-cyan-400 to-blue-500 bg-clip-text text-transparent">
@@ -239,7 +217,6 @@ export default function Dashboard() {
           </button>
         </div>
 
-        {/* Message */}
         {message && (
           <div
             className={`mb-6 p-4 rounded-lg ${
@@ -254,7 +231,6 @@ export default function Dashboard() {
           </div>
         )}
 
-        {/* Tabs */}
         <div className="flex gap-4 mb-8">
           {(['deploy', 'issue', 'verify'] as const).map((tab) => (
             <button
@@ -273,7 +249,6 @@ export default function Dashboard() {
           ))}
         </div>
 
-        {/* Content */}
         <div className="bg-slate-800/50 backdrop-blur border border-slate-700/50 rounded-lg p-8">
           {activeTab === 'deploy' && (
             <div className="space-y-4">
@@ -398,7 +373,6 @@ export default function Dashboard() {
           )}
         </div>
 
-        {/* Factory Info */}
         <div className="mt-8 p-4 bg-slate-700/30 rounded-lg text-slate-300 text-sm">
           <p>
             <strong>Factory Address:</strong>

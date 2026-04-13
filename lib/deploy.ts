@@ -81,9 +81,9 @@ export async function deployFactory(privateKey: string, rpcUrl: string, bytecode
 
     console.log('[v0] Deploying contract with gas settings...');
     const deployTx = await contractFactory.deploy({
-      gasLimit: 5000000,
-      maxFeePerGas: ethers.parseUnits('50', 'gwei'),
-      maxPriorityFeePerGas: ethers.parseUnits('2', 'gwei'),
+      gasLimit: 3000000,
+      maxFeePerGas: ethers.parseUnits('2', 'gwei'),
+      maxPriorityFeePerGas: ethers.parseUnits('1', 'gwei'),
     });
 
     console.log('[v0] Transaction sent:', deployTx.deploymentTransaction()?.hash);

@@ -1,6 +1,7 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
+import type { BrowserProvider, Signer, Contract } from 'ethers';
 import { ethers } from 'ethers';
 
 const FACTORY_ADDRESS = '0xf729BBf09B236068d40ef9d50A515d78C02f3e59';
@@ -71,8 +72,8 @@ const CERTIFICATE_ABI = [
 
 export default function Dashboard() {
   const [account, setAccount] = useState<string>('');
-  const [provider, setProvider] = useState<ethers.BrowserProvider | null>(null);
-  const [signer, setSigner] = useState<ethers.Signer | null>(null);
+  const [provider, setProvider] = useState<BrowserProvider | null>(null);
+  const [signer, setSigner] = useState<Signer | null>(null);
   const [isConnecting, setIsConnecting] = useState(false);
   const [activeTab, setActiveTab] = useState<'deploy' | 'issue' | 'verify'>('deploy');
 
@@ -92,21 +93,35 @@ export default function Dashboard() {
   // Verify Certificate state
   const [verifyStudent, setVerifyStudent] = useState('');
   const [verifyUniv, setVerifyUniv] = useState('');
-  const [certificate, setCertificate] = useState<any>(null);
+  const [certificate, setCertificate] = useState<{
+    tokenId: string;
+    candidateName: string;
+    courseName: string;
+    issuedDate: string;
+  } | null>(null);
   const [isVerifying, setIsVerifying] = useState(false);
 
-  const [message, setMessage] = useState<{ type: 'success' | 'error' | 'info'; text: string } | null>(null);
+  const [message, setMessage] = useState<{
+    type: 'success' | 'error' | 'info';
+    text: string;
+  } | null>(null);
 
   // Connect Wallet
   const connectWallet = async () => {
     setIsConnecting(true);
     try {
-      if (!window.ethereum) {
+      const ethereumWindow = window as unknown as {
+        ethereum?: {
+          request: (args: { method: string }) => Promise<string[]>;
+        };
+      };
+
+      if (!ethereumWindow.ethereum) {
         throw new Error('MetaMask not installed');
       }
 
-      const p = new ethers.BrowserProvider(window.ethereum);
-      const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
+      const p = new ethers.BrowserProvider(ethereumWindow.ethereum);
+      const accounts = await ethereumWindow.ethereum.request({ method: 'eth_requestAccounts' });
       const s = await p.getSigner();
 
       const network = await p.getNetwork();

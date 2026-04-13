@@ -13,8 +13,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Academic Certificate Deployer | Smart Contract Deployment",
-  description: "Deploy your university's soulbound NFT certificate contracts to Sepolia testnet",
+  title: "Academic Certificate dApp | Deploy & Manage Soulbound NFTs",
+  description: "Manage your university's soulbound NFT academic certificates on Sepolia testnet",
   viewport: {
     width: "device-width",
     initialScale: 1,

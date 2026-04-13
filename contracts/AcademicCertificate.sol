@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.24;
+pragma solidity ^0.8.25;
 
 import "@openzeppelin/contracts/token/ERC721/ERC721.sol";
 import "@openzeppelin/contracts/token/ERC721/extensions/ERC721URIStorage.sol";
@@ -39,7 +39,7 @@ contract AcademicCertificate is ERC721, ERC721URIStorage, AccessControl {
      */
     function issueCertificate(
         address student, 
-        string memory tokenURI, 
+        string memory _tokenURI, 
         string memory _candidateName, 
         string memory _courseName
     ) external onlyRole(ISSUER_ROLE) returns (uint256) {
@@ -48,7 +48,7 @@ contract AcademicCertificate is ERC721, ERC721URIStorage, AccessControl {
         uint256 tokenId = _nextTokenId++;
         
         _safeMint(student, tokenId);
-        _setTokenURI(tokenId, tokenURI);
+        _setTokenURI(tokenId, _tokenURI);
 
         certificates[tokenId] = CertificateData({
             candidateName: _candidateName,

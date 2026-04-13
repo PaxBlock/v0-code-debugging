@@ -8,7 +8,6 @@ const SEPOLIA_CHAIN_ID = 11155111;
 
 export default function Dashboard() {
   const [account, setAccount] = useState('');
-  const [provider, setProvider] = useState(null);
   const [signer, setSigner] = useState(null);
   const [isConnecting, setIsConnecting] = useState(false);
   const [activeTab, setActiveTab] = useState('deploy');

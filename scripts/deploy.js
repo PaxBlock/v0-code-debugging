@@ -1,39 +1,60 @@
 const hre = require("hardhat");
+const fs = require("fs");
 
 async function main() {
-  console.log("Starting deployment...");
+  try {
+    console.log("[v0] Starting deployment to Sepolia...");
+    console.log("[v0] Network:", hre.network.name);
+    console.log("[v0] RPC URL exists:", !!process.env.SEPOLIA_RPC_URL);
+    console.log("[v0] Private key exists:", !!process.env.PRIVATE_KEY);
 
-  // Deploy Factory first
-  const Factory = await hre.ethers.getContractFactory("UniversityFactory");
-  const factory = await Factory.deploy();
-  await factory.waitForDeployment();
-  const factoryAddress = await factory.getAddress();
-  console.log("✓ UniversityFactory deployed to:", factoryAddress);
+    // Get signer
+    const [deployer] = await hre.ethers.getSigners();
+    console.log("[v0] Deploying with account:", deployer.address);
 
-  // Save addresses for later use
-  const fs = require("fs");
-  const deploymentAddresses = {
-    factory: factoryAddress,
-    network: hre.network.name,
-    deploymentDate: new Date().toISOString(),
-  };
+    // Check balance
+    const balance = await hre.ethers.provider.getBalance(deployer.address);
+    console.log("[v0] Account balance:", hre.ethers.formatEther(balance), "ETH");
 
-  fs.writeFileSync(
-    "deployment-addresses.json",
-    JSON.stringify(deploymentAddresses, null, 2)
-  );
+    if (balance === 0n) {
+      throw new Error("Insufficient balance. Please get Sepolia ETH from a faucet.");
+    }
 
-  console.log("\n📋 Deployment complete!");
-  console.log("Factory Address:", factoryAddress);
-  console.log("\nNext steps:");
-  console.log("1. Save the Factory address above");
-  console.log("2. Universities can now be deployed via the factory");
-  console.log("3. Addresses saved to deployment-addresses.json");
+    // Deploy Factory
+    console.log("[v0] Compiling contracts...");
+    const Factory = await hre.ethers.getContractFactory("UniversityFactory");
+    console.log("[v0] Deploying UniversityFactory...");
+    const factory = await Factory.deploy();
+    await factory.waitForDeployment();
+    const factoryAddress = await factory.getAddress();
+
+    console.log("[v0] ✓ UniversityFactory deployed to:", factoryAddress);
+
+    // Save deployment addresses
+    const deploymentAddresses = {
+      factory: factoryAddress,
+      network: hre.network.name,
+      chainId: (await hre.ethers.provider.getNetwork()).chainId,
+      deploymentDate: new Date().toISOString(),
+    };
+
+    fs.writeFileSync(
+      "deployment-addresses.json",
+      JSON.stringify(deploymentAddresses, null, 2)
+    );
+
+    console.log("\n=== DEPLOYMENT SUCCESSFUL ===");
+    console.log("Factory Address:", factoryAddress);
+    console.log("Network: Sepolia");
+    console.log("Save this address for the UI!");
+    console.log("=============================\n");
+
+    process.exit(0);
+  } catch (error) {
+    console.error("[v0] Deployment failed:", error.message);
+    console.error("[v0] Full error:", error);
+    process.exit(1);
+  }
 }
 
-main()
-  .then(() => process.exit(0))
-  .catch((error) => {
-    console.error(error);
-    process.exit(1);
-  });
+main();

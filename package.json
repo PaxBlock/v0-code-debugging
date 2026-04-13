@@ -3,6 +3,8 @@
   "version": "1.0.0",
   "description": "Soulbound NFT Academic Certificate System",
   "scripts": {
+    "compile": "hardhat compile",
+    "deploy": "node scripts/full-deploy.js",
     "deploy:sepolia": "hardhat run scripts/deploy.js --network sepolia",
     "deploy:base": "hardhat run scripts/deploy.js --network base",
     "verify:sepolia": "hardhat verify --network sepolia",
@@ -10,10 +12,11 @@
   },
   "devDependencies": {
     "@nomicfoundation/hardhat-toolbox": "^4.0.0",
-    "hardhat": "^2.19.0",
-    "dotenv": "^16.3.1"
+    "dotenv": "^16.3.1",
+    "hardhat": "^2.19.0"
   },
   "dependencies": {
-    "@openzeppelin/contracts": "^5.0.0"
+    "@openzeppelin/contracts": "^5.0.0",
+    "ethers": "^6.16.0"
   }
 }

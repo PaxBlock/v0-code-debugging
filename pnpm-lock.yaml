@@ -11,6 +11,9 @@ importers:
       '@openzeppelin/contracts':
         specifier: ^5.0.0
         version: 5.6.1
+      ethers:
+        specifier: ^6.16.0
+        version: 6.16.0
     devDependencies:
       '@nomicfoundation/hardhat-toolbox':
         specifier: ^4.0.0

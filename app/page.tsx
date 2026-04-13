@@ -15,8 +15,12 @@ const FACTORY_ABI = [
 
 const UNIVERSITY_ABI = [
   'function issueCertificate(address student, string memory _tokenURI, string memory _candidateName, string memory _courseName) external returns (uint256)',
-  'function getCertificate(address student) external view returns (uint256 tokenId, string memory candidateName, string memory courseName, uint256 issuedAt, bool isRevoked)',
   'function hasCertificate(address student) external view returns (bool)',
+  'function certificates(uint256 tokenId) external view returns (string candidateName, string courseName, uint256 issuanceDate, address issuer)',
+  'function studentToTokenId(address student) external view returns (uint256)',
+  'function grantRole(bytes32 role, address account) external',
+  'function ISSUER_ROLE() external view returns (bytes32)',
+  'function hasRole(bytes32 role, address account) external view returns (bool)',
 ];
 
 type Msg = { type: 'success' | 'error' | 'info'; text: string };
@@ -39,6 +43,8 @@ export default function Dashboard() {
   const [certificateName, setCertificateName] = useState('');
   const [courseName, setCourseName] = useState('');
   const [isIssuing, setIsIssuing] = useState(false);
+  const [grantAddress, setGrantAddress] = useState('');
+  const [isGranting, setIsGranting] = useState(false);
 
   const [verifyStudent, setVerifyStudent] = useState('');
   const [verifyUniv, setVerifyUniv] = useState('');
@@ -123,6 +129,24 @@ export default function Dashboard() {
     }
   };
 
+  const grantIssuerRole = async () => {
+    if (!signer) { showMsg('error', 'Connect your wallet first'); return; }
+    if (!univAddress || !grantAddress) { showMsg('error', 'Enter university address and the address to grant role to'); return; }
+    setIsGranting(true);
+    try {
+      const university = new ethers.Contract(univAddress, UNIVERSITY_ABI, signer);
+      const issuerRole = await university.ISSUER_ROLE();
+      showMsg('info', 'Granting ISSUER_ROLE... Confirm in MetaMask');
+      const tx = await university.grantRole(issuerRole, grantAddress);
+      await tx.wait();
+      showMsg('success', `ISSUER_ROLE granted to ${grantAddress.slice(0, 6)}...${grantAddress.slice(-4)}! You can now issue certificates.`);
+    } catch (error) {
+      showMsg('error', error instanceof Error ? error.message : 'Grant role failed. Make sure you are the admin of this university contract.');
+    } finally {
+      setIsGranting(false);
+    }
+  };
+
   const issueCertificate = async () => {
     if (!signer) { showMsg('error', 'Connect your wallet first'); return; }
     if (!univAddress || !studentAddress || !certificateName || !courseName) { showMsg('error', 'Please fill in all fields'); return; }
@@ -130,12 +154,12 @@ export default function Dashboard() {
     try {
       const university = new ethers.Contract(univAddress, UNIVERSITY_ABI, signer);
       const tokenURI = `ipfs://certificate/${studentAddress}`;
-      showMsg('info', 'Issuing certificate...');
+      showMsg('info', 'Issuing certificate... Confirm in MetaMask');
       const tx = await university.issueCertificate(studentAddress, tokenURI, certificateName, courseName);
       await tx.wait();
       showMsg('success', `Certificate issued to ${studentAddress.slice(0, 6)}...${studentAddress.slice(-4)}!`);
     } catch (error) {
-      showMsg('error', error instanceof Error ? error.message : 'Issue failed');
+      showMsg('error', error instanceof Error ? error.message : 'Issue failed. Make sure your wallet has ISSUER_ROLE on this university contract.');
     } finally {
       setIsIssuing(false);
     }
@@ -152,12 +176,13 @@ export default function Dashboard() {
       const university = new ethers.Contract(verifyUniv, UNIVERSITY_ABI, provider);
       const has = await university.hasCertificate(verifyStudent);
       if (!has) { showMsg('error', 'No certificate found for this student'); setIsVerifying(false); return; }
-      const cert = await university.getCertificate(verifyStudent);
+      const tokenId = await university.studentToTokenId(verifyStudent);
+      const cert = await university.certificates(tokenId);
       setCertResult({
-        tokenId: cert.tokenId.toString(),
+        tokenId: tokenId.toString(),
         candidateName: cert.candidateName,
         courseName: cert.courseName,
-        issuedAt: new Date(Number(cert.issuedAt) * 1000).toLocaleDateString(),
+        issuedAt: new Date(Number(cert.issuanceDate) * 1000).toLocaleDateString(),
       });
       showMsg('success', 'Certificate verified successfully!');
     } catch (error) {
@@ -248,29 +273,62 @@ export default function Dashboard() {
 
         {/* Issue Certificate Tab */}
         {activeTab === 'issue' && (
-          <div className="bg-slate-800 rounded-xl p-6 border border-slate-700">
-            <h2 className="text-lg font-bold mb-1">Issue Certificate</h2>
-            <p className="text-slate-400 text-sm mb-6">Mint a soulbound NFT certificate to a student&apos;s wallet.</p>
-            <div className="space-y-4">
-              <div>
-                <label className={labelClass}>University Contract Address</label>
-                <input className={inputClass} placeholder="0x..." value={univAddress} onChange={(e) => setUnivAddress(e.target.value)} />
+          <div className="space-y-6">
+            {/* Step 1: Grant Role */}
+            <div className="bg-slate-800 rounded-xl p-6 border border-yellow-700/50">
+              <div className="flex items-center gap-2 mb-1">
+                <span className="bg-yellow-600 text-white text-xs font-bold px-2 py-0.5 rounded">Step 1</span>
+                <h2 className="text-lg font-bold">Grant Issuer Role</h2>
               </div>
-              <div>
-                <label className={labelClass}>Student Wallet Address</label>
-                <input className={inputClass} placeholder="0x..." value={studentAddress} onChange={(e) => setStudentAddress(e.target.value)} />
+              <p className="text-slate-400 text-sm mb-4">You must grant ISSUER_ROLE to your wallet before issuing certificates. You only need to do this once per university contract.</p>
+              <div className="space-y-4">
+                <div>
+                  <label className={labelClass}>University Contract Address</label>
+                  <input className={inputClass} placeholder="0x... (paste the address from Deploy tab)" value={univAddress} onChange={(e) => setUnivAddress(e.target.value)} />
+                </div>
+                <div>
+                  <label className={labelClass}>Wallet Address to Grant Issuer Role</label>
+                  <input className={inputClass} placeholder="0x... (paste your connected wallet address)" value={grantAddress} onChange={(e) => setGrantAddress(e.target.value)} />
+                  {account && (
+                    <button onClick={() => setGrantAddress(account)} className="mt-1 text-xs text-blue-400 hover:text-blue-300 underline">
+                      Use my connected wallet ({account.slice(0, 6)}...{account.slice(-4)})
+                    </button>
+                  )}
+                </div>
+                <button onClick={grantIssuerRole} disabled={isGranting} className={`${btnClass} bg-yellow-600 hover:bg-yellow-700`}>
+                  {isGranting ? 'Granting Role...' : 'Grant Issuer Role'}
+                </button>
               </div>
-              <div>
-                <label className={labelClass}>Student Full Name</label>
-                <input className={inputClass} placeholder="e.g. John Doe" value={certificateName} onChange={(e) => setCertificateName(e.target.value)} />
+            </div>
+
+            {/* Step 2: Issue Certificate */}
+            <div className="bg-slate-800 rounded-xl p-6 border border-slate-700">
+              <div className="flex items-center gap-2 mb-1">
+                <span className="bg-green-600 text-white text-xs font-bold px-2 py-0.5 rounded">Step 2</span>
+                <h2 className="text-lg font-bold">Issue Certificate</h2>
               </div>
-              <div>
-                <label className={labelClass}>Course / Degree Name</label>
-                <input className={inputClass} placeholder="e.g. BSc Computer Science" value={courseName} onChange={(e) => setCourseName(e.target.value)} />
+              <p className="text-slate-400 text-sm mb-4">Mint a soulbound NFT certificate to a student&apos;s wallet.</p>
+              <div className="space-y-4">
+                <div>
+                  <label className={labelClass}>University Contract Address</label>
+                  <input className={inputClass} placeholder="0x..." value={univAddress} onChange={(e) => setUnivAddress(e.target.value)} />
+                </div>
+                <div>
+                  <label className={labelClass}>Student Wallet Address</label>
+                  <input className={inputClass} placeholder="0x..." value={studentAddress} onChange={(e) => setStudentAddress(e.target.value)} />
+                </div>
+                <div>
+                  <label className={labelClass}>Student Full Name</label>
+                  <input className={inputClass} placeholder="e.g. John Doe" value={certificateName} onChange={(e) => setCertificateName(e.target.value)} />
+                </div>
+                <div>
+                  <label className={labelClass}>Course / Degree Name</label>
+                  <input className={inputClass} placeholder="e.g. BSc Computer Science" value={courseName} onChange={(e) => setCourseName(e.target.value)} />
+                </div>
+                <button onClick={issueCertificate} disabled={isIssuing} className={`${btnClass} bg-green-600 hover:bg-green-700`}>
+                  {isIssuing ? 'Issuing...' : 'Issue Certificate'}
+                </button>
               </div>
-              <button onClick={issueCertificate} disabled={isIssuing} className={`${btnClass} bg-green-600 hover:bg-green-700`}>
-                {isIssuing ? 'Issuing...' : 'Issue Certificate'}
-              </button>
             </div>
           </div>
         )}

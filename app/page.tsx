@@ -4,7 +4,8 @@ import { useState } from 'react';
 import { ethers } from 'ethers';
 
 const FACTORY_ADDRESS = '0xf729BBf09B236068d40ef9d50A515d78C02f3e59';
-const SEPOLIA_CHAIN_ID = BigInt(11155111);
+const SEPOLIA_CHAIN_ID = 11155111;
+const SEPOLIA_HEX = '0xaa36a7';
 
 const FACTORY_ABI = [
   'function deployUniversity(string memory universityName, string memory symbol, address universityAdmin) external returns (address)',
@@ -54,17 +55,44 @@ export default function Dashboard() {
   const connectWallet = async () => {
     setIsConnecting(true);
     try {
-      const win = window as unknown as { ethereum?: { request: (a: { method: string }) => Promise<string[]>; on: (e: string, cb: () => void) => void } };
+      const win = window as unknown as {
+        ethereum?: {
+          request: (a: { method: string; params?: unknown[] }) => Promise<unknown>;
+        }
+      };
       if (!win.ethereum) throw new Error('MetaMask not found. Please install MetaMask.');
 
-      const provider = new ethers.BrowserProvider(win.ethereum);
-      const accounts = await win.ethereum.request({ method: 'eth_requestAccounts' });
-      const network = await provider.getNetwork();
+      // Request accounts
+      const accounts = (await win.ethereum.request({ method: 'eth_requestAccounts' })) as string[];
 
-      if (network.chainId !== SEPOLIA_CHAIN_ID) {
-        throw new Error('Wrong network. Please switch MetaMask to Sepolia Testnet.');
+      // Check current chain
+      const chainIdHex = (await win.ethereum.request({ method: 'eth_chainId' })) as string;
+      const chainIdNum = parseInt(chainIdHex, 16);
+
+      if (chainIdNum !== SEPOLIA_CHAIN_ID) {
+        // Auto-switch to Sepolia
+        showMsg('info', 'Switching to Sepolia network...');
+        try {
+          await win.ethereum.request({
+            method: 'wallet_switchEthereumChain',
+            params: [{ chainId: SEPOLIA_HEX }],
+          });
+        } catch {
+          // Sepolia not in MetaMask, add it
+          await win.ethereum.request({
+            method: 'wallet_addEthereumChain',
+            params: [{
+              chainId: SEPOLIA_HEX,
+              chainName: 'Sepolia Testnet',
+              nativeCurrency: { name: 'SepoliaETH', symbol: 'ETH', decimals: 18 },
+              rpcUrls: ['https://rpc.sepolia.org'],
+              blockExplorerUrls: ['https://sepolia.etherscan.io'],
+            }],
+          });
+        }
       }
 
+      const provider = new ethers.BrowserProvider(win.ethereum as ethers.Eip1193Provider);
       const s = await provider.getSigner();
       setSigner(s);
       setAccount(accounts[0]);

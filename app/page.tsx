@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { ethers } from 'ethers';
 
 const FACTORY_ADDRESS = '0xf729BBf09B236068d40ef9d50A515d78C02f3e59';
@@ -11,19 +11,57 @@ const FACTORY_ABI = [
   'function deployUniversity(string memory universityName, string memory symbol, address universityAdmin) external returns (address)',
   'function getUniversities() external view returns (address[])',
   'function getUniversityCount() external view returns (uint256)',
+  'function deployedUniversities(uint256 index) external view returns (address)',
 ];
 
 const UNIVERSITY_ABI = [
+  'function name() external view returns (string)',
   'function issueCertificate(address student, string memory _tokenURI, string memory _candidateName, string memory _courseName) external returns (uint256)',
   'function hasCertificate(address student) external view returns (bool)',
   'function certificates(uint256 tokenId) external view returns (string candidateName, string courseName, uint256 issuanceDate, address issuer)',
   'function studentToTokenId(address student) external view returns (uint256)',
   'function grantRole(bytes32 role, address account) external',
-  'function ISSUER_ROLE() external view returns (bytes32)',
   'function hasRole(bytes32 role, address account) external view returns (bool)',
+  'function ISSUER_ROLE() external view returns (bytes32)',
+  'function DEFAULT_ADMIN_ROLE() external view returns (bytes32)',
 ];
 
 type Msg = { type: 'success' | 'error' | 'info'; text: string };
+type University = { address: string; name: string };
+
+// Translate raw blockchain errors into human-readable messages
+function parseError(error: unknown): string {
+  const raw = error instanceof Error ? error.message : String(error);
+
+  if (raw.includes('0xe2517d3f') || raw.includes('AccessControlUnauthorizedAccount')) {
+    return 'Permission denied. Your wallet does not have the required role to perform this action. Make sure you are the admin of this university contract and have granted yourself the Issuer Role first.';
+  }
+  if (raw.includes('user rejected') || raw.includes('User rejected')) {
+    return 'You cancelled the transaction in MetaMask.';
+  }
+  if (raw.includes('insufficient funds')) {
+    return 'Insufficient Sepolia ETH in your wallet. Please top up from a Sepolia faucet.';
+  }
+  if (raw.includes('already has a certificate') || raw.includes('This student already')) {
+    return 'This student already has a certificate. Each student can only receive one certificate per university.';
+  }
+  if (raw.includes('network changed') || raw.includes('chain')) {
+    return 'Network error. Please make sure you are on Sepolia Testnet in MetaMask.';
+  }
+  if (raw.includes('could not decode result data') || raw.includes('BAD_DATA')) {
+    return 'Could not read data from this contract address. Please double-check the university contract address is correct.';
+  }
+  if (raw.includes('invalid address') || raw.includes('INVALID_ARGUMENT')) {
+    return 'One of the addresses entered is invalid. Please check and try again.';
+  }
+  if (raw.includes('execution reverted')) {
+    return 'Transaction failed on the blockchain. Please make sure all details are correct and try again.';
+  }
+  if (raw.includes('MetaMask not found')) {
+    return 'MetaMask is not installed. Please install MetaMask to use this app.';
+  }
+  return 'Something went wrong. Please try again or check your wallet and network settings.';
+}
 
 export default function Dashboard() {
   const [account, setAccount] = useState('');
@@ -32,12 +70,14 @@ export default function Dashboard() {
   const [activeTab, setActiveTab] = useState<'deploy' | 'issue' | 'verify'>('deploy');
   const [msg, setMsg] = useState<Msg | null>(null);
 
+  // Deploy tab
   const [univName, setUnivName] = useState('');
   const [univSymbol, setUnivSymbol] = useState('');
   const [univAdmin, setUnivAdmin] = useState('');
   const [isDeploying, setIsDeploying] = useState(false);
   const [deployedUnivAddress, setDeployedUnivAddress] = useState('');
 
+  // Issue tab
   const [univAddress, setUnivAddress] = useState('');
   const [studentAddress, setStudentAddress] = useState('');
   const [certificateName, setCertificateName] = useState('');
@@ -45,46 +85,101 @@ export default function Dashboard() {
   const [isIssuing, setIsIssuing] = useState(false);
   const [grantAddress, setGrantAddress] = useState('');
   const [isGranting, setIsGranting] = useState(false);
+  const [hasIssuerRole, setHasIssuerRole] = useState<boolean | null>(null);
 
-  const [verifyStudent, setVerifyStudent] = useState('');
+  // Verify tab - uses university name lookup
+  const [universities, setUniversities] = useState<University[]>([]);
   const [verifyUniv, setVerifyUniv] = useState('');
+  const [verifyStudent, setVerifyStudent] = useState('');
   const [isVerifying, setIsVerifying] = useState(false);
+  const [isLoadingUnis, setIsLoadingUnis] = useState(false);
   const [certResult, setCertResult] = useState<{
     tokenId: string;
     candidateName: string;
     courseName: string;
     issuedAt: string;
+    universityName: string;
   } | null>(null);
 
   const showMsg = (type: Msg['type'], text: string) => setMsg({ type, text });
+
+  // Load universities list when verify tab is opened
+  useEffect(() => {
+    if (activeTab === 'verify') {
+      loadUniversities();
+    }
+  }, [activeTab]);
+
+  // Check if current wallet has issuer role when univAddress changes
+  useEffect(() => {
+    if (!account || !univAddress || !ethers.isAddress(univAddress)) {
+      setHasIssuerRole(null);
+      return;
+    }
+    checkIssuerRole();
+  }, [account, univAddress]);
+
+  const checkIssuerRole = async () => {
+    try {
+      const win = window as unknown as { ethereum?: object };
+      if (!win.ethereum) return;
+      const provider = new ethers.BrowserProvider(win.ethereum as ethers.Eip1193Provider);
+      const university = new ethers.Contract(univAddress, UNIVERSITY_ABI, provider);
+      const issuerRole = await university.ISSUER_ROLE();
+      const hasRole = await university.hasRole(issuerRole, account);
+      setHasIssuerRole(hasRole);
+    } catch {
+      setHasIssuerRole(null);
+    }
+  };
+
+  const loadUniversities = async () => {
+    setIsLoadingUnis(true);
+    try {
+      const win = window as unknown as { ethereum?: object };
+      const provider = win.ethereum
+        ? new ethers.BrowserProvider(win.ethereum as ethers.Eip1193Provider)
+        : new ethers.JsonRpcProvider('https://rpc.sepolia.org');
+
+      const factory = new ethers.Contract(FACTORY_ADDRESS, FACTORY_ABI, provider);
+      const count = await factory.getUniversityCount();
+      const unis: University[] = [];
+
+      for (let i = 0; i < Number(count); i++) {
+        const addr = await factory.deployedUniversities(i);
+        try {
+          const univContract = new ethers.Contract(addr, UNIVERSITY_ABI, provider);
+          const name = await univContract.name();
+          unis.push({ address: addr, name });
+        } catch {
+          unis.push({ address: addr, name: `University (${addr.slice(0, 6)}...)` });
+        }
+      }
+      setUniversities(unis);
+    } catch {
+      showMsg('error', 'Could not load universities list. Please check your connection.');
+    } finally {
+      setIsLoadingUnis(false);
+    }
+  };
 
   const connectWallet = async () => {
     setIsConnecting(true);
     try {
       const win = window as unknown as {
-        ethereum?: {
-          request: (a: { method: string; params?: unknown[] }) => Promise<unknown>;
-        }
+        ethereum?: { request: (a: { method: string; params?: unknown[] }) => Promise<unknown> };
       };
-      if (!win.ethereum) throw new Error('MetaMask not found. Please install MetaMask.');
+      if (!win.ethereum) throw new Error('MetaMask not found');
 
-      // Request accounts
       const accounts = (await win.ethereum.request({ method: 'eth_requestAccounts' })) as string[];
-
-      // Check current chain
       const chainIdHex = (await win.ethereum.request({ method: 'eth_chainId' })) as string;
       const chainIdNum = parseInt(chainIdHex, 16);
 
       if (chainIdNum !== SEPOLIA_CHAIN_ID) {
-        // Auto-switch to Sepolia
         showMsg('info', 'Switching to Sepolia network...');
         try {
-          await win.ethereum.request({
-            method: 'wallet_switchEthereumChain',
-            params: [{ chainId: SEPOLIA_HEX }],
-          });
+          await win.ethereum.request({ method: 'wallet_switchEthereumChain', params: [{ chainId: SEPOLIA_HEX }] });
         } catch {
-          // Sepolia not in MetaMask, add it
           await win.ethereum.request({
             method: 'wallet_addEthereumChain',
             params: [{
@@ -104,89 +199,121 @@ export default function Dashboard() {
       setAccount(accounts[0]);
       showMsg('success', 'Wallet connected to Sepolia!');
     } catch (error) {
-      showMsg('error', error instanceof Error ? error.message : 'Connection failed');
+      showMsg('error', parseError(error));
     } finally {
       setIsConnecting(false);
     }
   };
 
   const deployUniversity = async () => {
-    if (!signer) { showMsg('error', 'Connect your wallet first'); return; }
-    if (!univName || !univSymbol || !univAdmin) { showMsg('error', 'Please fill in all fields'); return; }
+    if (!signer) { showMsg('error', 'Please connect your wallet first.'); return; }
+    if (!univName || !univSymbol || !univAdmin) { showMsg('error', 'Please fill in all fields before deploying.'); return; }
+    if (!ethers.isAddress(univAdmin)) { showMsg('error', 'The admin wallet address is not valid. Please check and try again.'); return; }
     setIsDeploying(true);
     try {
       const factory = new ethers.Contract(FACTORY_ADDRESS, FACTORY_ABI, signer);
-      showMsg('info', 'Deploying university contract...');
+      showMsg('info', 'Deploying university contract... Please confirm in MetaMask.');
       const tx = await factory.deployUniversity(univName, univSymbol, univAdmin);
       const receipt = await tx.wait();
-      const univAddr = receipt.logs[0]?.address || 'Check transaction on Etherscan';
+      const event = receipt.logs.find((l: { topics: string[] }) => l.topics.length > 0);
+      const univAddr = event?.address || receipt.contractAddress || 'Check Etherscan';
       setDeployedUnivAddress(univAddr);
-      showMsg('success', `University deployed! Address: ${univAddr}`);
+      showMsg('success', `University deployed successfully!`);
     } catch (error) {
-      showMsg('error', error instanceof Error ? error.message : 'Deployment failed');
+      showMsg('error', parseError(error));
     } finally {
       setIsDeploying(false);
     }
   };
 
   const grantIssuerRole = async () => {
-    if (!signer) { showMsg('error', 'Connect your wallet first'); return; }
-    if (!univAddress || !grantAddress) { showMsg('error', 'Enter university address and the address to grant role to'); return; }
+    if (!signer) { showMsg('error', 'Please connect your wallet first.'); return; }
+    if (!univAddress) { showMsg('error', 'Please enter the university contract address.'); return; }
+    if (!ethers.isAddress(univAddress)) { showMsg('error', 'The university contract address is not valid.'); return; }
+    if (!grantAddress) { showMsg('error', 'Please enter the wallet address you want to grant the Issuer Role to.'); return; }
+    if (!ethers.isAddress(grantAddress)) { showMsg('error', 'The wallet address to grant role to is not valid.'); return; }
     setIsGranting(true);
     try {
       const university = new ethers.Contract(univAddress, UNIVERSITY_ABI, signer);
+
+      // Check if the current wallet is admin before trying
+      const adminRole = await university.DEFAULT_ADMIN_ROLE();
+      const isAdmin = await university.hasRole(adminRole, account);
+      if (!isAdmin) {
+        showMsg('error', 'Your wallet is not the admin of this university contract. Only the admin wallet that was set during deployment can grant roles.');
+        setIsGranting(false);
+        return;
+      }
+
       const issuerRole = await university.ISSUER_ROLE();
-      showMsg('info', 'Granting ISSUER_ROLE... Confirm in MetaMask');
+      showMsg('info', 'Granting Issuer Role... Please confirm in MetaMask.');
       const tx = await university.grantRole(issuerRole, grantAddress);
       await tx.wait();
-      showMsg('success', `ISSUER_ROLE granted to ${grantAddress.slice(0, 6)}...${grantAddress.slice(-4)}! You can now issue certificates.`);
+      setHasIssuerRole(grantAddress.toLowerCase() === account.toLowerCase() ? true : hasIssuerRole);
+      showMsg('success', `Issuer Role granted to ${grantAddress.slice(0, 6)}...${grantAddress.slice(-4)}. You can now issue certificates.`);
     } catch (error) {
-      showMsg('error', error instanceof Error ? error.message : 'Grant role failed. Make sure you are the admin of this university contract.');
+      showMsg('error', parseError(error));
     } finally {
       setIsGranting(false);
     }
   };
 
   const issueCertificate = async () => {
-    if (!signer) { showMsg('error', 'Connect your wallet first'); return; }
-    if (!univAddress || !studentAddress || !certificateName || !courseName) { showMsg('error', 'Please fill in all fields'); return; }
+    if (!signer) { showMsg('error', 'Please connect your wallet first.'); return; }
+    if (!univAddress || !studentAddress || !certificateName || !courseName) {
+      showMsg('error', 'Please fill in all fields before issuing a certificate.'); return;
+    }
+    if (!ethers.isAddress(univAddress)) { showMsg('error', 'The university contract address is not valid.'); return; }
+    if (!ethers.isAddress(studentAddress)) { showMsg('error', 'The student wallet address is not valid.'); return; }
     setIsIssuing(true);
     try {
       const university = new ethers.Contract(univAddress, UNIVERSITY_ABI, signer);
       const tokenURI = `ipfs://certificate/${studentAddress}`;
-      showMsg('info', 'Issuing certificate... Confirm in MetaMask');
+      showMsg('info', 'Issuing certificate... Please confirm in MetaMask.');
       const tx = await university.issueCertificate(studentAddress, tokenURI, certificateName, courseName);
       await tx.wait();
-      showMsg('success', `Certificate issued to ${studentAddress.slice(0, 6)}...${studentAddress.slice(-4)}!`);
+      showMsg('success', `Certificate successfully issued to ${certificateName}!`);
+      setStudentAddress('');
+      setCertificateName('');
+      setCourseName('');
     } catch (error) {
-      showMsg('error', error instanceof Error ? error.message : 'Issue failed. Make sure your wallet has ISSUER_ROLE on this university contract.');
+      showMsg('error', parseError(error));
     } finally {
       setIsIssuing(false);
     }
   };
 
   const verifyCertificate = async () => {
-    if (!verifyUniv || !verifyStudent) { showMsg('error', 'Please fill in all fields'); return; }
+    if (!verifyUniv) { showMsg('error', 'Please select a university.'); return; }
+    if (!verifyStudent) { showMsg('error', 'Please enter the student wallet address.'); return; }
+    if (!ethers.isAddress(verifyStudent)) { showMsg('error', 'The student wallet address is not valid. Please check and try again.'); return; }
     setIsVerifying(true);
     setCertResult(null);
     try {
       const win = window as unknown as { ethereum?: object };
-      if (!win.ethereum) throw new Error('MetaMask not found');
-      const provider = new ethers.BrowserProvider(win.ethereum as ethers.Eip1193Provider);
+      const provider = win.ethereum
+        ? new ethers.BrowserProvider(win.ethereum as ethers.Eip1193Provider)
+        : new ethers.JsonRpcProvider('https://rpc.sepolia.org');
       const university = new ethers.Contract(verifyUniv, UNIVERSITY_ABI, provider);
       const has = await university.hasCertificate(verifyStudent);
-      if (!has) { showMsg('error', 'No certificate found for this student'); setIsVerifying(false); return; }
+      if (!has) {
+        showMsg('error', 'No certificate found for this student at the selected university.');
+        setIsVerifying(false);
+        return;
+      }
       const tokenId = await university.studentToTokenId(verifyStudent);
       const cert = await university.certificates(tokenId);
+      const univName = universities.find(u => u.address.toLowerCase() === verifyUniv.toLowerCase())?.name || 'Unknown University';
       setCertResult({
         tokenId: tokenId.toString(),
         candidateName: cert.candidateName,
         courseName: cert.courseName,
-        issuedAt: new Date(Number(cert.issuanceDate) * 1000).toLocaleDateString(),
+        issuedAt: new Date(Number(cert.issuanceDate) * 1000).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' }),
+        universityName: univName,
       });
-      showMsg('success', 'Certificate verified successfully!');
+      showMsg('success', 'Certificate verified on the blockchain!');
     } catch (error) {
-      showMsg('error', error instanceof Error ? error.message : 'Verification failed');
+      showMsg('error', parseError(error));
     } finally {
       setIsVerifying(false);
     }
@@ -194,45 +321,48 @@ export default function Dashboard() {
 
   const inputClass = 'w-full px-4 py-3 rounded-lg border border-slate-600 bg-slate-800 text-white placeholder-slate-400 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 text-sm';
   const labelClass = 'block text-sm font-medium text-slate-300 mb-1';
-  const btnClass = 'w-full py-3 px-6 rounded-lg font-semibold text-white transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed';
+  const btnClass = 'w-full py-3 px-6 rounded-lg font-semibold text-white transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed text-sm';
 
   return (
     <main className="min-h-screen bg-slate-900 text-white font-sans">
       {/* Header */}
       <header className="border-b border-slate-700 bg-slate-900/95 backdrop-blur sticky top-0 z-10">
-        <div className="max-w-4xl mx-auto px-4 py-4 flex items-center justify-between">
+        <div className="max-w-3xl mx-auto px-4 py-4 flex items-center justify-between">
           <div>
             <h1 className="text-xl font-bold text-white">PAX Certificate System</h1>
-            <p className="text-xs text-slate-400">Soulbound NFT Academic Certificates</p>
+            <p className="text-xs text-slate-400">Soulbound NFT Academic Certificates on Sepolia</p>
           </div>
           <button
             onClick={connectWallet}
             disabled={isConnecting}
-            className={`px-4 py-2 rounded-lg text-sm font-semibold transition-all ${account ? 'bg-green-600 hover:bg-green-700' : 'bg-blue-600 hover:bg-blue-700'} disabled:opacity-50`}
+            className={`px-4 py-2 rounded-lg text-sm font-semibold transition-all ${account ? 'bg-green-700 hover:bg-green-600' : 'bg-blue-600 hover:bg-blue-700'} disabled:opacity-50`}
           >
             {isConnecting ? 'Connecting...' : account ? `${account.slice(0, 6)}...${account.slice(-4)}` : 'Connect Wallet'}
           </button>
         </div>
       </header>
 
-      <div className="max-w-4xl mx-auto px-4 py-8">
+      <div className="max-w-3xl mx-auto px-4 py-8">
+
         {/* Message Banner */}
         {msg && (
-          <div className={`mb-6 p-4 rounded-lg text-sm font-medium ${msg.type === 'success' ? 'bg-green-900/50 border border-green-600 text-green-300' : msg.type === 'error' ? 'bg-red-900/50 border border-red-600 text-red-300' : 'bg-blue-900/50 border border-blue-600 text-blue-300'}`}>
-            <div className="flex justify-between items-start">
-              <span>{msg.text}</span>
-              <button onClick={() => setMsg(null)} className="ml-4 opacity-60 hover:opacity-100">x</button>
-            </div>
+          <div className={`mb-6 p-4 rounded-lg text-sm font-medium flex justify-between items-start gap-4 ${
+            msg.type === 'success' ? 'bg-green-900/40 border border-green-600 text-green-200' :
+            msg.type === 'error' ? 'bg-red-900/40 border border-red-600 text-red-200' :
+            'bg-blue-900/40 border border-blue-600 text-blue-200'
+          }`}>
+            <span>{msg.text}</span>
+            <button onClick={() => setMsg(null)} className="shrink-0 opacity-60 hover:opacity-100 text-lg leading-none">x</button>
           </div>
         )}
 
         {/* Tabs */}
-        <div className="flex gap-1 bg-slate-800 p-1 rounded-lg mb-8">
+        <div className="flex gap-1 bg-slate-800 p-1 rounded-lg mb-8 border border-slate-700">
           {(['deploy', 'issue', 'verify'] as const).map((tab) => (
             <button
               key={tab}
-              onClick={() => setActiveTab(tab)}
-              className={`flex-1 py-2 px-4 rounded-md text-sm font-medium capitalize transition-all ${activeTab === tab ? 'bg-blue-600 text-white' : 'text-slate-400 hover:text-white'}`}
+              onClick={() => { setActiveTab(tab); setMsg(null); }}
+              className={`flex-1 py-2.5 px-3 rounded-md text-sm font-medium transition-all ${activeTab === tab ? 'bg-blue-600 text-white shadow' : 'text-slate-400 hover:text-white'}`}
             >
               {tab === 'deploy' ? 'Deploy University' : tab === 'issue' ? 'Issue Certificate' : 'Verify Certificate'}
             </button>
@@ -241,33 +371,40 @@ export default function Dashboard() {
 
         {/* Deploy University Tab */}
         {activeTab === 'deploy' && (
-          <div className="bg-slate-800 rounded-xl p-6 border border-slate-700">
-            <h2 className="text-lg font-bold mb-1">Deploy University Contract</h2>
-            <p className="text-slate-400 text-sm mb-6">Create a new certificate contract for your institution via the Factory.</p>
-            <div className="space-y-4">
-              <div>
-                <label className={labelClass}>University Name</label>
-                <input className={inputClass} placeholder="e.g. Harvard University" value={univName} onChange={(e) => setUnivName(e.target.value)} />
-              </div>
-              <div>
-                <label className={labelClass}>Token Symbol</label>
-                <input className={inputClass} placeholder="e.g. HARV" value={univSymbol} onChange={(e) => setUnivSymbol(e.target.value)} />
-              </div>
-              <div>
-                <label className={labelClass}>Admin Wallet Address</label>
-                <input className={inputClass} placeholder="0x..." value={univAdmin} onChange={(e) => setUnivAdmin(e.target.value)} />
-              </div>
-              <button onClick={deployUniversity} disabled={isDeploying} className={`${btnClass} bg-blue-600 hover:bg-blue-700`}>
-                {isDeploying ? 'Deploying...' : 'Deploy University'}
-              </button>
-              {deployedUnivAddress && (
-                <div className="mt-4 p-4 bg-green-900/30 border border-green-700 rounded-lg">
-                  <p className="text-xs text-slate-400 mb-1">University Contract Address:</p>
-                  <p className="font-mono text-green-400 text-sm break-all">{deployedUnivAddress}</p>
-                  <p className="text-xs text-slate-500 mt-2">Save this address to issue certificates!</p>
-                </div>
-              )}
+          <div className="bg-slate-800 rounded-xl p-6 border border-slate-700 space-y-4">
+            <div>
+              <h2 className="text-lg font-bold">Deploy University Contract</h2>
+              <p className="text-slate-400 text-sm mt-1">Create a new certificate-issuing contract for your institution.</p>
             </div>
+            <div>
+              <label className={labelClass}>University Name</label>
+              <input className={inputClass} placeholder="e.g. Harvard University" value={univName} onChange={(e) => setUnivName(e.target.value)} />
+            </div>
+            <div>
+              <label className={labelClass}>Token Symbol</label>
+              <input className={inputClass} placeholder="e.g. HARV" value={univSymbol} onChange={(e) => setUnivSymbol(e.target.value)} />
+              <p className="text-xs text-slate-500 mt-1">A short code for the NFT (2-5 characters)</p>
+            </div>
+            <div>
+              <label className={labelClass}>Admin Wallet Address</label>
+              <input className={inputClass} placeholder="0x..." value={univAdmin} onChange={(e) => setUnivAdmin(e.target.value)} />
+              {account && (
+                <button onClick={() => setUnivAdmin(account)} className="mt-1 text-xs text-blue-400 hover:text-blue-300 underline">
+                  Use my connected wallet ({account.slice(0, 6)}...{account.slice(-4)})
+                </button>
+              )}
+              <p className="text-xs text-slate-500 mt-1">This wallet will be the admin who can grant issuer roles.</p>
+            </div>
+            <button onClick={deployUniversity} disabled={isDeploying} className={`${btnClass} bg-blue-600 hover:bg-blue-700`}>
+              {isDeploying ? 'Deploying... Please wait' : 'Deploy University'}
+            </button>
+            {deployedUnivAddress && (
+              <div className="mt-2 p-4 bg-green-900/20 border border-green-700 rounded-lg">
+                <p className="text-xs text-slate-400 mb-1">University Contract Address (save this!):</p>
+                <p className="font-mono text-green-400 text-sm break-all">{deployedUnivAddress}</p>
+                <p className="text-xs text-slate-500 mt-2">You will need this address to issue certificates.</p>
+              </div>
+            )}
           </div>
         )}
 
@@ -275,115 +412,160 @@ export default function Dashboard() {
         {activeTab === 'issue' && (
           <div className="space-y-6">
             {/* Step 1: Grant Role */}
-            <div className="bg-slate-800 rounded-xl p-6 border border-yellow-700/50">
-              <div className="flex items-center gap-2 mb-1">
-                <span className="bg-yellow-600 text-white text-xs font-bold px-2 py-0.5 rounded">Step 1</span>
-                <h2 className="text-lg font-bold">Grant Issuer Role</h2>
+            <div className="bg-slate-800 rounded-xl p-6 border border-amber-700/40 space-y-4">
+              <div className="flex items-center gap-2">
+                <span className="bg-amber-600 text-white text-xs font-bold px-2 py-0.5 rounded-full">Step 1</span>
+                <h2 className="text-base font-bold">Grant Issuer Role</h2>
+                <span className="text-xs text-slate-400 ml-auto">One-time setup per university</span>
               </div>
-              <p className="text-slate-400 text-sm mb-4">You must grant ISSUER_ROLE to your wallet before issuing certificates. You only need to do this once per university contract.</p>
-              <div className="space-y-4">
-                <div>
-                  <label className={labelClass}>University Contract Address</label>
-                  <input className={inputClass} placeholder="0x... (paste the address from Deploy tab)" value={univAddress} onChange={(e) => setUnivAddress(e.target.value)} />
-                </div>
-                <div>
-                  <label className={labelClass}>Wallet Address to Grant Issuer Role</label>
-                  <input className={inputClass} placeholder="0x... (paste your connected wallet address)" value={grantAddress} onChange={(e) => setGrantAddress(e.target.value)} />
-                  {account && (
-                    <button onClick={() => setGrantAddress(account)} className="mt-1 text-xs text-blue-400 hover:text-blue-300 underline">
-                      Use my connected wallet ({account.slice(0, 6)}...{account.slice(-4)})
-                    </button>
-                  )}
-                </div>
-                <button onClick={grantIssuerRole} disabled={isGranting} className={`${btnClass} bg-yellow-600 hover:bg-yellow-700`}>
-                  {isGranting ? 'Granting Role...' : 'Grant Issuer Role'}
-                </button>
+              <p className="text-slate-400 text-sm">Before you can issue certificates, your wallet needs the Issuer Role on the university contract. The admin wallet must do this step.</p>
+              <div>
+                <label className={labelClass}>University Contract Address</label>
+                <input className={inputClass} placeholder="0x... (from Deploy tab)" value={univAddress} onChange={(e) => { setUnivAddress(e.target.value); setHasIssuerRole(null); }} />
+                {hasIssuerRole === true && (
+                  <p className="text-xs text-green-400 mt-1">Your wallet already has the Issuer Role on this contract. You can skip to Step 2.</p>
+                )}
+                {hasIssuerRole === false && (
+                  <p className="text-xs text-amber-400 mt-1">Your wallet does not have the Issuer Role yet. Complete Step 1 first.</p>
+                )}
               </div>
+              <div>
+                <label className={labelClass}>Wallet Address to Grant Issuer Role</label>
+                <input className={inputClass} placeholder="0x..." value={grantAddress} onChange={(e) => setGrantAddress(e.target.value)} />
+                {account && (
+                  <button onClick={() => setGrantAddress(account)} className="mt-1 text-xs text-blue-400 hover:text-blue-300 underline">
+                    Use my connected wallet ({account.slice(0, 6)}...{account.slice(-4)})
+                  </button>
+                )}
+              </div>
+              <button onClick={grantIssuerRole} disabled={isGranting || hasIssuerRole === true} className={`${btnClass} bg-amber-600 hover:bg-amber-700 disabled:opacity-50`}>
+                {isGranting ? 'Granting Role... Please wait' : hasIssuerRole === true ? 'Issuer Role Already Granted' : 'Grant Issuer Role'}
+              </button>
             </div>
 
             {/* Step 2: Issue Certificate */}
-            <div className="bg-slate-800 rounded-xl p-6 border border-slate-700">
-              <div className="flex items-center gap-2 mb-1">
-                <span className="bg-green-600 text-white text-xs font-bold px-2 py-0.5 rounded">Step 2</span>
-                <h2 className="text-lg font-bold">Issue Certificate</h2>
+            <div className="bg-slate-800 rounded-xl p-6 border border-slate-700 space-y-4">
+              <div className="flex items-center gap-2">
+                <span className="bg-green-600 text-white text-xs font-bold px-2 py-0.5 rounded-full">Step 2</span>
+                <h2 className="text-base font-bold">Issue Certificate</h2>
               </div>
-              <p className="text-slate-400 text-sm mb-4">Mint a soulbound NFT certificate to a student&apos;s wallet.</p>
-              <div className="space-y-4">
-                <div>
-                  <label className={labelClass}>University Contract Address</label>
-                  <input className={inputClass} placeholder="0x..." value={univAddress} onChange={(e) => setUnivAddress(e.target.value)} />
-                </div>
-                <div>
-                  <label className={labelClass}>Student Wallet Address</label>
-                  <input className={inputClass} placeholder="0x..." value={studentAddress} onChange={(e) => setStudentAddress(e.target.value)} />
-                </div>
-                <div>
-                  <label className={labelClass}>Student Full Name</label>
-                  <input className={inputClass} placeholder="e.g. John Doe" value={certificateName} onChange={(e) => setCertificateName(e.target.value)} />
-                </div>
-                <div>
-                  <label className={labelClass}>Course / Degree Name</label>
-                  <input className={inputClass} placeholder="e.g. BSc Computer Science" value={courseName} onChange={(e) => setCourseName(e.target.value)} />
-                </div>
-                <button onClick={issueCertificate} disabled={isIssuing} className={`${btnClass} bg-green-600 hover:bg-green-700`}>
-                  {isIssuing ? 'Issuing...' : 'Issue Certificate'}
-                </button>
+              <p className="text-slate-400 text-sm">Mint a permanent, non-transferable certificate to a student.</p>
+              <div>
+                <label className={labelClass}>University Contract Address</label>
+                <input className={inputClass} placeholder="0x..." value={univAddress} onChange={(e) => setUnivAddress(e.target.value)} />
               </div>
+              <div>
+                <label className={labelClass}>Student Wallet Address</label>
+                <input className={inputClass} placeholder="0x... (student&apos;s MetaMask address)" value={studentAddress} onChange={(e) => setStudentAddress(e.target.value)} />
+              </div>
+              <div>
+                <label className={labelClass}>Student Full Name</label>
+                <input className={inputClass} placeholder="e.g. James Jonah" value={certificateName} onChange={(e) => setCertificateName(e.target.value)} />
+              </div>
+              <div>
+                <label className={labelClass}>Course / Degree Name</label>
+                <input className={inputClass} placeholder="e.g. BSc Engineering Physics" value={courseName} onChange={(e) => setCourseName(e.target.value)} />
+              </div>
+              <button onClick={issueCertificate} disabled={isIssuing} className={`${btnClass} bg-green-600 hover:bg-green-700`}>
+                {isIssuing ? 'Issuing Certificate... Please wait' : 'Issue Certificate'}
+              </button>
             </div>
           </div>
         )}
 
         {/* Verify Certificate Tab */}
         {activeTab === 'verify' && (
-          <div className="bg-slate-800 rounded-xl p-6 border border-slate-700">
-            <h2 className="text-lg font-bold mb-1">Verify Certificate</h2>
-            <p className="text-slate-400 text-sm mb-6">Publicly verify any student&apos;s certificate on the blockchain.</p>
-            <div className="space-y-4">
-              <div>
-                <label className={labelClass}>University Contract Address</label>
-                <input className={inputClass} placeholder="0x..." value={verifyUniv} onChange={(e) => setVerifyUniv(e.target.value)} />
-              </div>
-              <div>
-                <label className={labelClass}>Student Wallet Address</label>
-                <input className={inputClass} placeholder="0x..." value={verifyStudent} onChange={(e) => setVerifyStudent(e.target.value)} />
-              </div>
-              <button onClick={verifyCertificate} disabled={isVerifying} className={`${btnClass} bg-purple-600 hover:bg-purple-700`}>
-                {isVerifying ? 'Verifying...' : 'Verify Certificate'}
-              </button>
-              {certResult && (
-                <div className="mt-4 p-4 bg-slate-700 rounded-lg border border-slate-600 space-y-3">
-                  <div className="flex items-center gap-2 mb-2">
-                    <div className="w-2 h-2 rounded-full bg-green-400"></div>
-                    <span className="text-green-400 font-semibold text-sm">Certificate Verified</span>
-                  </div>
-                  <div className="grid grid-cols-2 gap-3 text-sm">
-                    <div>
-                      <p className="text-slate-400 text-xs">Token ID</p>
-                      <p className="font-mono text-white">#{certResult.tokenId}</p>
-                    </div>
-                    <div>
-                      <p className="text-slate-400 text-xs">Issued Date</p>
-                      <p className="text-white">{certResult.issuedAt}</p>
-                    </div>
-                    <div>
-                      <p className="text-slate-400 text-xs">Student Name</p>
-                      <p className="text-white">{certResult.candidateName}</p>
-                    </div>
-                    <div>
-                      <p className="text-slate-400 text-xs">Course</p>
-                      <p className="text-white">{certResult.courseName}</p>
-                    </div>
-                  </div>
+          <div className="bg-slate-800 rounded-xl p-6 border border-slate-700 space-y-4">
+            <div>
+              <h2 className="text-lg font-bold">Verify Certificate</h2>
+              <p className="text-slate-400 text-sm mt-1">Publicly verify any certificate on the blockchain. No wallet required.</p>
+            </div>
+
+            <div>
+              <label className={labelClass}>Select University</label>
+              {isLoadingUnis ? (
+                <div className="w-full px-4 py-3 rounded-lg border border-slate-600 bg-slate-800 text-slate-400 text-sm">
+                  Loading universities...
+                </div>
+              ) : universities.length === 0 ? (
+                <div className="flex gap-2 items-center">
+                  <select className={inputClass} disabled>
+                    <option>No universities deployed yet</option>
+                  </select>
+                  <button onClick={loadUniversities} className="shrink-0 px-3 py-3 rounded-lg bg-slate-700 hover:bg-slate-600 text-sm text-slate-300">
+                    Reload
+                  </button>
+                </div>
+              ) : (
+                <div className="flex gap-2 items-center">
+                  <select
+                    className={inputClass}
+                    value={verifyUniv}
+                    onChange={(e) => { setVerifyUniv(e.target.value); setCertResult(null); }}
+                  >
+                    <option value="">-- Select a university --</option>
+                    {universities.map((u) => (
+                      <option key={u.address} value={u.address}>{u.name}</option>
+                    ))}
+                  </select>
+                  <button onClick={loadUniversities} className="shrink-0 px-3 py-3 rounded-lg bg-slate-700 hover:bg-slate-600 text-sm text-slate-300" title="Refresh list">
+                    Reload
+                  </button>
                 </div>
               )}
             </div>
+
+            <div>
+              <label className={labelClass}>Student Wallet Address</label>
+              <input
+                className={inputClass}
+                placeholder="0x... (student&apos;s wallet address)"
+                value={verifyStudent}
+                onChange={(e) => { setVerifyStudent(e.target.value); setCertResult(null); }}
+              />
+            </div>
+
+            <button onClick={verifyCertificate} disabled={isVerifying} className={`${btnClass} bg-purple-600 hover:bg-purple-700`}>
+              {isVerifying ? 'Verifying...' : 'Verify Certificate'}
+            </button>
+
+            {certResult && (
+              <div className="mt-2 p-5 bg-slate-700/60 rounded-xl border border-green-700/50 space-y-4">
+                <div className="flex items-center gap-2">
+                  <div className="w-2.5 h-2.5 rounded-full bg-green-400 shrink-0"></div>
+                  <span className="text-green-400 font-semibold text-sm">Certificate Verified on Blockchain</span>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <p className="text-slate-400 text-xs uppercase tracking-wide mb-1">Student Name</p>
+                    <p className="text-white font-medium">{certResult.candidateName}</p>
+                  </div>
+                  <div>
+                    <p className="text-slate-400 text-xs uppercase tracking-wide mb-1">Course</p>
+                    <p className="text-white font-medium">{certResult.courseName}</p>
+                  </div>
+                  <div>
+                    <p className="text-slate-400 text-xs uppercase tracking-wide mb-1">University</p>
+                    <p className="text-white font-medium">{certResult.universityName}</p>
+                  </div>
+                  <div>
+                    <p className="text-slate-400 text-xs uppercase tracking-wide mb-1">Date Issued</p>
+                    <p className="text-white font-medium">{certResult.issuedAt}</p>
+                  </div>
+                </div>
+                <div className="pt-2 border-t border-slate-600">
+                  <p className="text-slate-400 text-xs uppercase tracking-wide mb-1">Token ID</p>
+                  <p className="font-mono text-slate-300 text-sm">#{certResult.tokenId}</p>
+                </div>
+              </div>
+            )}
           </div>
         )}
 
         {/* Footer */}
-        <div className="mt-8 text-center text-xs text-slate-500">
-          <p>Factory Contract: <span className="font-mono text-slate-400">{FACTORY_ADDRESS}</span></p>
-          <p className="mt-1">Running on Sepolia Testnet</p>
+        <div className="mt-10 text-center text-xs text-slate-600 space-y-1">
+          <p>Factory: <span className="font-mono">{FACTORY_ADDRESS}</span></p>
+          <p>Sepolia Testnet</p>
         </div>
       </div>
     </main>

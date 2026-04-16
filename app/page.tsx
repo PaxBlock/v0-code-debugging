@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { ethers } from 'ethers';
+import { encryptName, decryptName } from '@/lib/encryption';
 
 const FACTORY_ADDRESS = '0xf729BBf09B236068d40ef9d50A515d78C02f3e59';
 const SEPOLIA_CHAIN_ID = 11155111;
@@ -267,12 +268,17 @@ export default function Dashboard() {
     if (!ethers.isAddress(studentAddress)) { showMsg('error', 'The student wallet address is not valid.'); return; }
     setIsIssuing(true);
     try {
+      // Encrypt the student name and course before storing on blockchain
+      showMsg('info', 'Encrypting certificate data...');
+      const encryptedName = await encryptName(certificateName, univAddress, studentAddress);
+      const encryptedCourse = await encryptName(courseName, univAddress, studentAddress);
+
       const university = new ethers.Contract(univAddress, UNIVERSITY_ABI, signer);
       const tokenURI = `ipfs://certificate/${studentAddress}`;
       showMsg('info', 'Issuing certificate... Please confirm in MetaMask.');
-      const tx = await university.issueCertificate(studentAddress, tokenURI, certificateName, courseName);
+      const tx = await university.issueCertificate(studentAddress, tokenURI, encryptedName, encryptedCourse);
       await tx.wait();
-      showMsg('success', `Certificate successfully issued to ${certificateName}!`);
+      showMsg('success', `Certificate successfully issued to ${certificateName}! Their data is encrypted on the blockchain.`);
       setStudentAddress('');
       setCertificateName('');
       setCourseName('');
@@ -304,10 +310,16 @@ export default function Dashboard() {
       const tokenId = await university.studentToTokenId(verifyStudent);
       const cert = await university.certificates(tokenId);
       const univName = universities.find(u => u.address.toLowerCase() === verifyUniv.toLowerCase())?.name || 'Unknown University';
+
+      // Decrypt the name and course - works transparently for both
+      // encrypted (new) and unencrypted (legacy) certificates
+      const decryptedName = await decryptName(cert.candidateName, verifyUniv, verifyStudent);
+      const decryptedCourse = await decryptName(cert.courseName, verifyUniv, verifyStudent);
+
       setCertResult({
         tokenId: tokenId.toString(),
-        candidateName: cert.candidateName,
-        courseName: cert.courseName,
+        candidateName: decryptedName,
+        courseName: decryptedCourse,
         issuedAt: new Date(Number(cert.issuanceDate) * 1000).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' }),
         universityName: univName,
       });

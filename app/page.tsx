@@ -553,9 +553,20 @@ export default function Dashboard() {
                     <p className="text-white font-medium">{certResult.issuedAt}</p>
                   </div>
                 </div>
-                <div className="pt-2 border-t border-slate-600">
-                  <p className="text-slate-400 text-xs uppercase tracking-wide mb-1">Token ID</p>
-                  <p className="font-mono text-slate-300 text-sm">#{certResult.tokenId}</p>
+                <div className="pt-2 border-t border-slate-600 flex justify-between items-center">
+                  <div>
+                    <p className="text-slate-400 text-xs uppercase tracking-wide mb-1">Certificate Token ID</p>
+                    <p className="font-mono text-slate-300 text-sm">#{(Number(certResult.tokenId) + 1).toString()}</p>
+                    <p className="text-slate-500 text-xs mt-0.5">Blockchain ID: {certResult.tokenId} (0-indexed)</p>
+                  </div>
+                  <a
+                    href={`https://sepolia.etherscan.io/token/${verifyUniv}?a=${verifyStudent}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-xs text-blue-400 hover:text-blue-300 underline"
+                  >
+                    View on Etherscan
+                  </a>
                 </div>
               </div>
             )}

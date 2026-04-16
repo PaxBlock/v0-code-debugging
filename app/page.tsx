@@ -122,9 +122,7 @@ export default function Dashboard() {
 
   const checkIssuerRole = async () => {
     try {
-      const win = window as unknown as { ethereum?: object };
-      if (!win.ethereum) return;
-      const provider = new ethers.BrowserProvider(win.ethereum as ethers.Eip1193Provider);
+      const provider = await getReadOnlyProvider();
       const university = new ethers.Contract(univAddress, UNIVERSITY_ABI, provider);
       const issuerRole = await university.ISSUER_ROLE();
       const hasRole = await university.hasRole(issuerRole, account);
@@ -134,14 +132,37 @@ export default function Dashboard() {
     }
   };
 
+  const getReadOnlyProvider = async () => {
+    const win = window as unknown as { ethereum?: object };
+    // Prefer wallet provider (most reliable)
+    if (win.ethereum) {
+      return new ethers.BrowserProvider(win.ethereum as ethers.Eip1193Provider);
+    }
+    // Try multiple public Sepolia RPCs in order of reliability
+    const fallbackRpcs = [
+      'https://eth-sepolia.g.alchemy.com/v2/demo',
+      'https://sepolia.gateway.tenderly.co',
+      'https://1rpc.io/sepolia',
+      'https://rpc2.sepolia.org',
+      'https://rpc.sepolia.org',
+    ];
+    for (const rpc of fallbackRpcs) {
+      try {
+        const p = new ethers.JsonRpcProvider(rpc);
+        // Quick test to confirm the RPC is responding
+        await p.getBlockNumber();
+        return p;
+      } catch {
+        continue;
+      }
+    }
+    throw new Error('Could not connect to Sepolia network. Please install MetaMask or check your internet connection.');
+  };
+
   const loadUniversities = async () => {
     setIsLoadingUnis(true);
     try {
-      const win = window as unknown as { ethereum?: object };
-      const provider = win.ethereum
-        ? new ethers.BrowserProvider(win.ethereum as ethers.Eip1193Provider)
-        : new ethers.JsonRpcProvider('https://rpc.sepolia.org');
-
+      const provider = await getReadOnlyProvider();
       const factory = new ethers.Contract(FACTORY_ADDRESS, FACTORY_ABI, provider);
       const count = await factory.getUniversityCount();
       const unis: University[] = [];
@@ -157,8 +178,8 @@ export default function Dashboard() {
         }
       }
       setUniversities(unis);
-    } catch {
-      showMsg('error', 'Could not load universities list. Please check your connection.');
+    } catch (error) {
+      showMsg('error', error instanceof Error ? error.message : 'Could not load universities. Please try again.');
     } finally {
       setIsLoadingUnis(false);
     }
@@ -296,10 +317,7 @@ export default function Dashboard() {
     setIsVerifying(true);
     setCertResult(null);
     try {
-      const win = window as unknown as { ethereum?: object };
-      const provider = win.ethereum
-        ? new ethers.BrowserProvider(win.ethereum as ethers.Eip1193Provider)
-        : new ethers.JsonRpcProvider('https://rpc.sepolia.org');
+      const provider = await getReadOnlyProvider();
       const university = new ethers.Contract(verifyUniv, UNIVERSITY_ABI, provider);
       const has = await university.hasCertificate(verifyStudent);
       if (!has) {

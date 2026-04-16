@@ -73,6 +73,7 @@ export default function Dashboard() {
 
   // Deploy tab
   const [univName, setUnivName] = useState('');
+  const [degreeLevel, setDegreeLevel] = useState('');
   const [univSymbol, setUnivSymbol] = useState('');
   const [univAdmin, setUnivAdmin] = useState('');
   const [isDeploying, setIsDeploying] = useState(false);
@@ -104,9 +105,9 @@ export default function Dashboard() {
 
   const showMsg = (type: Msg['type'], text: string) => setMsg({ type, text });
 
-  // Load universities list when verify tab is opened
+  // Load universities list when verify or issue tab is opened
   useEffect(() => {
-    if (activeTab === 'verify') {
+    if (activeTab === 'verify' || activeTab === 'issue') {
       loadUniversities();
     }
   }, [activeTab]);
@@ -229,13 +230,15 @@ export default function Dashboard() {
 
   const deployUniversity = async () => {
     if (!signer) { showMsg('error', 'Please connect your wallet first.'); return; }
-    if (!univName || !univSymbol || !univAdmin) { showMsg('error', 'Please fill in all fields before deploying.'); return; }
+    if (!univName || !degreeLevel || !univSymbol || !univAdmin) { showMsg('error', 'Please fill in all fields before deploying.'); return; }
     if (!ethers.isAddress(univAdmin)) { showMsg('error', 'The admin wallet address is not valid. Please check and try again.'); return; }
     setIsDeploying(true);
     try {
+      // Combine university name and degree level into one clear contract name
+      const fullName = `${univName.trim()} - ${degreeLevel}`;
       const factory = new ethers.Contract(FACTORY_ADDRESS, FACTORY_ABI, signer);
       showMsg('info', 'Deploying university contract... Please confirm in MetaMask.');
-      const tx = await factory.deployUniversity(univName, univSymbol, univAdmin);
+      const tx = await factory.deployUniversity(fullName, univSymbol, univAdmin);
       const receipt = await tx.wait();
       const event = receipt.logs.find((l: { topics: string[] }) => l.topics.length > 0);
       const univAddr = event?.address || receipt.contractAddress || 'Check Etherscan';
@@ -407,13 +410,41 @@ export default function Dashboard() {
               <p className="text-slate-400 text-sm mt-1">Create a new certificate-issuing contract for your institution.</p>
             </div>
             <div>
-              <label className={labelClass}>University Name</label>
-              <input className={inputClass} placeholder="e.g. Harvard University" value={univName} onChange={(e) => setUnivName(e.target.value)} />
+              <label className={labelClass}>University / Institution Name</label>
+              <input className={inputClass} placeholder="e.g. University of Lagos" value={univName} onChange={(e) => setUnivName(e.target.value)} />
+            </div>
+            <div>
+              <label className={labelClass}>Degree Level / Programme</label>
+              <select
+                className={inputClass}
+                value={degreeLevel}
+                onChange={(e) => setDegreeLevel(e.target.value)}
+              >
+                <option value="">-- Select degree level --</option>
+                <option value="BSc">BSc - Bachelor of Science</option>
+                <option value="BA">BA - Bachelor of Arts</option>
+                <option value="BEng">BEng - Bachelor of Engineering</option>
+                <option value="LLB">LLB - Bachelor of Law</option>
+                <option value="MBBS">MBBS - Medicine and Surgery</option>
+                <option value="MSc">MSc - Master of Science</option>
+                <option value="MA">MA - Master of Arts</option>
+                <option value="MBA">MBA - Master of Business Administration</option>
+                <option value="LLM">LLM - Master of Law</option>
+                <option value="PhD">PhD - Doctor of Philosophy</option>
+                <option value="Diploma">Diploma</option>
+                <option value="HND">HND - Higher National Diploma</option>
+                <option value="Certificate">Certificate of Completion</option>
+              </select>
+              {univName && degreeLevel && (
+                <p className="text-xs text-blue-400 mt-1">
+                  Contract will be named: <span className="font-semibold">&quot;{univName} - {degreeLevel}&quot;</span>
+                </p>
+              )}
             </div>
             <div>
               <label className={labelClass}>Token Symbol</label>
-              <input className={inputClass} placeholder="e.g. HARV" value={univSymbol} onChange={(e) => setUnivSymbol(e.target.value)} />
-              <p className="text-xs text-slate-500 mt-1">A short code for the NFT (2-5 characters)</p>
+              <input className={inputClass} placeholder="e.g. UNILAG" value={univSymbol} onChange={(e) => setUnivSymbol(e.target.value)} />
+              <p className="text-xs text-slate-500 mt-1">A short code for the NFT certificate (2-6 characters)</p>
             </div>
             <div>
               <label className={labelClass}>Admin Wallet Address</label>
@@ -450,8 +481,29 @@ export default function Dashboard() {
               </div>
               <p className="text-slate-400 text-sm">Before you can issue certificates, your wallet needs the Issuer Role on the university contract. The admin wallet must do this step.</p>
               <div>
-                <label className={labelClass}>University Contract Address</label>
-                <input className={inputClass} placeholder="0x... (from Deploy tab)" value={univAddress} onChange={(e) => { setUnivAddress(e.target.value); setHasIssuerRole(null); }} />
+                <label className={labelClass}>Select University Programme</label>
+                {isLoadingUnis ? (
+                  <div className={`${inputClass} text-slate-400`}>Loading universities...</div>
+                ) : universities.length === 0 ? (
+                  <div className="flex gap-2">
+                    <select className={inputClass} disabled><option>No universities deployed yet</option></select>
+                    <button onClick={loadUniversities} className="shrink-0 px-3 py-3 rounded-lg bg-slate-700 hover:bg-slate-600 text-sm text-slate-300">Reload</button>
+                  </div>
+                ) : (
+                  <div className="flex gap-2">
+                    <select
+                      className={inputClass}
+                      value={univAddress}
+                      onChange={(e) => { setUnivAddress(e.target.value); setHasIssuerRole(null); }}
+                    >
+                      <option value="">-- Select a programme --</option>
+                      {universities.map((u) => (
+                        <option key={u.address} value={u.address}>{u.name}</option>
+                      ))}
+                    </select>
+                    <button onClick={loadUniversities} className="shrink-0 px-3 py-3 rounded-lg bg-slate-700 hover:bg-slate-600 text-sm text-slate-300" title="Refresh">Reload</button>
+                  </div>
+                )}
                 {hasIssuerRole === true && (
                   <p className="text-xs text-green-400 mt-1">Your wallet already has the Issuer Role on this contract. You can skip to Step 2.</p>
                 )}
@@ -481,8 +533,22 @@ export default function Dashboard() {
               </div>
               <p className="text-slate-400 text-sm">Mint a permanent, non-transferable certificate to a student.</p>
               <div>
-                <label className={labelClass}>University Contract Address</label>
-                <input className={inputClass} placeholder="0x..." value={univAddress} onChange={(e) => setUnivAddress(e.target.value)} />
+                <label className={labelClass}>Select University Programme</label>
+                {universities.length === 0 ? (
+                  <div className={`${inputClass} text-slate-400`}>No universities loaded — select one in Step 1 above</div>
+                ) : (
+                  <select
+                    className={inputClass}
+                    value={univAddress}
+                    onChange={(e) => setUnivAddress(e.target.value)}
+                  >
+                    <option value="">-- Select a programme --</option>
+                    {universities.map((u) => (
+                      <option key={u.address} value={u.address}>{u.name}</option>
+                    ))}
+                  </select>
+                )}
+                <p className="text-xs text-slate-500 mt-1">Select the same programme as Step 1.</p>
               </div>
               <div>
                 <label className={labelClass}>Student Wallet Address</label>

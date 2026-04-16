@@ -586,8 +586,8 @@ export default function Dashboard() {
                 <div className="pt-2 border-t border-slate-600 flex justify-between items-center">
                   <div>
                     <p className="text-slate-400 text-xs uppercase tracking-wide mb-1">Certificate Token ID</p>
-                    <p className="font-mono text-slate-300 text-sm">#{(Number(certResult.tokenId) + 1).toString()}</p>
-                    <p className="text-slate-500 text-xs mt-0.5">Blockchain ID: {certResult.tokenId} (0-indexed)</p>
+                    <p className="font-mono text-white font-semibold text-sm">#{certResult.tokenId}</p>
+                    <p className="text-slate-500 text-xs mt-0.5">Each certificate has a unique ID on the blockchain</p>
                   </div>
                   <a
                     href={`https://sepolia.etherscan.io/token/${verifyUniv}?a=${verifyStudent}`}

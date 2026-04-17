@@ -89,12 +89,16 @@ export default function Dashboard() {
   const [isGranting, setIsGranting] = useState(false);
   const [hasIssuerRole, setHasIssuerRole] = useState<boolean | null>(null);
 
-  // Verify tab - uses university name lookup
+  // Verify tab - uses university name lookup (all universities, public)
   const [universities, setUniversities] = useState<University[]>([]);
   const [verifyUniv, setVerifyUniv] = useState('');
   const [verifyStudent, setVerifyStudent] = useState('');
   const [isVerifying, setIsVerifying] = useState(false);
   const [isLoadingUnis, setIsLoadingUnis] = useState(false);
+
+  // Issue tab - only universities where connected wallet has admin or issuer role
+  const [myUniversities, setMyUniversities] = useState<University[]>([]);
+  const [isLoadingMyUnis, setIsLoadingMyUnis] = useState(false);
   const [certResult, setCertResult] = useState<{
     tokenId: string;
     candidateName: string;
@@ -105,12 +109,16 @@ export default function Dashboard() {
 
   const showMsg = (type: Msg['type'], text: string) => setMsg({ type, text });
 
-  // Load universities list when verify or issue tab is opened
+  // Load all universities when verify tab opens (public)
+  // Load only wallet's universities when issue tab opens (role-filtered)
   useEffect(() => {
-    if (activeTab === 'verify' || activeTab === 'issue') {
+    if (activeTab === 'verify') {
       loadUniversities();
     }
-  }, [activeTab]);
+    if (activeTab === 'issue' && account) {
+      loadMyUniversities(account);
+    }
+  }, [activeTab, account]);
 
   // Check if current wallet has issuer role when univAddress changes
   useEffect(() => {
@@ -186,6 +194,48 @@ export default function Dashboard() {
     }
   };
 
+  const loadMyUniversities = async (walletAddress: string) => {
+    if (!walletAddress) return;
+    setIsLoadingMyUnis(true);
+    try {
+      const provider = await getReadOnlyProvider();
+      const factory = new ethers.Contract(FACTORY_ADDRESS, FACTORY_ABI, provider);
+      const count = await factory.getUniversityCount();
+      const myUnis: University[] = [];
+
+      for (let i = 0; i < Number(count); i++) {
+        const addr = await factory.deployedUniversities(i);
+        try {
+          const univContract = new ethers.Contract(addr, UNIVERSITY_ABI, provider);
+          // Check if wallet has DEFAULT_ADMIN_ROLE or ISSUER_ROLE on this contract
+          const [adminRole, issuerRole] = await Promise.all([
+            univContract.DEFAULT_ADMIN_ROLE(),
+            univContract.ISSUER_ROLE(),
+          ]);
+          const [isAdmin, isIssuer] = await Promise.all([
+            univContract.hasRole(adminRole, walletAddress),
+            univContract.hasRole(issuerRole, walletAddress),
+          ]);
+          if (isAdmin || isIssuer) {
+            const name = await univContract.name();
+            myUnis.push({ address: addr, name });
+          }
+        } catch {
+          // Skip contracts we cannot read
+          continue;
+        }
+      }
+      setMyUniversities(myUnis);
+      if (myUnis.length === 0) {
+        showMsg('info', 'Your wallet has no admin or issuer role on any university contract yet.');
+      }
+    } catch (error) {
+      showMsg('error', error instanceof Error ? error.message : 'Could not load your universities. Please try again.');
+    } finally {
+      setIsLoadingMyUnis(false);
+    }
+  };
+
   const connectWallet = async () => {
     setIsConnecting(true);
     try {
@@ -221,6 +271,8 @@ export default function Dashboard() {
       setSigner(s);
       setAccount(accounts[0]);
       showMsg('success', 'Wallet connected to Sepolia!');
+      // Load only the universities this wallet has access to
+      await loadMyUniversities(accounts[0]);
     } catch (error) {
       showMsg('error', parseError(error));
     } finally {
@@ -275,7 +327,9 @@ export default function Dashboard() {
       const tx = await university.grantRole(issuerRole, grantAddress);
       await tx.wait();
       setHasIssuerRole(grantAddress.toLowerCase() === account.toLowerCase() ? true : hasIssuerRole);
-      showMsg('success', `Issuer Role granted to ${grantAddress.slice(0, 6)}...${grantAddress.slice(-4)}. You can now issue certificates.`);
+      showMsg('success', `Issuer Role granted to ${grantAddress.slice(0, 6)}...${grantAddress.slice(-4)}. They can now issue certificates on this programme.`);
+      // Refresh the wallet's university list in case the grantee is the current wallet
+      await loadMyUniversities(account);
     } catch (error) {
       showMsg('error', parseError(error));
     } finally {
@@ -482,12 +536,15 @@ export default function Dashboard() {
               <p className="text-slate-400 text-sm">Before you can issue certificates, your wallet needs the Issuer Role on the university contract. The admin wallet must do this step.</p>
               <div>
                 <label className={labelClass}>Select University Programme</label>
-                {isLoadingUnis ? (
-                  <div className={`${inputClass} text-slate-400`}>Loading universities...</div>
-                ) : universities.length === 0 ? (
-                  <div className="flex gap-2">
-                    <select className={inputClass} disabled><option>No universities deployed yet</option></select>
-                    <button onClick={loadUniversities} className="shrink-0 px-3 py-3 rounded-lg bg-slate-700 hover:bg-slate-600 text-sm text-slate-300">Reload</button>
+                {!account ? (
+                  <div className={`${inputClass} text-amber-400`}>Connect your wallet first to see your assigned universities.</div>
+                ) : isLoadingMyUnis ? (
+                  <div className={`${inputClass} text-slate-400`}>Checking your permissions...</div>
+                ) : myUniversities.length === 0 ? (
+                  <div className="space-y-1">
+                    <div className={`${inputClass} text-slate-500`}>No universities assigned to your wallet yet.</div>
+                    <p className="text-xs text-slate-500">Your wallet needs DEFAULT_ADMIN_ROLE or ISSUER_ROLE on a university contract to appear here.</p>
+                    <button onClick={() => loadMyUniversities(account)} className="text-xs text-blue-400 hover:text-blue-300 underline">Refresh</button>
                   </div>
                 ) : (
                   <div className="flex gap-2">
@@ -497,11 +554,11 @@ export default function Dashboard() {
                       onChange={(e) => { setUnivAddress(e.target.value); setHasIssuerRole(null); }}
                     >
                       <option value="">-- Select a programme --</option>
-                      {universities.map((u) => (
+                      {myUniversities.map((u) => (
                         <option key={u.address} value={u.address}>{u.name}</option>
                       ))}
                     </select>
-                    <button onClick={loadUniversities} className="shrink-0 px-3 py-3 rounded-lg bg-slate-700 hover:bg-slate-600 text-sm text-slate-300" title="Refresh">Reload</button>
+                    <button onClick={() => loadMyUniversities(account)} className="shrink-0 px-3 py-3 rounded-lg bg-slate-700 hover:bg-slate-600 text-sm text-slate-300" title="Refresh">Reload</button>
                   </div>
                 )}
                 {hasIssuerRole === true && (
@@ -534,8 +591,8 @@ export default function Dashboard() {
               <p className="text-slate-400 text-sm">Mint a permanent, non-transferable certificate to a student.</p>
               <div>
                 <label className={labelClass}>Select University Programme</label>
-                {universities.length === 0 ? (
-                  <div className={`${inputClass} text-slate-400`}>No universities loaded — select one in Step 1 above</div>
+                {myUniversities.length === 0 ? (
+                  <div className={`${inputClass} text-slate-400`}>Complete Step 1 above first to load your programmes.</div>
                 ) : (
                   <select
                     className={inputClass}
@@ -543,7 +600,7 @@ export default function Dashboard() {
                     onChange={(e) => setUnivAddress(e.target.value)}
                   >
                     <option value="">-- Select a programme --</option>
-                    {universities.map((u) => (
+                    {myUniversities.map((u) => (
                       <option key={u.address} value={u.address}>{u.name}</option>
                     ))}
                   </select>

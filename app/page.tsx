@@ -438,7 +438,7 @@ export default function Dashboard() {
         <div className="max-w-3xl mx-auto px-4 py-4 flex items-center justify-between">
           <div>
             <h1 className="text-xl font-bold text-white">PAX Certificate System</h1>
-            <p className="text-xs text-slate-400">Soulbound NFT Academic Certificates on Sepolia</p>
+            <p className="text-xs text-slate-400">Blockchain-Verified Academic Credentials</p>
           </div>
           <button
             onClick={connectWallet}
@@ -472,7 +472,7 @@ export default function Dashboard() {
               onClick={() => { setActiveTab(tab); setMsg(null); }}
               className={`flex-1 py-2.5 px-3 rounded-md text-sm font-medium transition-all ${activeTab === tab ? 'bg-blue-600 text-white shadow' : 'text-slate-400 hover:text-white'}`}
             >
-              {tab === 'deploy' ? 'Deploy University' : tab === 'issue' ? 'Issue Certificate' : 'Verify Certificate'}
+              {tab === 'deploy' ? 'Register Programme' : tab === 'issue' ? 'Issue Certificate' : 'Verify Certificate'}
             </button>
           ))}
         </div>
@@ -481,21 +481,21 @@ export default function Dashboard() {
         {activeTab === 'deploy' && (
           <div className="bg-slate-800 rounded-xl p-6 border border-slate-700 space-y-4">
             <div>
-              <h2 className="text-lg font-bold">Deploy University Contract</h2>
-              <p className="text-slate-400 text-sm mt-1">Create a new certificate-issuing contract for your institution.</p>
+              <h2 className="text-lg font-bold">Register a New Programme</h2>
+              <p className="text-slate-400 text-sm mt-1">Register your institution and degree programme to begin issuing verified certificates.</p>
             </div>
             <div>
-              <label className={labelClass}>University / Institution Name</label>
+              <label className={labelClass}>Institution Name</label>
               <input className={inputClass} placeholder="e.g. University of Lagos" value={univName} onChange={(e) => setUnivName(e.target.value)} />
             </div>
             <div>
-              <label className={labelClass}>Degree Level / Programme</label>
+              <label className={labelClass}>Degree / Programme Level</label>
               <select
                 className={inputClass}
                 value={degreeLevel}
                 onChange={(e) => setDegreeLevel(e.target.value)}
               >
-                <option value="">-- Select degree level --</option>
+                <option value="">-- Select programme level --</option>
                 <option value="BSc">BSc - Bachelor of Science</option>
                 <option value="BA">BA - Bachelor of Arts</option>
                 <option value="BEng">BEng - Bachelor of Engineering</option>
@@ -512,33 +512,33 @@ export default function Dashboard() {
               </select>
               {univName && degreeLevel && (
                 <p className="text-xs text-blue-400 mt-1">
-                  Contract will be named: <span className="font-semibold">&quot;{univName} - {degreeLevel}&quot;</span>
+                  Programme will be registered as: <span className="font-semibold">&quot;{univName} - {degreeLevel}&quot;</span>
                 </p>
               )}
             </div>
             <div>
-              <label className={labelClass}>Token Symbol</label>
+              <label className={labelClass}>Certificate Identifier</label>
               <input className={inputClass} placeholder="e.g. UNILAG" value={univSymbol} onChange={(e) => setUnivSymbol(e.target.value)} />
-              <p className="text-xs text-slate-500 mt-1">A short code for the NFT certificate (2-6 characters)</p>
+              <p className="text-xs text-slate-500 mt-1">A short unique code for this programme (2-6 characters, e.g. UNILAG, HARV)</p>
             </div>
             <div>
-              <label className={labelClass}>Admin Wallet Address</label>
+              <label className={labelClass}>Programme Administrator Wallet</label>
               <input className={inputClass} placeholder="0x..." value={univAdmin} onChange={(e) => setUnivAdmin(e.target.value)} />
               {account && (
                 <button onClick={() => setUnivAdmin(account)} className="mt-1 text-xs text-blue-400 hover:text-blue-300 underline">
                   Use my connected wallet ({account.slice(0, 6)}...{account.slice(-4)})
                 </button>
               )}
-              <p className="text-xs text-slate-500 mt-1">This wallet will be the admin who can grant issuer roles.</p>
+              <p className="text-xs text-slate-500 mt-1">This wallet will administer the programme and authorise certificate issuers.</p>
             </div>
             <button onClick={deployUniversity} disabled={isDeploying} className={`${btnClass} bg-blue-600 hover:bg-blue-700`}>
-              {isDeploying ? 'Deploying... Please wait' : 'Deploy University'}
+              {isDeploying ? 'Registering Programme... Please wait' : 'Register Programme'}
             </button>
             {deployedUnivAddress && (
               <div className="mt-2 p-4 bg-green-900/20 border border-green-700 rounded-lg">
-                <p className="text-xs text-slate-400 mb-1">University Contract Address (save this!):</p>
+                <p className="text-xs text-slate-400 mb-1">Programme successfully registered. Contract address (save this):</p>
                 <p className="font-mono text-green-400 text-sm break-all">{deployedUnivAddress}</p>
-                <p className="text-xs text-slate-500 mt-2">You will need this address to issue certificates.</p>
+                <p className="text-xs text-slate-500 mt-2">This address uniquely identifies your programme on the blockchain.</p>
               </div>
             )}
           </div>
@@ -551,10 +551,10 @@ export default function Dashboard() {
             <div className="bg-slate-800 rounded-xl p-6 border border-amber-700/40 space-y-4">
               <div className="flex items-center gap-2">
                 <span className="bg-amber-600 text-white text-xs font-bold px-2 py-0.5 rounded-full">Step 1</span>
-                <h2 className="text-base font-bold">Grant Issuer Role</h2>
-                <span className="text-xs text-slate-400 ml-auto">One-time setup per university</span>
+                <h2 className="text-base font-bold">Authorise a Certificate Issuer</h2>
+                <span className="text-xs text-slate-400 ml-auto">One-time setup per programme</span>
               </div>
-              <p className="text-slate-400 text-sm">Before you can issue certificates, your wallet needs the Issuer Role on the university contract. The admin wallet must do this step.</p>
+              <p className="text-slate-400 text-sm">The programme administrator must authorise a staff member before they can issue certificates. This only needs to be done once per issuer.</p>
               <div>
                 <label className={labelClass}>Select University Programme</label>
                 {!account ? (

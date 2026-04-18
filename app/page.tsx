@@ -4,15 +4,18 @@ import { useState, useEffect } from 'react';
 import { ethers } from 'ethers';
 import { encryptName, decryptName } from '@/lib/encryption';
 
+// UPDATE THIS ADDRESS after redeploying the new Factory contract on Sepolia
 const FACTORY_ADDRESS = '0xf729BBf09B236068d40ef9d50A515d78C02f3e59';
 const SEPOLIA_CHAIN_ID = 11155111;
 const SEPOLIA_HEX = '0xaa36a7';
 
 const FACTORY_ABI = [
   'function deployUniversity(string memory universityName, string memory symbol, address universityAdmin) external returns (address)',
-  'function getUniversities() external view returns (address[])',
   'function getUniversityCount() external view returns (uint256)',
   'function deployedUniversities(uint256 index) external view returns (address)',
+  'function getWalletUniversities(address wallet) external view returns (address[])',
+  'function registerIssuer(address universityContract, address wallet) external',
+  'function isUniversityContract(address) external view returns (bool)',
 ];
 
 const UNIVERSITY_ABI = [
@@ -174,18 +177,25 @@ export default function Dashboard() {
       const provider = await getReadOnlyProvider();
       const factory = new ethers.Contract(FACTORY_ADDRESS, FACTORY_ABI, provider);
       const count = await factory.getUniversityCount();
-      const unis: University[] = [];
 
-      for (let i = 0; i < Number(count); i++) {
-        const addr = await factory.deployedUniversities(i);
-        try {
-          const univContract = new ethers.Contract(addr, UNIVERSITY_ABI, provider);
-          const name = await univContract.name();
-          unis.push({ address: addr, name });
-        } catch {
-          unis.push({ address: addr, name: `University (${addr.slice(0, 6)}...)` });
-        }
-      }
+      // Fetch all university addresses in parallel first
+      const addressPromises = Array.from({ length: Number(count) }, (_, i) =>
+        factory.deployedUniversities(i)
+      );
+      const addresses: string[] = await Promise.all(addressPromises);
+
+      // Then fetch all names in parallel using Promise.all()
+      const unis = await Promise.all(
+        addresses.map(async (addr) => {
+          try {
+            const univContract = new ethers.Contract(addr, UNIVERSITY_ABI, provider);
+            const name = await univContract.name();
+            return { address: addr, name };
+          } catch {
+            return { address: addr, name: `University (${addr.slice(0, 6)}...)` };
+          }
+        })
+      );
       setUniversities(unis);
     } catch (error) {
       showMsg('error', error instanceof Error ? error.message : 'Could not load universities. Please try again.');
@@ -200,35 +210,31 @@ export default function Dashboard() {
     try {
       const provider = await getReadOnlyProvider();
       const factory = new ethers.Contract(FACTORY_ADDRESS, FACTORY_ABI, provider);
-      const count = await factory.getUniversityCount();
-      const myUnis: University[] = [];
 
-      for (let i = 0; i < Number(count); i++) {
-        const addr = await factory.deployedUniversities(i);
-        try {
-          const univContract = new ethers.Contract(addr, UNIVERSITY_ABI, provider);
-          // Check if wallet has DEFAULT_ADMIN_ROLE or ISSUER_ROLE on this contract
-          const [adminRole, issuerRole] = await Promise.all([
-            univContract.DEFAULT_ADMIN_ROLE(),
-            univContract.ISSUER_ROLE(),
-          ]);
-          const [isAdmin, isIssuer] = await Promise.all([
-            univContract.hasRole(adminRole, walletAddress),
-            univContract.hasRole(issuerRole, walletAddress),
-          ]);
-          if (isAdmin || isIssuer) {
+      // Single call to the Factory - returns only the contracts this wallet has access to.
+      // This replaces the old loop that made 4 RPC calls per university contract.
+      const addresses: string[] = await factory.getWalletUniversities(walletAddress);
+
+      if (addresses.length === 0) {
+        setMyUniversities([]);
+        return;
+      }
+
+      // Fetch all university names in parallel using Promise.all()
+      // All name() calls fire simultaneously instead of one by one
+      const names = await Promise.all(
+        addresses.map(async (addr) => {
+          try {
+            const univContract = new ethers.Contract(addr, UNIVERSITY_ABI, provider);
             const name = await univContract.name();
-            myUnis.push({ address: addr, name });
+            return { address: addr, name };
+          } catch {
+            return { address: addr, name: `University (${addr.slice(0, 6)}...)` };
           }
-        } catch {
-          // Skip contracts we cannot read
-          continue;
-        }
-      }
-      setMyUniversities(myUnis);
-      if (myUnis.length === 0) {
-        showMsg('info', 'Your wallet has no admin or issuer role on any university contract yet.');
-      }
+        })
+      );
+
+      setMyUniversities(names);
     } catch (error) {
       showMsg('error', error instanceof Error ? error.message : 'Could not load your universities. Please try again.');
     } finally {
@@ -326,6 +332,14 @@ export default function Dashboard() {
       showMsg('info', 'Granting Issuer Role... Please confirm in MetaMask.');
       const tx = await university.grantRole(issuerRole, grantAddress);
       await tx.wait();
+
+      // Register the issuer in the Factory so their wallet appears in the Issue tab dropdown.
+      // This is the key step that makes getWalletUniversities() work for the new issuer.
+      showMsg('info', 'Registering issuer in Factory... Please confirm in MetaMask.');
+      const factory = new ethers.Contract(FACTORY_ADDRESS, FACTORY_ABI, signer);
+      const registerTx = await factory.registerIssuer(univAddress, grantAddress);
+      await registerTx.wait();
+
       setHasIssuerRole(grantAddress.toLowerCase() === account.toLowerCase() ? true : hasIssuerRole);
       showMsg('success', `Issuer Role granted to ${grantAddress.slice(0, 6)}...${grantAddress.slice(-4)}. They can now issue certificates on this programme.`);
       // Refresh the wallet's university list in case the grantee is the current wallet

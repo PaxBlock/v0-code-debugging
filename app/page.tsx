@@ -4,8 +4,8 @@ import { useState, useEffect } from 'react';
 import { ethers } from 'ethers';
 import { encryptName, decryptName } from '@/lib/encryption';
 
-// UPDATE THIS ADDRESS after redeploying the new Factory contract on Sepolia
-const FACTORY_ADDRESS = '0xf729BBf09B236068d40ef9d50A515d78C02f3e59';
+// New Factory contract - includes getWalletUniversities() and registerIssuer()
+const FACTORY_ADDRESS = '0x043ABF52e143efEF786a695ad739b8Bda8a1555E';
 const SEPOLIA_CHAIN_ID = 11155111;
 const SEPOLIA_HEX = '0xaa36a7';
 

@@ -144,14 +144,18 @@ export default function Dashboard() {
     }
   };
 
+  // Static network object - passing this to JsonRpcProvider prevents ethers v6
+  // from doing automatic network detection, which internally calls Tenderly and
+  // other providers causing rate limit errors we have no control over.
+  const SEPOLIA_NETWORK = { chainId: 11155111, name: 'sepolia' };
+
   const getReadOnlyProvider = async () => {
     const win = window as unknown as { ethereum?: object };
-    // Prefer wallet provider (most reliable)
+    // Prefer wallet provider (most reliable) - uses MetaMask directly
     if (win.ethereum) {
       return new ethers.BrowserProvider(win.ethereum as ethers.Eip1193Provider);
     }
-    // Try multiple public Sepolia RPCs in order of reliability.
-    // Tenderly removed - it rate limits aggressively on free tier.
+    // No wallet - try public RPCs with static network to skip ethers auto-detection
     const fallbackRpcs = [
       'https://ethereum-sepolia-rpc.publicnode.com',
       'https://rpc.ankr.com/eth_sepolia',
@@ -162,7 +166,9 @@ export default function Dashboard() {
     ];
     for (const rpc of fallbackRpcs) {
       try {
-        const p = new ethers.JsonRpcProvider(rpc);
+        // Pass SEPOLIA_NETWORK as second arg - this is the key fix.
+        // Without it, ethers v6 calls multiple providers including Tenderly to detect the network.
+        const p = new ethers.JsonRpcProvider(rpc, SEPOLIA_NETWORK, { staticNetwork: true });
         await p.getBlockNumber();
         return p;
       } catch {

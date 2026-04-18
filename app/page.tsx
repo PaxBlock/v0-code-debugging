@@ -150,10 +150,12 @@ export default function Dashboard() {
     if (win.ethereum) {
       return new ethers.BrowserProvider(win.ethereum as ethers.Eip1193Provider);
     }
-    // Try multiple public Sepolia RPCs in order of reliability
+    // Try multiple public Sepolia RPCs in order of reliability.
+    // Tenderly removed - it rate limits aggressively on free tier.
     const fallbackRpcs = [
-      'https://eth-sepolia.g.alchemy.com/v2/demo',
-      'https://sepolia.gateway.tenderly.co',
+      'https://ethereum-sepolia-rpc.publicnode.com',
+      'https://rpc.ankr.com/eth_sepolia',
+      'https://sepolia.drpc.org',
       'https://1rpc.io/sepolia',
       'https://rpc2.sepolia.org',
       'https://rpc.sepolia.org',
@@ -161,14 +163,13 @@ export default function Dashboard() {
     for (const rpc of fallbackRpcs) {
       try {
         const p = new ethers.JsonRpcProvider(rpc);
-        // Quick test to confirm the RPC is responding
         await p.getBlockNumber();
         return p;
       } catch {
         continue;
       }
     }
-    throw new Error('Could not connect to Sepolia network. Please install MetaMask or check your internet connection.');
+    throw new Error('Could not connect to Sepolia. Please install MetaMask or try again in a moment.');
   };
 
   const loadUniversities = async () => {

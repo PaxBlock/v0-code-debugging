@@ -558,13 +558,13 @@ export default function Dashboard() {
               <div>
                 <label className={labelClass}>Select University Programme</label>
                 {!account ? (
-                  <div className={`${inputClass} text-amber-400`}>Connect your wallet first to see your assigned universities.</div>
+                  <div className={`${inputClass} text-amber-400`}>Please connect your wallet to view your assigned programmes.</div>
                 ) : isLoadingMyUnis ? (
-                  <div className={`${inputClass} text-slate-400`}>Checking your permissions...</div>
+                  <div className={`${inputClass} text-slate-400`}>Loading your programmes...</div>
                 ) : myUniversities.length === 0 ? (
                   <div className="space-y-1">
-                    <div className={`${inputClass} text-slate-500`}>No universities assigned to your wallet yet.</div>
-                    <p className="text-xs text-slate-500">Your wallet needs DEFAULT_ADMIN_ROLE or ISSUER_ROLE on a university contract to appear here.</p>
+                    <div className={`${inputClass} text-slate-500`}>No programmes are currently assigned to your wallet.</div>
+                    <p className="text-xs text-slate-500">Your wallet must be registered as an administrator or authorised issuer on a programme to appear here.</p>
                     <button onClick={() => loadMyUniversities(account)} className="text-xs text-blue-400 hover:text-blue-300 underline">Refresh</button>
                   </div>
                 ) : (
@@ -583,15 +583,15 @@ export default function Dashboard() {
                   </div>
                 )}
                 {hasIssuerRole === true && (
-                  <p className="text-xs text-green-400 mt-1">Your wallet already has the Issuer Role on this contract. You can skip to Step 2.</p>
+                  <p className="text-xs text-green-400 mt-1">This wallet is already authorised to issue certificates for this programme. You may proceed to Step 2.</p>
                 )}
                 {hasIssuerRole === false && (
-                  <p className="text-xs text-amber-400 mt-1">Your wallet does not have the Issuer Role yet. Complete Step 1 first.</p>
+                  <p className="text-xs text-amber-400 mt-1">This wallet is not yet authorised. Please complete Step 1 before issuing certificates.</p>
                 )}
               </div>
               <div>
-                <label className={labelClass}>Wallet Address to Grant Issuer Role</label>
-                <input className={inputClass} placeholder="0x..." value={grantAddress} onChange={(e) => setGrantAddress(e.target.value)} />
+                <label className={labelClass}>Staff Wallet Address</label>
+                <input className={inputClass} placeholder="0x... (wallet address of the staff member to authorise)" value={grantAddress} onChange={(e) => setGrantAddress(e.target.value)} />
                 {account && (
                   <button onClick={() => setGrantAddress(account)} className="mt-1 text-xs text-blue-400 hover:text-blue-300 underline">
                     Use my connected wallet ({account.slice(0, 6)}...{account.slice(-4)})
@@ -599,7 +599,7 @@ export default function Dashboard() {
                 )}
               </div>
               <button onClick={grantIssuerRole} disabled={isGranting || hasIssuerRole === true} className={`${btnClass} bg-amber-600 hover:bg-amber-700 disabled:opacity-50`}>
-                {isGranting ? 'Granting Role... Please wait' : hasIssuerRole === true ? 'Issuer Role Already Granted' : 'Grant Issuer Role'}
+                {isGranting ? 'Authorising... Please wait' : hasIssuerRole === true ? 'Already Authorised' : 'Authorise Issuer'}
               </button>
             </div>
 
@@ -609,11 +609,11 @@ export default function Dashboard() {
                 <span className="bg-green-600 text-white text-xs font-bold px-2 py-0.5 rounded-full">Step 2</span>
                 <h2 className="text-base font-bold">Issue Certificate</h2>
               </div>
-              <p className="text-slate-400 text-sm">Mint a permanent, non-transferable certificate to a student.</p>
+              <p className="text-slate-400 text-sm">Issue a tamper-proof, permanent certificate to a student. The certificate is tied to their wallet and cannot be transferred or revoked.</p>
               <div>
-                <label className={labelClass}>Select University Programme</label>
+                <label className={labelClass}>Select Programme</label>
                 {myUniversities.length === 0 ? (
-                  <div className={`${inputClass} text-slate-400`}>Complete Step 1 above first to load your programmes.</div>
+                  <div className={`${inputClass} text-slate-400`}>Please complete Step 1 first to load your assigned programmes.</div>
                 ) : (
                   <select
                     className={inputClass}
@@ -626,19 +626,20 @@ export default function Dashboard() {
                     ))}
                   </select>
                 )}
-                <p className="text-xs text-slate-500 mt-1">Select the same programme as Step 1.</p>
+                <p className="text-xs text-slate-500 mt-1">Select the programme this certificate is being issued under.</p>
               </div>
               <div>
                 <label className={labelClass}>Student Wallet Address</label>
-                <input className={inputClass} placeholder="0x... (student&apos;s MetaMask address)" value={studentAddress} onChange={(e) => setStudentAddress(e.target.value)} />
+                <input className={inputClass} placeholder="0x... (student's wallet address)" value={studentAddress} onChange={(e) => setStudentAddress(e.target.value)} />
+                <p className="text-xs text-slate-500 mt-1">The certificate will be permanently issued to this wallet address.</p>
               </div>
               <div>
                 <label className={labelClass}>Student Full Name</label>
                 <input className={inputClass} placeholder="e.g. James Jonah" value={certificateName} onChange={(e) => setCertificateName(e.target.value)} />
               </div>
               <div>
-                <label className={labelClass}>Course / Degree Name</label>
-                <input className={inputClass} placeholder="e.g. BSc Engineering Physics" value={courseName} onChange={(e) => setCourseName(e.target.value)} />
+                <label className={labelClass}>Field of Study</label>
+                <input className={inputClass} placeholder="e.g. Engineering Physics" value={courseName} onChange={(e) => setCourseName(e.target.value)} />
               </div>
               <button onClick={issueCertificate} disabled={isIssuing} className={`${btnClass} bg-green-600 hover:bg-green-700`}>
                 {isIssuing ? 'Issuing Certificate... Please wait' : 'Issue Certificate'}
@@ -651,20 +652,20 @@ export default function Dashboard() {
         {activeTab === 'verify' && (
           <div className="bg-slate-800 rounded-xl p-6 border border-slate-700 space-y-4">
             <div>
-              <h2 className="text-lg font-bold">Verify Certificate</h2>
-              <p className="text-slate-400 text-sm mt-1">Publicly verify any certificate on the blockchain. No wallet required.</p>
+              <h2 className="text-lg font-bold">Verify a Certificate</h2>
+              <p className="text-slate-400 text-sm mt-1">Confirm the authenticity of any certificate issued through this platform. Open to the public — no account or wallet needed.</p>
             </div>
 
             <div>
-              <label className={labelClass}>Select University</label>
+              <label className={labelClass}>Select Institution & Programme</label>
               {isLoadingUnis ? (
                 <div className="w-full px-4 py-3 rounded-lg border border-slate-600 bg-slate-800 text-slate-400 text-sm">
-                  Loading universities...
+                  Loading registered programmes...
                 </div>
               ) : universities.length === 0 ? (
                 <div className="flex gap-2 items-center">
                   <select className={inputClass} disabled>
-                    <option>No universities deployed yet</option>
+                    <option>No programmes registered yet</option>
                   </select>
                   <button onClick={loadUniversities} className="shrink-0 px-3 py-3 rounded-lg bg-slate-700 hover:bg-slate-600 text-sm text-slate-300">
                     Reload
@@ -677,7 +678,7 @@ export default function Dashboard() {
                     value={verifyUniv}
                     onChange={(e) => { setVerifyUniv(e.target.value); setCertResult(null); }}
                   >
-                    <option value="">-- Select a university --</option>
+                    <option value="">-- Select an institution and programme --</option>
                     {universities.map((u) => (
                       <option key={u.address} value={u.address}>{u.name}</option>
                     ))}
@@ -690,10 +691,10 @@ export default function Dashboard() {
             </div>
 
             <div>
-              <label className={labelClass}>Student Wallet Address</label>
+              <label className={labelClass}>Graduate Wallet Address</label>
               <input
                 className={inputClass}
-                placeholder="0x... (student&apos;s wallet address)"
+                placeholder="0x... (the graduate's wallet address)"
                 value={verifyStudent}
                 onChange={(e) => { setVerifyStudent(e.target.value); setCertResult(null); }}
               />
@@ -706,32 +707,32 @@ export default function Dashboard() {
             {certResult && (
               <div className="mt-2 p-5 bg-slate-700/60 rounded-xl border border-green-700/50 space-y-4">
                 <div className="flex items-center gap-2">
-                  <div className="w-2.5 h-2.5 rounded-full bg-green-400 shrink-0"></div>
-                  <span className="text-green-400 font-semibold text-sm">Certificate Verified on Blockchain</span>
+                  <div className="w-2.5 h-2.5 rounded-full bg-green-400 shrink-0 animate-pulse"></div>
+                  <span className="text-green-400 font-semibold text-sm">Certificate Verified — Authentic and Tamper-Proof</span>
                 </div>
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <p className="text-slate-400 text-xs uppercase tracking-wide mb-1">Student Name</p>
+                    <p className="text-slate-400 text-xs uppercase tracking-wide mb-1">Graduate Name</p>
                     <p className="text-white font-medium">{certResult.candidateName}</p>
                   </div>
                   <div>
-                    <p className="text-slate-400 text-xs uppercase tracking-wide mb-1">Course</p>
+                    <p className="text-slate-400 text-xs uppercase tracking-wide mb-1">Field of Study</p>
                     <p className="text-white font-medium">{certResult.courseName}</p>
                   </div>
                   <div>
-                    <p className="text-slate-400 text-xs uppercase tracking-wide mb-1">University</p>
+                    <p className="text-slate-400 text-xs uppercase tracking-wide mb-1">Institution & Programme</p>
                     <p className="text-white font-medium">{certResult.universityName}</p>
                   </div>
                   <div>
-                    <p className="text-slate-400 text-xs uppercase tracking-wide mb-1">Date Issued</p>
+                    <p className="text-slate-400 text-xs uppercase tracking-wide mb-1">Date of Issue</p>
                     <p className="text-white font-medium">{certResult.issuedAt}</p>
                   </div>
                 </div>
                 <div className="pt-2 border-t border-slate-600 flex justify-between items-center">
                   <div>
-                    <p className="text-slate-400 text-xs uppercase tracking-wide mb-1">Certificate Token ID</p>
+                    <p className="text-slate-400 text-xs uppercase tracking-wide mb-1">Certificate Reference</p>
                     <p className="font-mono text-white font-semibold text-sm">#{certResult.tokenId}</p>
-                    <p className="text-slate-500 text-xs mt-0.5">Each certificate has a unique ID on the blockchain</p>
+                    <p className="text-slate-500 text-xs mt-0.5">Unique credential identifier on the blockchain</p>
                   </div>
                   <a
                     href={`https://sepolia.etherscan.io/token/${verifyUniv}?a=${verifyStudent}`}
@@ -739,7 +740,7 @@ export default function Dashboard() {
                     rel="noopener noreferrer"
                     className="text-xs text-blue-400 hover:text-blue-300 underline"
                   >
-                    View on Etherscan
+                    View on Blockchain
                   </a>
                 </div>
               </div>
@@ -749,8 +750,8 @@ export default function Dashboard() {
 
         {/* Footer */}
         <div className="mt-10 text-center text-xs text-slate-600 space-y-1">
-          <p>Factory: <span className="font-mono">{FACTORY_ADDRESS}</span></p>
-          <p>Sepolia Testnet</p>
+          <p>Platform Registry: <span className="font-mono">{FACTORY_ADDRESS}</span></p>
+          <p>Running on Sepolia Testnet</p>
         </div>
       </div>
     </main>

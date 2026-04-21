@@ -55,9 +55,20 @@ export async function encryptName(
     encoded
   );
 
-  // Convert to base64 for blockchain storage
-  const ivB64 = btoa(String.fromCharCode(...iv));
-  const cipherB64 = btoa(String.fromCharCode(...new Uint8Array(cipherBuffer)));
+  // Convert to base64 for blockchain storage.
+  // Using Uint8Array chunked conversion to safely handle all Unicode characters
+  // including Arabic, accented Latin, Chinese, apostrophes etc.
+  const toBase64 = (bytes: Uint8Array): string => {
+    let binary = '';
+    const chunkSize = 8192;
+    for (let i = 0; i < bytes.length; i += chunkSize) {
+      binary += String.fromCharCode(...bytes.subarray(i, i + chunkSize));
+    }
+    return btoa(binary);
+  };
+
+  const ivB64 = toBase64(iv);
+  const cipherB64 = toBase64(new Uint8Array(cipherBuffer));
 
   return `enc:${ivB64}:${cipherB64}`;
 }
@@ -80,8 +91,11 @@ export async function decryptName(
     const parts = encrypted.split(':');
     if (parts.length !== 3) return encrypted;
 
-    const iv = Uint8Array.from(atob(parts[1]), (c) => c.charCodeAt(0));
-    const cipherBuffer = Uint8Array.from(atob(parts[2]), (c) => c.charCodeAt(0));
+    const fromBase64 = (b64: string): Uint8Array =>
+      Uint8Array.from(atob(b64), (c) => c.charCodeAt(0));
+
+    const iv = fromBase64(parts[1]);
+    const cipherBuffer = fromBase64(parts[2]);
 
     const key = await deriveKey(universityAddress, studentAddress);
 

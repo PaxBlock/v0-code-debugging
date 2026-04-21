@@ -38,7 +38,10 @@ function parseError(error: unknown): string {
   const raw = error instanceof Error ? error.message : String(error);
 
   if (raw.includes('0xe2517d3f') || raw.includes('AccessControlUnauthorizedAccount')) {
-    return 'Permission denied. Your wallet does not have the required role to perform this action. Make sure you are the admin of this university contract and have granted yourself the Issuer Role first.';
+    return 'Access denied. Your wallet does not have the required permission to perform this action. Only the programme administrator can authorise issuers or register programmes.';
+  }
+  if (raw.includes('Only the university admin') || raw.includes('Not a valid university contract')) {
+    return 'Access denied. Only the programme administrator can authorise new issuers on this programme.';
   }
   if (raw.includes('user rejected') || raw.includes('User rejected')) {
     return 'You cancelled the transaction in MetaMask.';
@@ -634,12 +637,34 @@ export default function Dashboard() {
                 <p className="text-xs text-slate-500 mt-1">The certificate will be permanently issued to this wallet address.</p>
               </div>
               <div>
-                <label className={labelClass}>Student Full Name</label>
-                <input className={inputClass} placeholder="e.g. James Jonah" value={certificateName} onChange={(e) => setCertificateName(e.target.value)} />
+                <div className="flex justify-between items-center mb-1">
+                  <label className={labelClass}>Student Full Name</label>
+                  <span className={`text-xs ${certificateName.length > 60 ? 'text-amber-400' : 'text-slate-500'}`}>
+                    {certificateName.length}/60{certificateName.length > 60 ? ' — longer names cost more gas' : ''}
+                  </span>
+                </div>
+                <input
+                  className={inputClass}
+                  placeholder="e.g. James Jonah"
+                  value={certificateName}
+                  onChange={(e) => setCertificateName(e.target.value)}
+                  maxLength={120}
+                />
               </div>
               <div>
-                <label className={labelClass}>Field of Study</label>
-                <input className={inputClass} placeholder="e.g. Engineering Physics" value={courseName} onChange={(e) => setCourseName(e.target.value)} />
+                <div className="flex justify-between items-center mb-1">
+                  <label className={labelClass}>Field of Study</label>
+                  <span className={`text-xs ${courseName.length > 60 ? 'text-amber-400' : 'text-slate-500'}`}>
+                    {courseName.length}/60{courseName.length > 60 ? ' — longer entries cost more gas' : ''}
+                  </span>
+                </div>
+                <input
+                  className={inputClass}
+                  placeholder="e.g. Engineering Physics"
+                  value={courseName}
+                  onChange={(e) => setCourseName(e.target.value)}
+                  maxLength={120}
+                />
               </div>
               <button onClick={issueCertificate} disabled={isIssuing} className={`${btnClass} bg-green-600 hover:bg-green-700`}>
                 {isIssuing ? 'Issuing Certificate... Please wait' : 'Issue Certificate'}

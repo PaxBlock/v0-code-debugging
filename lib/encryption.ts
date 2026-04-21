@@ -1,5 +1,3 @@
-'use client';
-
 /**
  * AES-256-GCM Encryption Utility
  *
@@ -12,22 +10,57 @@
  * university + student pair, with no database or wallet signing needed.
  * Anyone using this dApp can decrypt and verify, but raw Etherscan
  * data shows only encrypted gibberish.
+ *
+ * Uses Web Crypto API with safe isomorphic guards so this file
+ * works in both browser and Next.js server/build environments.
  */
 
 const APP_SALT = 'pax-academic-certificate-system-v1';
 
 /**
+ * Returns the Web Crypto API instance, compatible with both browser and Node.js 18+.
+ */
+function getCrypto(): Crypto {
+  if (typeof globalThis !== 'undefined' && globalThis.crypto?.subtle) {
+    return globalThis.crypto;
+  }
+  throw new Error('Web Crypto API is not available in this environment.');
+}
+
+/**
+ * Encodes a string to Uint8Array using UTF-8, safe for all Unicode characters.
+ */
+function encode(text: string): Uint8Array {
+  return new TextEncoder().encode(text);
+}
+
+/**
+ * Converts a Uint8Array to base64 in chunks to avoid call stack overflow on large inputs.
+ */
+function toBase64(bytes: Uint8Array): string {
+  let binary = '';
+  const chunkSize = 8192;
+  for (let i = 0; i < bytes.length; i += chunkSize) {
+    binary += String.fromCharCode(...bytes.subarray(i, i + chunkSize));
+  }
+  return btoa(binary);
+}
+
+/**
+ * Converts a base64 string back to Uint8Array.
+ */
+function fromBase64(b64: string): Uint8Array {
+  return Uint8Array.from(atob(b64), (c) => c.charCodeAt(0));
+}
+
+/**
  * Derives a deterministic AES-256 key from university address + student address.
  */
 async function deriveKey(universityAddress: string, studentAddress: string): Promise<CryptoKey> {
+  const subtle = getCrypto().subtle;
   const keyMaterial = `${APP_SALT}:${universityAddress.toLowerCase()}:${studentAddress.toLowerCase()}`;
-  const encoded = new TextEncoder().encode(keyMaterial);
-
-  // Hash the input to get a consistent 256-bit key material
-  const hashBuffer = await crypto.subtle.digest('SHA-256', encoded);
-
-  // Import the hash as an AES-256-GCM key
-  return crypto.subtle.importKey(
+  const hashBuffer = await subtle.digest('SHA-256', encode(keyMaterial));
+  return subtle.importKey(
     'raw',
     hashBuffer,
     { name: 'AES-GCM', length: 256 },
@@ -38,41 +71,24 @@ async function deriveKey(universityAddress: string, studentAddress: string): Pro
 
 /**
  * Encrypts a plain text string.
- * Returns a base64 string: IV (12 bytes) + ciphertext, separated by ":"
+ * Returns a prefixed base64 string: "enc:<iv>:<ciphertext>"
  */
 export async function encryptName(
   plainText: string,
   universityAddress: string,
   studentAddress: string
 ): Promise<string> {
+  const subtle = getCrypto().subtle;
   const key = await deriveKey(universityAddress, studentAddress);
+  const iv = getCrypto().getRandomValues(new Uint8Array(12));
 
-  // Random 12-byte IV (initialization vector) - unique per encryption
-  const iv = crypto.getRandomValues(new Uint8Array(12));
-
-  const encoded = new TextEncoder().encode(plainText);
-  const cipherBuffer = await crypto.subtle.encrypt(
+  const cipherBuffer = await subtle.encrypt(
     { name: 'AES-GCM', iv },
     key,
-    encoded
+    encode(plainText)
   );
 
-  // Convert to base64 for blockchain storage.
-  // Using Uint8Array chunked conversion to safely handle all Unicode characters
-  // including Arabic, accented Latin, Chinese, apostrophes etc.
-  const toBase64 = (bytes: Uint8Array): string => {
-    let binary = '';
-    const chunkSize = 8192;
-    for (let i = 0; i < bytes.length; i += chunkSize) {
-      binary += String.fromCharCode(...bytes.subarray(i, i + chunkSize));
-    }
-    return btoa(binary);
-  };
-
-  const ivB64 = toBase64(iv);
-  const cipherB64 = toBase64(new Uint8Array(cipherBuffer));
-
-  return `enc:${ivB64}:${cipherB64}`;
+  return `enc:${toBase64(iv)}:${toBase64(new Uint8Array(cipherBuffer))}`;
 }
 
 /**
@@ -93,15 +109,11 @@ export async function decryptName(
     const parts = encrypted.split(':');
     if (parts.length !== 3) return encrypted;
 
-    const fromBase64 = (b64: string): Uint8Array =>
-      Uint8Array.from(atob(b64), (c) => c.charCodeAt(0));
-
     const iv = fromBase64(parts[1]);
     const cipherBuffer = fromBase64(parts[2]);
-
     const key = await deriveKey(universityAddress, studentAddress);
 
-    const decryptedBuffer = await crypto.subtle.decrypt(
+    const decryptedBuffer = await getCrypto().subtle.decrypt(
       { name: 'AES-GCM', iv },
       key,
       cipherBuffer
@@ -109,7 +121,6 @@ export async function decryptName(
 
     return new TextDecoder().decode(decryptedBuffer);
   } catch {
-    // If decryption fails for any reason, return a safe fallback
     return '[Encrypted - Unable to decrypt]';
   }
 }

@@ -35,13 +35,12 @@ function encode(text: string): Uint8Array {
 }
 
 /**
- * Converts a Uint8Array to base64 in chunks to avoid call stack overflow on large inputs.
+ * Converts a Uint8Array to base64 safely without spread operator issues.
  */
 function toBase64(bytes: Uint8Array): string {
   let binary = '';
-  const chunkSize = 8192;
-  for (let i = 0; i < bytes.length; i += chunkSize) {
-    binary += String.fromCharCode(...bytes.subarray(i, i + chunkSize));
+  for (let i = 0; i < bytes.length; i++) {
+    binary += String.fromCharCode(bytes[i]);
   }
   return btoa(binary);
 }

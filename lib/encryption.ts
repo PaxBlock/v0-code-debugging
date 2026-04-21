@@ -11,8 +11,9 @@
  * Anyone using this dApp can decrypt and verify, but raw Etherscan
  * data shows only encrypted gibberish.
  *
- * All Web Crypto API calls are guarded inside async functions so they
- * are never evaluated at build time — only at runtime in the browser.
+ * IMPORTANT: This file must only ever be loaded via dynamic import()
+ * from client-side code. It must never be statically imported or
+ * evaluated at build time.
  */
 
 const APP_SALT = 'pax-academic-certificate-system-v1';
@@ -29,11 +30,32 @@ function fromBase64(b64: string): Uint8Array {
   return Uint8Array.from(atob(b64), (c) => c.charCodeAt(0));
 }
 
+// Access crypto only inside function bodies, never at module level.
+// This prevents Next.js build worker from evaluating browser globals.
+function getSubtle(): SubtleCrypto {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const c = (typeof globalThis !== 'undefined' ? (globalThis as any).crypto : undefined) as Crypto | undefined;
+  if (!c?.subtle) {
+    throw new Error('Web Crypto API is not available. This must run in a browser.');
+  }
+  return c.subtle;
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function getCrypto(): Crypto {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const c = (typeof globalThis !== 'undefined' ? (globalThis as any).crypto : undefined) as Crypto | undefined;
+  if (!c) {
+    throw new Error('Web Crypto API is not available. This must run in a browser.');
+  }
+  return c;
+}
+
 async function deriveKey(
   universityAddress: string,
   studentAddress: string
 ): Promise<CryptoKey> {
-  const subtle = window.crypto.subtle;
+  const subtle = getSubtle();
   const keyMaterial = `${APP_SALT}:${universityAddress.toLowerCase()}:${studentAddress.toLowerCase()}`;
   const encoded = new TextEncoder().encode(keyMaterial);
   const hashBuffer = await subtle.digest('SHA-256', encoded);
@@ -51,11 +73,13 @@ export async function encryptName(
   universityAddress: string,
   studentAddress: string
 ): Promise<string> {
+  const subtle = getSubtle();
+  const crypto = getCrypto();
   const key = await deriveKey(universityAddress, studentAddress);
-  const iv = window.crypto.getRandomValues(new Uint8Array(12));
+  const iv = crypto.getRandomValues(new Uint8Array(12));
   const encoded = new TextEncoder().encode(plainText);
 
-  const cipherBuffer = await window.crypto.subtle.encrypt(
+  const cipherBuffer = await subtle.encrypt(
     { name: 'AES-GCM', iv },
     key,
     encoded
@@ -74,6 +98,7 @@ export async function decryptName(
   }
 
   try {
+    const subtle = getSubtle();
     const parts = encrypted.split(':');
     if (parts.length !== 3) return encrypted;
 
@@ -81,7 +106,7 @@ export async function decryptName(
     const cipherBuffer = fromBase64(parts[2]);
     const key = await deriveKey(universityAddress, studentAddress);
 
-    const decryptedBuffer = await window.crypto.subtle.decrypt(
+    const decryptedBuffer = await subtle.decrypt(
       { name: 'AES-GCM', iv },
       key,
       cipherBuffer

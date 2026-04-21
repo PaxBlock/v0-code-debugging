@@ -23,8 +23,14 @@ contract AcademicCertificate is ERC721, ERC721URIStorage, AccessControl {
     mapping(address => bool) public hasCertificate;
     mapping(address => uint256) public studentToTokenId;
 
+    // Revocation
+    mapping(address => bool) public isRevoked;
+    mapping(address => string) public revocationReason;
+    mapping(address => uint256) public revocationDate;
+
     event CertificateIssued(uint256 indexed tokenId, address indexed student, string course, uint256 timestamp);
     event CertificateUpdated(uint256 indexed tokenId, string newName, string newCourse, address updatedBy);
+    event CertificateRevoked(address indexed student, uint256 indexed tokenId, string reason, address revokedBy, uint256 timestamp);
 
     // The factory passes the university's admin address during deployment
     constructor(string memory universityName, string memory symbol, address defaultAdmin) 
@@ -63,6 +69,29 @@ contract AcademicCertificate is ERC721, ERC721URIStorage, AccessControl {
         emit CertificateIssued(tokenId, student, _courseName, block.timestamp);
 
         return tokenId;
+    }
+
+    /**
+     * @dev ADMIN ONLY: Revokes a certificate with a recorded reason.
+     * The token remains on-chain as a permanent audit trail but is flagged as revoked.
+     * The reason is stored publicly so any verifier can see why it was revoked.
+     * @param student The wallet address of the student whose certificate is being revoked.
+     * @param reason The reason for revocation (e.g. "Academic misconduct - plagiarism").
+     */
+    function revokeCertificate(
+        address student,
+        string memory reason
+    ) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        require(hasCertificate[student], "This student does not have a certificate.");
+        require(!isRevoked[student], "This certificate is already revoked.");
+        require(bytes(reason).length > 0, "A revocation reason is required.");
+
+        uint256 tokenId = studentToTokenId[student];
+        isRevoked[student] = true;
+        revocationReason[student] = reason;
+        revocationDate[student] = block.timestamp;
+
+        emit CertificateRevoked(student, tokenId, reason, msg.sender, block.timestamp);
     }
 
     /**

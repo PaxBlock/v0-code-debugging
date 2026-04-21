@@ -27,6 +27,10 @@ const UNIVERSITY_ABI = [
   'function hasRole(bytes32 role, address account) external view returns (bool)',
   'function ISSUER_ROLE() external view returns (bytes32)',
   'function DEFAULT_ADMIN_ROLE() external view returns (bytes32)',
+  'function revokeCertificate(address student, string memory reason) external',
+  'function isRevoked(address student) external view returns (bool)',
+  'function revocationReason(address student) external view returns (string)',
+  'function revocationDate(address student) external view returns (uint256)',
 ];
 
 // ---------------------------------------------------------------------------
@@ -164,7 +168,24 @@ export default function Dashboard() {
     courseName: string;
     issuedAt: string;
     universityName: string;
+    isRevoked: boolean;
+    revocationReason: string;
+    revocationDate: string;
   } | null>(null);
+
+  // Revocation state - Issue tab
+  const REVOCATION_PRESETS = [
+    'Academic misconduct — plagiarism detected',
+    'Academic misconduct — cheating in examination',
+    'Fraudulent application or falsified documents',
+    'Certificate issued in error',
+    'Degree requirements not fully met',
+    'Administrative correction required',
+  ];
+  const [revokeAddress, setRevokeAddress] = useState('');
+  const [revokeReason, setRevokeReason] = useState('');
+  const [customReason, setCustomReason] = useState('');
+  const [isRevoking, setIsRevoking] = useState(false);
 
   const showMsg = (type: Msg['type'], text: string) => setMsg({ type, text });
 
@@ -414,6 +435,33 @@ export default function Dashboard() {
     }
   };
 
+  const handleRevoke = async () => {
+    if (!signer) { showMsg('error', 'Please connect your wallet first.'); return; }
+    if (!univAddress) { showMsg('error', 'Please select a programme first.'); return; }
+    if (!ethers.isAddress(revokeAddress)) { showMsg('error', 'Please enter a valid student wallet address.'); return; }
+    const finalReason = revokeReason === 'custom' ? customReason.trim() : revokeReason;
+    if (!finalReason) { showMsg('error', 'Please select or enter a revocation reason.'); return; }
+    setIsRevoking(true);
+    try {
+      const university = new ethers.Contract(univAddress, UNIVERSITY_ABI, signer);
+      const has = await university.hasCertificate(revokeAddress);
+      if (!has) { showMsg('error', 'This wallet does not have a certificate on the selected programme.'); return; }
+      const alreadyRevoked = await university.isRevoked(revokeAddress);
+      if (alreadyRevoked) { showMsg('error', 'This certificate has already been revoked.'); return; }
+      showMsg('info', 'Revoking certificate... Please confirm in MetaMask.');
+      const tx = await university.revokeCertificate(revokeAddress, finalReason);
+      await tx.wait();
+      showMsg('success', `Certificate revoked. Reason recorded permanently on blockchain: "${finalReason}"`);
+      setRevokeAddress('');
+      setRevokeReason('');
+      setCustomReason('');
+    } catch (error) {
+      showMsg('error', parseError(error));
+    } finally {
+      setIsRevoking(false);
+    }
+  };
+
   const issueCertificate = async () => {
     if (!signer) { showMsg('error', 'Please connect your wallet first.'); return; }
     if (!univAddress || !studentAddress || !certificateName || !courseName) {
@@ -460,7 +508,12 @@ export default function Dashboard() {
         return;
       }
       const tokenId = await university.studentToTokenId(verifyStudent);
-      const cert = await university.certificates(tokenId);
+      const [cert, revoked, reason, revDate] = await Promise.all([
+        university.certificates(tokenId),
+        university.isRevoked(verifyStudent),
+        university.revocationReason(verifyStudent),
+        university.revocationDate(verifyStudent),
+      ]);
       const univName = universities.find(u => u.address.toLowerCase() === verifyUniv.toLowerCase())?.name || 'Unknown University';
 
       // Decrypt the name and course - works transparently for both
@@ -474,8 +527,13 @@ export default function Dashboard() {
         courseName: decryptedCourse,
         issuedAt: new Date(Number(cert.issuanceDate) * 1000).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' }),
         universityName: univName,
+        isRevoked: revoked,
+        revocationReason: reason,
+        revocationDate: revoked && Number(revDate) > 0
+          ? new Date(Number(revDate) * 1000).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })
+          : '',
       });
-      showMsg('success', 'Certificate verified on the blockchain!');
+      showMsg(revoked ? 'error' : 'success', revoked ? 'This certificate has been revoked by the issuing institution.' : 'Certificate verified on the blockchain!');
     } catch (error) {
       showMsg('error', parseError(error));
     } finally {
@@ -665,7 +723,7 @@ export default function Dashboard() {
                 <span className="bg-green-600 text-white text-xs font-bold px-2 py-0.5 rounded-full">Step 2</span>
                 <h2 className="text-base font-bold">Issue Certificate</h2>
               </div>
-              <p className="text-slate-400 text-sm">Issue a tamper-proof, permanent certificate to a student. The certificate is tied to their wallet and cannot be transferred or revoked.</p>
+              <p className="text-slate-400 text-sm">Issue a tamper-proof, permanent certificate to a student. The certificate is tied to their wallet and cannot be transferred.</p>
               <div>
                 <label className={labelClass}>Select Programme</label>
                 {myUniversities.length === 0 ? (
@@ -711,6 +769,91 @@ export default function Dashboard() {
               </div>
               <button onClick={issueCertificate} disabled={isIssuing} className={`${btnClass} bg-green-600 hover:bg-green-700`}>
                 {isIssuing ? 'Issuing Certificate... Please wait' : 'Issue Certificate'}
+              </button>
+            </div>
+
+            {/* Step 3: Revoke Certificate */}
+            <div className="bg-slate-800 rounded-xl p-6 border border-red-900/40 space-y-4">
+              <div className="flex items-center gap-2">
+                <span className="bg-red-800 text-white text-xs font-bold px-2 py-0.5 rounded-full">Step 3</span>
+                <h2 className="text-base font-bold">Revoke a Certificate</h2>
+                <span className="text-xs text-slate-400 ml-auto">Admin only</span>
+              </div>
+              <p className="text-slate-400 text-sm">
+                Revoke an issued certificate. The revocation and its reason are recorded permanently on the blockchain and will be visible to anyone who verifies that certificate.
+              </p>
+              <div>
+                <label className={labelClass}>Select Programme</label>
+                {myUniversities.length === 0 ? (
+                  <div className={`${inputClass} text-slate-400`}>No programmes assigned to your wallet yet.</div>
+                ) : (
+                  <select
+                    className={inputClass}
+                    value={univAddress}
+                    onChange={(e) => setUnivAddress(e.target.value)}
+                  >
+                    <option value="">-- Select a programme --</option>
+                    {myUniversities.map((u) => (
+                      <option key={u.address} value={u.address}>{u.name}</option>
+                    ))}
+                  </select>
+                )}
+              </div>
+              <div>
+                <label className={labelClass}>Student Wallet Address</label>
+                <input
+                  className={inputClass}
+                  placeholder="0x... (wallet address of the student)"
+                  value={revokeAddress}
+                  onChange={(e) => setRevokeAddress(e.target.value)}
+                />
+              </div>
+              <div>
+                <label className={labelClass}>Reason for Revocation</label>
+                <select
+                  className={inputClass}
+                  value={revokeReason}
+                  onChange={(e) => setRevokeReason(e.target.value)}
+                >
+                  <option value="">-- Select a reason --</option>
+                  {REVOCATION_PRESETS.map((preset) => (
+                    <option key={preset} value={preset}>{preset}</option>
+                  ))}
+                  <option value="custom">Other — enter custom reason</option>
+                </select>
+              </div>
+              {revokeReason === 'custom' && (
+                <div>
+                  <label className={labelClass}>Custom Reason</label>
+                  <input
+                    className={inputClass}
+                    placeholder="Describe the reason for revocation..."
+                    value={customReason}
+                    onChange={(e) => setCustomReason(e.target.value)}
+                    maxLength={200}
+                  />
+                </div>
+              )}
+              {revokeReason && revokeReason !== 'custom' && (
+                <div className="p-3 bg-red-900/20 border border-red-800/50 rounded-lg">
+                  <p className="text-xs text-red-300">
+                    This will be recorded on the blockchain as: <span className="font-semibold">&quot;{revokeReason}&quot;</span>
+                  </p>
+                </div>
+              )}
+              {revokeReason === 'custom' && customReason && (
+                <div className="p-3 bg-red-900/20 border border-red-800/50 rounded-lg">
+                  <p className="text-xs text-red-300">
+                    This will be recorded on the blockchain as: <span className="font-semibold">&quot;{customReason}&quot;</span>
+                  </p>
+                </div>
+              )}
+              <button
+                onClick={handleRevoke}
+                disabled={isRevoking || !revokeAddress || !revokeReason}
+                className={`${btnClass} bg-red-700 hover:bg-red-600 disabled:opacity-50`}
+              >
+                {isRevoking ? 'Revoking... Please wait' : 'Revoke Certificate'}
               </button>
             </div>
           </div>
@@ -773,19 +916,37 @@ export default function Dashboard() {
             </button>
 
             {certResult && (
-              <div className="mt-2 p-5 bg-slate-700/60 rounded-xl border border-green-700/50 space-y-4">
-                <div className="flex items-center gap-2">
-                  <div className="w-2.5 h-2.5 rounded-full bg-green-400 shrink-0 animate-pulse"></div>
-                  <span className="text-green-400 font-semibold text-sm">Certificate Verified — Authentic and Tamper-Proof</span>
-                </div>
+              <div className={`mt-2 p-5 rounded-xl border space-y-4 ${certResult.isRevoked ? 'bg-red-900/20 border-red-700/60' : 'bg-slate-700/60 border-green-700/50'}`}>
+                {/* Status banner */}
+                {certResult.isRevoked ? (
+                  <div className="space-y-2">
+                    <div className="flex items-center gap-2">
+                      <div className="w-2.5 h-2.5 rounded-full bg-red-400 shrink-0"></div>
+                      <span className="text-red-400 font-semibold text-sm">Certificate Revoked</span>
+                    </div>
+                    <div className="p-3 bg-red-900/30 border border-red-700/40 rounded-lg">
+                      <p className="text-xs text-slate-400 uppercase tracking-wide mb-1">Reason for Revocation</p>
+                      <p className="text-red-200 text-sm font-medium">This certificate was revoked by the issuing institution because: {certResult.revocationReason}</p>
+                      {certResult.revocationDate && (
+                        <p className="text-xs text-slate-500 mt-1">Revoked on {certResult.revocationDate}</p>
+                      )}
+                    </div>
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-2">
+                    <div className="w-2.5 h-2.5 rounded-full bg-green-400 shrink-0 animate-pulse"></div>
+                    <span className="text-green-400 font-semibold text-sm">Certificate Verified — Authentic and Tamper-Proof</span>
+                  </div>
+                )}
+                {/* Certificate details - always shown so verifier knows whose it was */}
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <p className="text-slate-400 text-xs uppercase tracking-wide mb-1">Graduate Name</p>
-                    <p className="text-white font-medium">{certResult.candidateName}</p>
+                    <p className={`font-medium ${certResult.isRevoked ? 'text-slate-400 line-through' : 'text-white'}`}>{certResult.candidateName}</p>
                   </div>
                   <div>
                     <p className="text-slate-400 text-xs uppercase tracking-wide mb-1">Field of Study</p>
-                    <p className="text-white font-medium">{certResult.courseName}</p>
+                    <p className={`font-medium ${certResult.isRevoked ? 'text-slate-400 line-through' : 'text-white'}`}>{certResult.courseName}</p>
                   </div>
                   <div>
                     <p className="text-slate-400 text-xs uppercase tracking-wide mb-1">Institution & Programme</p>

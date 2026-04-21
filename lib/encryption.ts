@@ -18,13 +18,19 @@
 const APP_SALT = 'pax-academic-certificate-system-v1';
 
 /**
- * Returns the Web Crypto API instance, compatible with both browser and Node.js 18+.
+ * Returns the Web Crypto API instance lazily.
+ * This function must only be called at runtime (in the browser), never at build time.
  */
 function getCrypto(): Crypto {
+  // Check for browser environment first
+  if (typeof window !== 'undefined' && window.crypto?.subtle) {
+    return window.crypto;
+  }
+  // Fallback for Node.js 18+ (runtime only, not build time)
   if (typeof globalThis !== 'undefined' && globalThis.crypto?.subtle) {
     return globalThis.crypto;
   }
-  throw new Error('Web Crypto API is not available in this environment.');
+  throw new Error('Web Crypto API is not available. This function should only run in the browser.');
 }
 
 /**

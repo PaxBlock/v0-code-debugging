@@ -2,7 +2,6 @@
 
 import { useState, useEffect } from 'react';
 import { ethers } from 'ethers';
-import { encryptName, decryptName } from '@/lib/encryption';
 
 // New Factory contract - includes getWalletUniversities() and registerIssuer()
 const FACTORY_ADDRESS = '0x043ABF52e143efEF786a695ad739b8Bda8a1555E';
@@ -371,7 +370,9 @@ export default function Dashboard() {
     setIsIssuing(true);
     try {
       // Encrypt the student name and course before storing on blockchain
+      // Dynamic import ensures crypto is only loaded at runtime in browser
       showMsg('info', 'Encrypting certificate data...');
+      const { encryptName } = await import('@/lib/encryption');
       const encryptedName = await encryptName(certificateName, univAddress, studentAddress);
       const encryptedCourse = await encryptName(courseName, univAddress, studentAddress);
 
@@ -412,6 +413,8 @@ export default function Dashboard() {
 
       // Decrypt the name and course - works transparently for both
       // encrypted (new) and unencrypted (legacy) certificates
+      // Dynamic import ensures crypto is only loaded at runtime in browser
+      const { decryptName } = await import('@/lib/encryption');
       const decryptedName = await decryptName(cert.candidateName, verifyUniv, verifyStudent);
       const decryptedCourse = await decryptName(cert.courseName, verifyUniv, verifyStudent);
 

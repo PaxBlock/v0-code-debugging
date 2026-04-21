@@ -78,7 +78,7 @@ async function decryptField(value: string, univAddr: string, studentAddr: string
     const cipher = _fromBase64(parts[2]);
     const plain = await _wcrypto().subtle.decrypt({ name: 'AES-GCM', iv }, key, cipher);
     return new TextDecoder().decode(plain);
-  } catch {
+  } catch (_e) {
     return '[Encrypted]';
   }
 }
@@ -195,7 +195,7 @@ export default function Dashboard() {
       const issuerRole = await university.ISSUER_ROLE();
       const hasRole = await university.hasRole(issuerRole, account);
       setHasIssuerRole(hasRole);
-    } catch {
+    } catch (_e) {
       setHasIssuerRole(null);
     }
   };
@@ -227,7 +227,7 @@ export default function Dashboard() {
         const p = new ethers.JsonRpcProvider(rpc, SEPOLIA_NETWORK, { staticNetwork: true });
         await p.getBlockNumber();
         return p;
-      } catch {
+      } catch (_e) {
         continue;
       }
     }
@@ -254,7 +254,7 @@ export default function Dashboard() {
             const univContract = new ethers.Contract(addr, UNIVERSITY_ABI, provider);
             const name = await univContract.name();
             return { address: addr, name };
-          } catch {
+          } catch (_e) {
             return { address: addr, name: `University (${addr.slice(0, 6)}...)` };
           }
         })
@@ -291,7 +291,7 @@ export default function Dashboard() {
             const univContract = new ethers.Contract(addr, UNIVERSITY_ABI, provider);
             const name = await univContract.name();
             return { address: addr, name };
-          } catch {
+          } catch (_e) {
             return { address: addr, name: `University (${addr.slice(0, 6)}...)` };
           }
         })
@@ -321,7 +321,7 @@ export default function Dashboard() {
         showMsg('info', 'Switching to Sepolia network...');
         try {
           await win.ethereum.request({ method: 'wallet_switchEthereumChain', params: [{ chainId: SEPOLIA_HEX }] });
-        } catch {
+        } catch (_e) {
           await win.ethereum.request({
             method: 'wallet_addEthereumChain',
             params: [{

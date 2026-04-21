@@ -29,6 +29,57 @@ const UNIVERSITY_ABI = [
   'function DEFAULT_ADMIN_ROLE() external view returns (bytes32)',
 ];
 
+// ---------------------------------------------------------------------------
+// AES-256-GCM Encryption — defined here inside the 'use client' module so
+// Next.js never evaluates these functions during the server-side build pass.
+// The key is deterministically derived from the university + student address
+// so no key storage is needed — any client can re-derive it to verify.
+// ---------------------------------------------------------------------------
+const APP_SALT = 'pax-academic-certificate-system-v1';
+
+function _toBase64(bytes: Uint8Array): string {
+  let binary = '';
+  for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]);
+  return btoa(binary);
+}
+
+function _fromBase64(b64: string): Uint8Array {
+  return Uint8Array.from(atob(b64), (c) => c.charCodeAt(0));
+}
+
+async function _deriveKey(universityAddress: string, studentAddress: string): Promise<CryptoKey> {
+  const raw = `${APP_SALT}:${universityAddress.toLowerCase()}:${studentAddress.toLowerCase()}`;
+  const encoded = new TextEncoder().encode(raw);
+  const hash = await window.crypto.subtle.digest('SHA-256', encoded);
+  return window.crypto.subtle.importKey(
+    'raw', hash, { name: 'AES-GCM', length: 256 }, false, ['encrypt', 'decrypt']
+  );
+}
+
+async function encryptField(plain: string, univAddr: string, studentAddr: string): Promise<string> {
+  const key = await _deriveKey(univAddr, studentAddr);
+  const iv = window.crypto.getRandomValues(new Uint8Array(12));
+  const cipher = await window.crypto.subtle.encrypt(
+    { name: 'AES-GCM', iv }, key, new TextEncoder().encode(plain)
+  );
+  return `enc:${_toBase64(iv)}:${_toBase64(new Uint8Array(cipher))}`;
+}
+
+async function decryptField(value: string, univAddr: string, studentAddr: string): Promise<string> {
+  if (!value.startsWith('enc:')) return value;
+  try {
+    const parts = value.split(':');
+    if (parts.length !== 3) return value;
+    const key = await _deriveKey(univAddr, studentAddr);
+    const iv = _fromBase64(parts[1]);
+    const cipher = _fromBase64(parts[2]);
+    const plain = await window.crypto.subtle.decrypt({ name: 'AES-GCM', iv }, key, cipher);
+    return new TextDecoder().decode(plain);
+  } catch {
+    return '[Encrypted]';
+  }
+}
+
 type Msg = { type: 'success' | 'error' | 'info'; text: string };
 type University = { address: string; name: string };
 
@@ -370,11 +421,9 @@ export default function Dashboard() {
     setIsIssuing(true);
     try {
       // Encrypt the student name and course before storing on blockchain
-      // Dynamic import ensures crypto is only loaded at runtime in browser
       showMsg('info', 'Encrypting certificate data...');
-      const { encryptName } = await import('@/lib/encryption');
-      const encryptedName = await encryptName(certificateName, univAddress, studentAddress);
-      const encryptedCourse = await encryptName(courseName, univAddress, studentAddress);
+      const encryptedName = await encryptField(certificateName, univAddress, studentAddress);
+      const encryptedCourse = await encryptField(courseName, univAddress, studentAddress);
 
       const university = new ethers.Contract(univAddress, UNIVERSITY_ABI, signer);
       const tokenURI = `ipfs://certificate/${studentAddress}`;
@@ -413,10 +462,8 @@ export default function Dashboard() {
 
       // Decrypt the name and course - works transparently for both
       // encrypted (new) and unencrypted (legacy) certificates
-      // Dynamic import ensures crypto is only loaded at runtime in browser
-      const { decryptName } = await import('@/lib/encryption');
-      const decryptedName = await decryptName(cert.candidateName, verifyUniv, verifyStudent);
-      const decryptedCourse = await decryptName(cert.courseName, verifyUniv, verifyStudent);
+      const decryptedName = await decryptField(cert.candidateName, verifyUniv, verifyStudent);
+      const decryptedCourse = await decryptField(cert.courseName, verifyUniv, verifyStudent);
 
       setCertResult({
         tokenId: tokenId.toString(),

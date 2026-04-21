@@ -47,19 +47,22 @@ function _fromBase64(b64: string): Uint8Array {
   return Uint8Array.from(atob(b64), (c) => c.charCodeAt(0));
 }
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const _wcrypto = (): Crypto => (globalThis as any).crypto as Crypto;
+
 async function _deriveKey(universityAddress: string, studentAddress: string): Promise<CryptoKey> {
   const raw = `${APP_SALT}:${universityAddress.toLowerCase()}:${studentAddress.toLowerCase()}`;
   const encoded = new TextEncoder().encode(raw);
-  const hash = await window.crypto.subtle.digest('SHA-256', encoded);
-  return window.crypto.subtle.importKey(
+  const hash = await _wcrypto().subtle.digest('SHA-256', encoded);
+  return _wcrypto().subtle.importKey(
     'raw', hash, { name: 'AES-GCM', length: 256 }, false, ['encrypt', 'decrypt']
   );
 }
 
 async function encryptField(plain: string, univAddr: string, studentAddr: string): Promise<string> {
   const key = await _deriveKey(univAddr, studentAddr);
-  const iv = window.crypto.getRandomValues(new Uint8Array(12));
-  const cipher = await window.crypto.subtle.encrypt(
+  const iv = _wcrypto().getRandomValues(new Uint8Array(12));
+  const cipher = await _wcrypto().subtle.encrypt(
     { name: 'AES-GCM', iv }, key, new TextEncoder().encode(plain)
   );
   return `enc:${_toBase64(iv)}:${_toBase64(new Uint8Array(cipher))}`;
@@ -73,7 +76,7 @@ async function decryptField(value: string, univAddr: string, studentAddr: string
     const key = await _deriveKey(univAddr, studentAddr);
     const iv = _fromBase64(parts[1]);
     const cipher = _fromBase64(parts[2]);
-    const plain = await window.crypto.subtle.decrypt({ name: 'AES-GCM', iv }, key, cipher);
+    const plain = await _wcrypto().subtle.decrypt({ name: 'AES-GCM', iv }, key, cipher);
     return new TextDecoder().decode(plain);
   } catch {
     return '[Encrypted]';

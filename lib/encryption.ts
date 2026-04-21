@@ -1,3 +1,5 @@
+'use client';
+
 /**
  * AES-256-GCM Encryption Utility
  *

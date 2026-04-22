@@ -1,10 +1,10 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   typescript: {
-    // The encryption functions use Web Crypto API (CryptoKey, TextEncoder etc.)
-    // which are DOM types only available at runtime in the browser.
-    // The Next.js build worker runs in Node.js and cannot resolve these types
-    // even though the code is inside a 'use client' component and never runs server-side.
+    // The encryption functions use browser-only Web Crypto APIs (window.crypto,
+    // TextEncoder, CryptoKey) which are valid at runtime in the browser but
+    // cannot be resolved by the Next.js build worker running in Node.js.
+    // Type checking should be run locally with `tsc --noEmit` instead.
     ignoreBuildErrors: true,
   },
   eslint: {

@@ -4,8 +4,8 @@
 import { useState, useEffect } from 'react';
 import { ethers } from 'ethers';
 
-// New Factory contract - includes revocation support in AcademicCertificate
-const FACTORY_ADDRESS = '0x1dE61396792Ee6Cb3251D2EcD8A93a03B4Da8FF2';
+// Factory contract - PaxID, grade, signatory config, NFT metadata support
+const FACTORY_ADDRESS = '0xEFc402FaF0b275E0DdB25870fea17A717d3B98ae';
 const SEPOLIA_CHAIN_ID = 11155111;
 const SEPOLIA_HEX = '0xaa36a7';
 

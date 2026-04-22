@@ -51,24 +51,30 @@ function _fromBase64(b64: string): Uint8Array {
   return Uint8Array.from(atob(b64), (c) => c.charCodeAt(0));
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-const _wcrypto = (): Crypto => (globalThis as any).crypto as Crypto;
+// Returns the SubtleCrypto instance. Accessed inside function bodies only
+// so the build worker never evaluates this at module parse time.
+function _subtle(): SubtleCrypto {
+  // @ts-ignore - crypto is available at runtime in browser, not at build time
+  return crypto.subtle;
+}
+function _randBytes(n: number): Uint8Array {
+  const arr = new Uint8Array(n);
+  // @ts-ignore - crypto is available at runtime in browser, not at build time
+  crypto.getRandomValues(arr);
+  return arr;
+}
 
-async function _deriveKey(universityAddress: string, studentAddress: string): Promise<CryptoKey> {
+async function _deriveKey(universityAddress: string, studentAddress: string) {
   const raw = `${APP_SALT}:${universityAddress.toLowerCase()}:${studentAddress.toLowerCase()}`;
   const encoded = new TextEncoder().encode(raw);
-  const hash = await _wcrypto().subtle.digest('SHA-256', encoded);
-  return _wcrypto().subtle.importKey(
-    'raw', hash, { name: 'AES-GCM', length: 256 }, false, ['encrypt', 'decrypt']
-  );
+  const hash = await _subtle().digest('SHA-256', encoded);
+  return _subtle().importKey('raw', hash, { name: 'AES-GCM', length: 256 }, false, ['encrypt', 'decrypt']);
 }
 
 async function encryptField(plain: string, univAddr: string, studentAddr: string): Promise<string> {
   const key = await _deriveKey(univAddr, studentAddr);
-  const iv = _wcrypto().getRandomValues(new Uint8Array(12));
-  const cipher = await _wcrypto().subtle.encrypt(
-    { name: 'AES-GCM', iv }, key, new TextEncoder().encode(plain)
-  );
+  const iv = _randBytes(12);
+  const cipher = await _subtle().encrypt({ name: 'AES-GCM', iv }, key, new TextEncoder().encode(plain));
   return `enc:${_toBase64(iv)}:${_toBase64(new Uint8Array(cipher))}`;
 }
 
@@ -80,7 +86,7 @@ async function decryptField(value: string, univAddr: string, studentAddr: string
     const key = await _deriveKey(univAddr, studentAddr);
     const iv = _fromBase64(parts[1]);
     const cipher = _fromBase64(parts[2]);
-    const plain = await _wcrypto().subtle.decrypt({ name: 'AES-GCM', iv }, key, cipher);
+    const plain = await _subtle().decrypt({ name: 'AES-GCM', iv }, key, cipher);
     return new TextDecoder().decode(plain);
   } catch (_e) {
     return '[Encrypted]';

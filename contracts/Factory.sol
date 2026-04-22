@@ -47,14 +47,16 @@ contract UniversityFactory is AccessControl {
     function deployUniversity(
         string memory universityName,
         string memory symbol,
-        address universityAdmin
+        address universityAdmin,
+        string memory baseMetadataURI
     ) external onlyRole(FACTORY_ADMIN_ROLE) returns (address) {
 
         // Deploy a new instance of the Academic Certificate contract
         AcademicCertificate newUniversity = new AcademicCertificate(
             universityName,
             symbol,
-            universityAdmin
+            universityAdmin,
+            baseMetadataURI
         );
 
         address universityAddress = address(newUniversity);

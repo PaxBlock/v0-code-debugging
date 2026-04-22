@@ -10,7 +10,7 @@ const SEPOLIA_CHAIN_ID = 11155111;
 const SEPOLIA_HEX = '0xaa36a7';
 
 const FACTORY_ABI = [
-  'function deployUniversity(string memory universityName, string memory symbol, address universityAdmin) external returns (address)',
+  'function deployUniversity(string memory universityName, string memory symbol, address universityAdmin, string memory baseMetadataURI) external returns (address)',
   'function getUniversityCount() external view returns (uint256)',
   'function deployedUniversities(uint256 index) external view returns (address)',
   'function getWalletUniversities(address wallet) external view returns (address[])',
@@ -20,9 +20,9 @@ const FACTORY_ABI = [
 
 const UNIVERSITY_ABI = [
   'function name() external view returns (string)',
-  'function issueCertificate(address student, string memory _tokenURI, string memory _candidateName, string memory _courseName) external returns (uint256)',
+  'function issueCertificate(address student, string memory _candidateName, string memory _courseName, string memory _grade, string memory _paxId) external returns (uint256)',
   'function hasCertificate(address student) external view returns (bool)',
-  'function certificates(uint256 tokenId) external view returns (string candidateName, string courseName, uint256 issuanceDate, address issuer)',
+  'function certificates(uint256 tokenId) external view returns (string candidateName, string courseName, string grade, string paxId, uint256 issuanceDate, address issuer)',
   'function studentToTokenId(address student) external view returns (uint256)',
   'function grantRole(bytes32 role, address account) external',
   'function hasRole(bytes32 role, address account) external view returns (bool)',
@@ -32,6 +32,10 @@ const UNIVERSITY_ABI = [
   'function isRevoked(address student) external view returns (bool)',
   'function revocationReason(address student) external view returns (string)',
   'function revocationDate(address student) external view returns (uint256)',
+  'function resolvePaxId(string memory paxId) external view returns (address)',
+  'function setInstitutionConfig(string memory deanName, string memory registrarName, string memory viceChancellorName, string memory verificationDomain) external',
+  'function institutionConfig() external view returns (string deanName, string registrarName, string viceChancellorName, string verificationDomain)',
+  'function walletToPaxId(address student) external view returns (string)',
 ];
 
 // ---------------------------------------------------------------------------
@@ -154,15 +158,27 @@ export default function Dashboard() {
   const [studentAddress, setStudentAddress] = useState('');
   const [certificateName, setCertificateName] = useState('');
   const [courseName, setCourseName] = useState('');
+  const [grade, setGrade] = useState('');
+  const [paxId, setPaxId] = useState('');
   const [isIssuing, setIsIssuing] = useState(false);
   const [grantAddress, setGrantAddress] = useState('');
   const [isGranting, setIsGranting] = useState(false);
   const [hasIssuerRole, setHasIssuerRole] = useState<boolean | null>(null);
 
-  // Verify tab - uses university name lookup (all universities, public)
+  // Institution config (Register tab - step 2)
+  const [configUnivAddress, setConfigUnivAddress] = useState('');
+  const [deanName, setDeanName] = useState('');
+  const [registrarName, setRegistrarName] = useState('');
+  const [vcName, setVcName] = useState('');
+  const [verificationDomain, setVerificationDomain] = useState('');
+  const [isSettingConfig, setIsSettingConfig] = useState(false);
+
+  // Verify tab
   const [universities, setUniversities] = useState<University[]>([]);
   const [verifyUniv, setVerifyUniv] = useState('');
   const [verifyStudent, setVerifyStudent] = useState('');
+  const [verifyPaxId, setVerifyPaxId] = useState('');
+  const [verifyMode, setVerifyMode] = useState<'wallet' | 'paxid'>('wallet');
   const [isVerifying, setIsVerifying] = useState(false);
   const [isLoadingUnis, setIsLoadingUnis] = useState(false);
 
@@ -173,8 +189,12 @@ export default function Dashboard() {
     tokenId: string;
     candidateName: string;
     courseName: string;
+    grade: string;
+    paxId: string;
     issuedAt: string;
     universityName: string;
+    univAddress: string;
+    studentAddress: string;
     isRevoked: boolean;
     revocationReason: string;
     revocationDate: string;
@@ -385,9 +405,10 @@ export default function Dashboard() {
     try {
       // Combine university name and degree level into one clear contract name
       const fullName = `${univName.trim()} - ${degreeLevel}`;
+      const baseMetadataURI = window.location.origin;
       const factory = new ethers.Contract(FACTORY_ADDRESS, FACTORY_ABI, signer);
       showMsg('info', 'Deploying university contract... Please confirm in MetaMask.');
-      const tx = await factory.deployUniversity(fullName, univSymbol, univAdmin);
+      const tx = await factory.deployUniversity(fullName, univSymbol, univAdmin, baseMetadataURI);
       const receipt = await tx.wait();
       const event = receipt.logs.find((l: { topics: string[] }) => l.topics.length > 0);
       const univAddr = event?.address || receipt.contractAddress || 'Check Etherscan';
@@ -442,6 +463,25 @@ export default function Dashboard() {
     }
   };
 
+  const saveInstitutionConfig = async () => {
+    if (!signer) { showMsg('error', 'Please connect your wallet first.'); return; }
+    if (!configUnivAddress || !ethers.isAddress(configUnivAddress)) { showMsg('error', 'Please enter a valid programme contract address.'); return; }
+    if (!deanName || !registrarName || !vcName) { showMsg('error', 'Please fill in all signatory names.'); return; }
+    setIsSettingConfig(true);
+    try {
+      const university = new ethers.Contract(configUnivAddress, UNIVERSITY_ABI, signer);
+      showMsg('info', 'Saving institution config... Please confirm in MetaMask.');
+      const tx = await university.setInstitutionConfig(deanName, registrarName, vcName, verificationDomain);
+      await tx.wait();
+      showMsg('success', 'Institution configuration saved. Your signatories will now appear on all certificates from this programme.');
+      setDeanName(''); setRegistrarName(''); setVcName(''); setVerificationDomain('');
+    } catch (error) {
+      showMsg('error', parseError(error));
+    } finally {
+      setIsSettingConfig(false);
+    }
+  };
+
   const handleRevoke = async () => {
     if (!signer) { showMsg('error', 'Please connect your wallet first.'); return; }
     if (!univAddress) { showMsg('error', 'Please select a programme first.'); return; }
@@ -471,27 +511,30 @@ export default function Dashboard() {
 
   const issueCertificate = async () => {
     if (!signer) { showMsg('error', 'Please connect your wallet first.'); return; }
-    if (!univAddress || !studentAddress || !certificateName || !courseName) {
-      showMsg('error', 'Please fill in all fields before issuing a certificate.'); return;
+    if (!univAddress || !studentAddress || !certificateName || !courseName || !grade || !paxId) {
+      showMsg('error', 'Please fill in all fields including grade and PaxID before issuing a certificate.'); return;
     }
     if (!ethers.isAddress(univAddress)) { showMsg('error', 'The university contract address is not valid.'); return; }
     if (!ethers.isAddress(studentAddress)) { showMsg('error', 'The student wallet address is not valid.'); return; }
     setIsIssuing(true);
     try {
-      // Encrypt the student name and course before storing on blockchain
+      // Encrypt name, course, and grade before storing on blockchain
       showMsg('info', 'Encrypting certificate data...');
       const encryptedName = await encryptField(certificateName, univAddress, studentAddress);
       const encryptedCourse = await encryptField(courseName, univAddress, studentAddress);
+      const encryptedGrade = await encryptField(grade, univAddress, studentAddress);
 
       const university = new ethers.Contract(univAddress, UNIVERSITY_ABI, signer);
-      const tokenURI = `ipfs://certificate/${studentAddress}`;
       showMsg('info', 'Issuing certificate... Please confirm in MetaMask.');
-      const tx = await university.issueCertificate(studentAddress, tokenURI, encryptedName, encryptedCourse);
+      // tokenURI is auto-generated by the contract using the baseMetadataURI set at deploy
+      const tx = await university.issueCertificate(studentAddress, encryptedName, encryptedCourse, encryptedGrade, paxId);
       await tx.wait();
-      showMsg('success', `Certificate successfully issued to ${certificateName}! Their data is encrypted on the blockchain.`);
+      showMsg('success', `Certificate successfully issued to ${certificateName}! PaxID: ${paxId}`);
       setStudentAddress('');
       setCertificateName('');
       setCourseName('');
+      setGrade('');
+      setPaxId('');
     } catch (error) {
       showMsg('error', parseError(error));
     } finally {
@@ -501,39 +544,59 @@ export default function Dashboard() {
 
   const verifyCertificate = async () => {
     if (!verifyUniv) { showMsg('error', 'Please select a university.'); return; }
-    if (!verifyStudent) { showMsg('error', 'Please enter the student wallet address.'); return; }
-    if (!ethers.isAddress(verifyStudent)) { showMsg('error', 'The student wallet address is not valid. Please check and try again.'); return; }
     setIsVerifying(true);
     setCertResult(null);
     try {
       const provider = await getReadOnlyProvider();
       const university = new ethers.Contract(verifyUniv, UNIVERSITY_ABI, provider);
-      const has = await university.hasCertificate(verifyStudent);
+
+      // Resolve student address — either from direct wallet input or PaxID lookup
+      let resolvedStudent = verifyStudent;
+      if (verifyMode === 'paxid') {
+        if (!verifyPaxId.trim()) { showMsg('error', 'Please enter a PaxID.'); setIsVerifying(false); return; }
+        resolvedStudent = await university.resolvePaxId(verifyPaxId.trim());
+        if (!resolvedStudent || resolvedStudent === ethers.ZeroAddress) {
+          showMsg('error', `No certificate found for PaxID "${verifyPaxId}".`);
+          setIsVerifying(false);
+          return;
+        }
+      } else {
+        if (!verifyStudent) { showMsg('error', 'Please enter the student wallet address.'); setIsVerifying(false); return; }
+        if (!ethers.isAddress(verifyStudent)) { showMsg('error', 'The student wallet address is not valid.'); setIsVerifying(false); return; }
+      }
+
+      const has = await university.hasCertificate(resolvedStudent);
       if (!has) {
         showMsg('error', 'No certificate found for this student at the selected university.');
         setIsVerifying(false);
         return;
       }
-      const tokenId = await university.studentToTokenId(verifyStudent);
+
+      const tokenId = await university.studentToTokenId(resolvedStudent);
       const [cert, revoked, reason, revDate] = await Promise.all([
         university.certificates(tokenId),
-        university.isRevoked(verifyStudent),
-        university.revocationReason(verifyStudent),
-        university.revocationDate(verifyStudent),
+        university.isRevoked(resolvedStudent),
+        university.revocationReason(resolvedStudent),
+        university.revocationDate(resolvedStudent),
       ]);
       const univName = universities.find(u => u.address.toLowerCase() === verifyUniv.toLowerCase())?.name || 'Unknown University';
 
-      // Decrypt the name and course - works transparently for both
-      // encrypted (new) and unencrypted (legacy) certificates
-      const decryptedName = await decryptField(cert.candidateName, verifyUniv, verifyStudent);
-      const decryptedCourse = await decryptField(cert.courseName, verifyUniv, verifyStudent);
+      const [decryptedName, decryptedCourse, decryptedGrade] = await Promise.all([
+        decryptField(cert.candidateName, verifyUniv, resolvedStudent),
+        decryptField(cert.courseName, verifyUniv, resolvedStudent),
+        decryptField(cert.grade, verifyUniv, resolvedStudent),
+      ]);
 
       setCertResult({
         tokenId: tokenId.toString(),
         candidateName: decryptedName,
         courseName: decryptedCourse,
+        grade: decryptedGrade,
+        paxId: cert.paxId,
         issuedAt: new Date(Number(cert.issuanceDate) * 1000).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' }),
         universityName: univName,
+        univAddress: verifyUniv,
+        studentAddress: resolvedStudent,
         isRevoked: revoked,
         revocationReason: reason,
         revocationDate: revoked && Number(revDate) > 0
@@ -659,9 +722,53 @@ export default function Dashboard() {
               <div className="mt-2 p-4 bg-green-900/20 border border-green-700 rounded-lg">
                 <p className="text-xs text-slate-400 mb-1">Programme successfully registered. Contract address (save this):</p>
                 <p className="font-mono text-green-400 text-sm break-all">{deployedUnivAddress}</p>
-                <p className="text-xs text-slate-500 mt-2">This address uniquely identifies your programme on the blockchain.</p>
+                <p className="text-xs text-slate-500 mt-2">This address uniquely identifies your programme on the blockchain. Complete Step 2 below to configure your signatories.</p>
+                <button onClick={() => setConfigUnivAddress(deployedUnivAddress)} className="mt-2 text-xs text-blue-400 hover:text-blue-300 underline">
+                  Use this address for signatory setup
+                </button>
               </div>
             )}
+          </div>
+
+          {/* Step 2: Signatory Configuration */}
+          <div className="bg-slate-800 rounded-xl p-6 border border-blue-900/40 space-y-4 mt-6">
+            <div className="flex items-center gap-2">
+              <span className="bg-blue-700 text-white text-xs font-bold px-2 py-0.5 rounded-full">Step 2</span>
+              <h2 className="text-base font-bold">Configure Institution Signatories</h2>
+              <span className="text-xs text-slate-400 ml-auto">One-time setup per programme</span>
+            </div>
+            <p className="text-slate-400 text-sm">
+              These names will appear on every certificate NFT issued under this programme — Dean, Registrar, and Vice-Chancellor. You can update them if personnel changes.
+            </p>
+            <div>
+              <label className={labelClass}>Programme Contract Address</label>
+              <input
+                className={inputClass}
+                placeholder="0x... (the address from Step 1)"
+                value={configUnivAddress}
+                onChange={(e) => setConfigUnivAddress(e.target.value)}
+              />
+            </div>
+            <div>
+              <label className={labelClass}>Dean&apos;s Name</label>
+              <input className={inputClass} placeholder="e.g. Prof. Adewale Olumide" value={deanName} onChange={(e) => setDeanName(e.target.value)} />
+            </div>
+            <div>
+              <label className={labelClass}>Registrar&apos;s Name</label>
+              <input className={inputClass} placeholder="e.g. Dr. Ngozi Eze" value={registrarName} onChange={(e) => setRegistrarName(e.target.value)} />
+            </div>
+            <div>
+              <label className={labelClass}>Vice-Chancellor&apos;s Name</label>
+              <input className={inputClass} placeholder="e.g. Prof. Samuel Ajayi" value={vcName} onChange={(e) => setVcName(e.target.value)} />
+            </div>
+            <div>
+              <label className={labelClass}>Verification Domain (optional)</label>
+              <input className={inputClass} placeholder="e.g. verify.oauife.edu.ng" value={verificationDomain} onChange={(e) => setVerificationDomain(e.target.value)} />
+              <p className="text-xs text-slate-500 mt-1">The domain printed on certificates for QR code verification. Defaults to your platform URL.</p>
+            </div>
+            <button onClick={saveInstitutionConfig} disabled={isSettingConfig} className={`${btnClass} bg-blue-600 hover:bg-blue-700`}>
+              {isSettingConfig ? 'Saving... Please wait' : 'Save Signatories to Blockchain'}
+            </button>
           </div>
         )}
 
@@ -773,6 +880,33 @@ export default function Dashboard() {
                   onChange={(e) => setCourseName(e.target.value)}
                   maxLength={120}
                 />
+              </div>
+              <div>
+                <label className={labelClass}>Classification / Grade</label>
+                <select className={inputClass} value={grade} onChange={(e) => setGrade(e.target.value)}>
+                  <option value="">-- Select classification --</option>
+                  <option value="First Class Honours">First Class Honours</option>
+                  <option value="Second Class Honours (Upper Division)">Second Class Honours (Upper Division)</option>
+                  <option value="Second Class Honours (Lower Division)">Second Class Honours (Lower Division)</option>
+                  <option value="Third Class Honours">Third Class Honours</option>
+                  <option value="Pass">Pass</option>
+                  <option value="Distinction">Distinction</option>
+                  <option value="Merit">Merit</option>
+                  <option value="Credit">Credit</option>
+                  <option value="Satisfactory">Satisfactory</option>
+                </select>
+                <p className="text-xs text-slate-500 mt-1">This will appear on the certificate NFT and is encrypted on-chain.</p>
+              </div>
+              <div>
+                <label className={labelClass}>PaxID (Matric Number)</label>
+                <input
+                  className={inputClass}
+                  placeholder="e.g. PHY/2019/054"
+                  value={paxId}
+                  onChange={(e) => setPaxId(e.target.value)}
+                  maxLength={50}
+                />
+                <p className="text-xs text-slate-500 mt-1">The student&apos;s matric number. Employers can use this to verify without needing the wallet address. Must be unique per student.</p>
               </div>
               <button onClick={issueCertificate} disabled={isIssuing} className={`${btnClass} bg-green-600 hover:bg-green-700`}>
                 {isIssuing ? 'Issuing Certificate... Please wait' : 'Issue Certificate'}
@@ -908,15 +1042,44 @@ export default function Dashboard() {
               )}
             </div>
 
-            <div>
-              <label className={labelClass}>Graduate Wallet Address</label>
-              <input
-                className={inputClass}
-                placeholder="0x... (the graduate's wallet address)"
-                value={verifyStudent}
-                onChange={(e) => { setVerifyStudent(e.target.value); setCertResult(null); }}
-              />
+            {/* Toggle: wallet address vs PaxID */}
+            <div className="flex gap-2 bg-slate-700/60 p-1 rounded-lg">
+              <button
+                onClick={() => { setVerifyMode('paxid'); setCertResult(null); }}
+                className={`flex-1 py-2 rounded-md text-sm font-medium transition-all ${verifyMode === 'paxid' ? 'bg-blue-600 text-white shadow' : 'text-slate-400 hover:text-white'}`}
+              >
+                Search by PaxID / Matric No.
+              </button>
+              <button
+                onClick={() => { setVerifyMode('wallet'); setCertResult(null); }}
+                className={`flex-1 py-2 rounded-md text-sm font-medium transition-all ${verifyMode === 'wallet' ? 'bg-blue-600 text-white shadow' : 'text-slate-400 hover:text-white'}`}
+              >
+                Search by Wallet Address
+              </button>
             </div>
+
+            {verifyMode === 'paxid' ? (
+              <div>
+                <label className={labelClass}>PaxID / Matric Number</label>
+                <input
+                  className={inputClass}
+                  placeholder="e.g. PHY/2019/054"
+                  value={verifyPaxId}
+                  onChange={(e) => { setVerifyPaxId(e.target.value); setCertResult(null); }}
+                />
+                <p className="text-xs text-slate-500 mt-1">Enter the student&apos;s matric number exactly as registered. No wallet address needed.</p>
+              </div>
+            ) : (
+              <div>
+                <label className={labelClass}>Graduate Wallet Address</label>
+                <input
+                  className={inputClass}
+                  placeholder="0x... (the graduate's wallet address)"
+                  value={verifyStudent}
+                  onChange={(e) => { setVerifyStudent(e.target.value); setCertResult(null); }}
+                />
+              </div>
+            )}
 
             <button onClick={verifyCertificate} disabled={isVerifying} className={`${btnClass} bg-purple-600 hover:bg-purple-700`}>
               {isVerifying ? 'Verifying...' : 'Verify Certificate'}
@@ -945,15 +1108,23 @@ export default function Dashboard() {
                     <span className="text-green-400 font-semibold text-sm">Certificate Verified — Authentic and Tamper-Proof</span>
                   </div>
                 )}
-                {/* Certificate details - always shown so verifier knows whose it was */}
+                {/* Certificate details */}
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <p className="text-slate-400 text-xs uppercase tracking-wide mb-1">Graduate Name</p>
                     <p className={`font-medium ${certResult.isRevoked ? 'text-slate-400 line-through' : 'text-white'}`}>{certResult.candidateName}</p>
                   </div>
                   <div>
+                    <p className="text-slate-400 text-xs uppercase tracking-wide mb-1">PaxID / Matric No.</p>
+                    <p className="font-mono text-white font-semibold">{certResult.paxId || '—'}</p>
+                  </div>
+                  <div>
                     <p className="text-slate-400 text-xs uppercase tracking-wide mb-1">Field of Study</p>
                     <p className={`font-medium ${certResult.isRevoked ? 'text-slate-400 line-through' : 'text-white'}`}>{certResult.courseName}</p>
+                  </div>
+                  <div>
+                    <p className="text-slate-400 text-xs uppercase tracking-wide mb-1">Classification</p>
+                    <p className={`font-medium ${certResult.isRevoked ? 'text-slate-400 line-through' : 'text-white'}`}>{certResult.grade || '—'}</p>
                   </div>
                   <div>
                     <p className="text-slate-400 text-xs uppercase tracking-wide mb-1">Institution & Programme</p>
@@ -970,14 +1141,24 @@ export default function Dashboard() {
                     <p className="font-mono text-white font-semibold text-sm">#{certResult.tokenId}</p>
                     <p className="text-slate-500 text-xs mt-0.5">Unique credential identifier on the blockchain</p>
                   </div>
-                  <a
-                    href={`https://sepolia.etherscan.io/token/${verifyUniv}?a=${verifyStudent}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-xs text-blue-400 hover:text-blue-300 underline"
-                  >
-                    View on Blockchain
-                  </a>
+                  <div className="flex flex-col items-end gap-1">
+                    <a
+                      href={`https://sepolia.etherscan.io/token/${certResult.univAddress}?a=${certResult.studentAddress}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-xs text-blue-400 hover:text-blue-300 underline"
+                    >
+                      View on Blockchain
+                    </a>
+                    <a
+                      href={`/api/certificate/${certResult.studentAddress}?contract=${certResult.univAddress}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-xs text-green-400 hover:text-green-300 underline"
+                    >
+                      View NFT Metadata
+                    </a>
+                  </div>
                 </div>
               </div>
             )}

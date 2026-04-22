@@ -84,10 +84,10 @@ export async function GET(
     });
 
     const baseUrl = req.nextUrl.origin;
-    const verifyUrl = `${baseUrl}/verify?paxId=${encodeURIComponent(cert.paxId)}&contract=${univAddress}`;
+    const verifyUrl = `${baseUrl}/?tab=verify&paxId=${encodeURIComponent(cert.paxId)}&contract=${univAddress}`;
     const domain = config.verificationDomain || new URL(baseUrl).hostname;
 
-    // Build image URL with all dynamic fields
+    // Build image URL with all dynamic fields including the live verify URL for the QR code
     const imageParams = new URLSearchParams({
       name: candidateName,
       course: courseName,
@@ -101,6 +101,7 @@ export async function GET(
       domain: domain,
       revoked: revoked ? 'true' : 'false',
       revokeReason: revoked ? revokeReason : '',
+      verifyUrl: verifyUrl,
     });
     const imageUrl = `${baseUrl}/api/certificate/image?${imageParams.toString()}`;
 

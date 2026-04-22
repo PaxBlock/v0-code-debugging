@@ -6,18 +6,23 @@ export const runtime = 'edge';
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
 
-  const studentName   = searchParams.get('name')          || 'Graduate Name';
-  const course        = searchParams.get('course')         || 'Field of Study';
-  const grade         = searchParams.get('grade')          || '';
-  const issuedDate    = searchParams.get('date')           || '';
-  const paxId         = searchParams.get('paxId')          || '';
-  const university    = searchParams.get('university')     || 'Institution Name';
-  const dean          = searchParams.get('dean')           || '';
-  const registrar     = searchParams.get('registrar')      || '';
-  const viceChancellor = searchParams.get('vc')            || '';
-  const domain        = searchParams.get('domain')         || '';
-  const revoked       = searchParams.get('revoked')        === 'true';
-  const revokeReason  = searchParams.get('revokeReason')  || '';
+  const studentName    = searchParams.get('name')          || 'Graduate Name';
+  const course         = searchParams.get('course')         || 'Field of Study';
+  const grade          = searchParams.get('grade')          || '';
+  const issuedDate     = searchParams.get('date')           || '';
+  const paxId          = searchParams.get('paxId')          || '';
+  const university     = searchParams.get('university')     || 'Institution Name';
+  const dean           = searchParams.get('dean')           || '';
+  const registrar      = searchParams.get('registrar')      || '';
+  const viceChancellor = searchParams.get('vc')             || '';
+  const domain         = searchParams.get('domain')         || '';
+  const revoked        = searchParams.get('revoked')        === 'true';
+  const revokeReason   = searchParams.get('revokeReason')  || '';
+  const verifyUrl      = searchParams.get('verifyUrl')      || '';
+
+  // Build the real QR code image URL — points to the live verify page with PaxID pre-filled
+  const qrData = verifyUrl || `https://${domain}`;
+  const qrImageUrl = `https://api.qrserver.com/v1/create-qr-code/?size=160x160&data=${encodeURIComponent(qrData)}&bgcolor=fdf6e3&color=1a1a1a&margin=4`;
 
   return new ImageResponse(
     (
@@ -186,23 +191,17 @@ export async function GET(req: NextRequest) {
 
         {/* Bottom row: QR placeholder + Signatures */}
         <div style={{ display: 'flex', justifyContent: 'space-between', width: '100%', alignItems: 'flex-end', marginTop: 'auto' }}>
-          {/* QR placeholder — actual QR is overlaid in the metadata image via the /api/certificate/[address] route */}
-          <div style={{
-            width: '160px',
-            height: '160px',
-            background: '#e8d5a0',
-            border: '3px solid #c9a96e',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            fontSize: '13px',
-            color: '#888',
-            flexDirection: 'column',
-            gap: '6px',
-            borderRadius: '4px',
-          }}>
-            <div style={{ fontSize: '30px', display: 'flex' }}>&#9639;</div>
-            <span>Scan to verify</span>
+          {/* Real QR code — scans to the live verify page with PaxID pre-filled */}
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '6px' }}>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={qrImageUrl}
+              width={160}
+              height={160}
+              alt="Scan to verify"
+              style={{ border: '3px solid #c9a96e', borderRadius: '4px', display: 'flex' }}
+            />
+            <span style={{ fontSize: '11px', color: '#777', fontStyle: 'italic' }}>Scan to verify</span>
           </div>
 
           {/* Signatures */}

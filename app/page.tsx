@@ -216,6 +216,25 @@ export default function Dashboard() {
 
   const showMsg = (type: Msg['type'], text: string) => setMsg({ type, text });
 
+  // Handle QR code deep-link — when someone scans a certificate QR code they land on
+  // /?tab=verify&paxId=PHY/2019/054&contract=0x... — auto-fill and switch to verify tab
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const tabParam = params.get('tab');
+    const paxIdParam = params.get('paxId');
+    const contractParam = params.get('contract');
+    if (tabParam === 'verify') {
+      setActiveTab('verify');
+      if (paxIdParam) {
+        setVerifyMode('paxid');
+        setVerifyPaxId(paxIdParam);
+      }
+      if (contractParam && ethers.isAddress(contractParam)) {
+        setVerifyUniv(contractParam);
+      }
+    }
+  }, []);
+
   // Load all universities when verify tab opens (public)
   // Load only wallet's universities when issue tab opens (role-filtered)
   useEffect(() => {

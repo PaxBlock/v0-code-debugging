@@ -217,21 +217,60 @@ export default function Dashboard() {
   const showMsg = (type: Msg['type'], text: string) => setMsg({ type, text });
 
   // Handle QR code deep-link — when someone scans a certificate QR code they land on
-  // /?tab=verify&paxId=PHY/2019/054&contract=0x... — auto-fill and switch to verify tab
+  // /?tab=verify&paxId=PHY/2019/054&contract=0x... — auto-fill, switch to verify tab,
+  // and immediately run verification so the employer sees the result with zero interaction
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const tabParam = params.get('tab');
     const paxIdParam = params.get('paxId');
     const contractParam = params.get('contract');
-    if (tabParam === 'verify') {
+    if (tabParam === 'verify' && paxIdParam && contractParam && ethers.isAddress(contractParam)) {
       setActiveTab('verify');
-      if (paxIdParam) {
-        setVerifyMode('paxid');
-        setVerifyPaxId(paxIdParam);
-      }
-      if (contractParam && ethers.isAddress(contractParam)) {
-        setVerifyUniv(contractParam);
-      }
+      setVerifyMode('paxid');
+      setVerifyPaxId(paxIdParam);
+      setVerifyUniv(contractParam);
+      // Small delay to let state settle before auto-verifying
+      setTimeout(async () => {
+        try {
+          const provider = await getReadOnlyProvider();
+          const university = new ethers.Contract(contractParam, UNIVERSITY_ABI, provider);
+          const resolvedStudent = await university.resolvePaxId(paxIdParam.trim());
+          if (!resolvedStudent || resolvedStudent === ethers.ZeroAddress) return;
+          const has = await university.hasCertificate(resolvedStudent);
+          if (!has) return;
+          const tokenId = await university.studentToTokenId(resolvedStudent);
+          const [cert, revoked, reason, revDate] = await Promise.all([
+            university.certificates(tokenId),
+            university.isRevoked(resolvedStudent),
+            university.revocationReason(resolvedStudent),
+            university.revocationDate(resolvedStudent),
+          ]);
+          let univName;
+          try { univName = await university.name(); } catch (_e) { univName = `Programme (${contractParam.slice(0, 8)}...)`; }
+          const [decryptedName, decryptedCourse, decryptedGrade] = await Promise.all([
+            decryptField(cert.candidateName, contractParam, resolvedStudent),
+            decryptField(cert.courseName, contractParam, resolvedStudent),
+            decryptField(cert.grade, contractParam, resolvedStudent),
+          ]);
+          setCertResult({
+            tokenId: tokenId.toString(),
+            candidateName: decryptedName,
+            courseName: decryptedCourse,
+            grade: decryptedGrade,
+            paxId: cert.paxId,
+            issuedAt: new Date(Number(cert.issuanceDate) * 1000).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' }),
+            universityName: univName,
+            univAddress: contractParam,
+            studentAddress: resolvedStudent,
+            isRevoked: revoked,
+            revocationReason: reason,
+            revocationDate: revoked && Number(revDate) > 0
+              ? new Date(Number(revDate) * 1000).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })
+              : '',
+          });
+          showMsg(revoked ? 'error' : 'success', revoked ? 'This certificate has been revoked.' : 'Certificate verified on the blockchain!');
+        } catch (_e) { /* silent — user can manually hit Verify if auto fails */ }
+      }, 600);
     }
   }, []);
 
@@ -598,7 +637,14 @@ export default function Dashboard() {
         university.revocationReason(resolvedStudent),
         university.revocationDate(resolvedStudent),
       ]);
-      const univName = universities.find(u => u.address.toLowerCase() === verifyUniv.toLowerCase())?.name || 'Unknown University';
+
+      // Resolve university name — first try the loaded state, then fall back to
+      // reading it directly from the contract (important when arriving via QR code
+      // with no wallet connected and universities state is empty)
+      let univName = universities.find(u => u.address.toLowerCase() === verifyUniv.toLowerCase())?.name;
+      if (!univName) {
+        try { univName = await university.name(); } catch (_e) { univName = `Programme (${verifyUniv.slice(0, 8)}...)`; }
+      }
 
       const [decryptedName, decryptedCourse, decryptedGrade] = await Promise.all([
         decryptField(cert.candidateName, verifyUniv, resolvedStudent),

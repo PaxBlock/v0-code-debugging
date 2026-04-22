@@ -663,6 +663,7 @@ export default function Dashboard() {
 
         {/* Deploy University Tab */}
         {activeTab === 'deploy' && (
+          <div className="space-y-6">
           <div className="bg-slate-800 rounded-xl p-6 border border-slate-700 space-y-4">
             <div>
               <h2 className="text-lg font-bold">Register a New Programme</h2>
@@ -769,6 +770,7 @@ export default function Dashboard() {
             <button onClick={saveInstitutionConfig} disabled={isSettingConfig} className={`${btnClass} bg-blue-600 hover:bg-blue-700`}>
               {isSettingConfig ? 'Saving... Please wait' : 'Save Signatories to Blockchain'}
             </button>
+          </div>
           </div>
         )}
 

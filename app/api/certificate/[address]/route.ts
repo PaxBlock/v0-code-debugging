@@ -83,7 +83,8 @@ export async function GET(
       year: 'numeric', month: 'long', day: 'numeric',
     });
 
-    const baseUrl = req.nextUrl.origin;
+    // Use the configured site URL so tokenURIs always resolve correctly even in preview builds
+    const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || req.nextUrl.origin;
     const verifyUrl = `${baseUrl}/?tab=verify&paxId=${encodeURIComponent(cert.paxId)}&contract=${univAddress}`;
     const domain = config.verificationDomain || new URL(baseUrl).hostname;
 

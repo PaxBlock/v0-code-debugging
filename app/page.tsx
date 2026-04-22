@@ -3,8 +3,8 @@
 import { useState, useEffect } from 'react';
 import { ethers } from 'ethers';
 
-// New Factory contract - includes getWalletUniversities() and registerIssuer()
-const FACTORY_ADDRESS = '0x043ABF52e143efEF786a695ad739b8Bda8a1555E';
+// New Factory contract - includes revocation support in AcademicCertificate
+const FACTORY_ADDRESS = '0x1dE61396792Ee6Cb3251D2EcD8A93a03B4Da8FF2';
 const SEPOLIA_CHAIN_ID = 11155111;
 const SEPOLIA_HEX = '0xaa36a7';
 

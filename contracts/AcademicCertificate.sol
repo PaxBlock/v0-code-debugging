@@ -92,8 +92,15 @@ contract AcademicCertificate is ERC721, ERC721URIStorage, AccessControl {
 
         _safeMint(student, tokenId);
 
-        // Auto-generate tokenURI from base URI + student address
-        string memory uri = string(abi.encodePacked(baseMetadataURI, "/api/certificate/", _addressToString(student)));
+        // Auto-generate tokenURI — includes this contract's own address so the
+        // metadata API knows which programme contract to query
+        string memory uri = string(abi.encodePacked(
+            baseMetadataURI,
+            "/api/certificate/",
+            _addressToString(student),
+            "?contract=",
+            _addressToString(address(this))
+        ));
         _setTokenURI(tokenId, uri);
 
         certificates[tokenId] = CertificateData({

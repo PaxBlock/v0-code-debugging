@@ -229,7 +229,8 @@ export default function Dashboard() {
       setVerifyMode('paxid');
       setVerifyPaxId(paxIdParam);
       setVerifyUniv(contractParam);
-      // Small delay to let state settle before auto-verifying
+      // Delay to let state and RPC provider initialise before auto-verifying
+      setIsVerifying(true);
       setTimeout(async () => {
         try {
           const provider = await getReadOnlyProvider();
@@ -270,7 +271,8 @@ export default function Dashboard() {
           });
           showMsg(revoked ? 'error' : 'success', revoked ? 'This certificate has been revoked.' : 'Certificate verified on the blockchain!');
         } catch (_e) { /* silent — user can manually hit Verify if auto fails */ }
-      }, 600);
+        finally { setIsVerifying(false); }
+      }, 800);
     }
   }, []);
 

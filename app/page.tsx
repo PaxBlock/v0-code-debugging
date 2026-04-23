@@ -33,8 +33,8 @@ const UNIVERSITY_ABI = [
   'function revocationReason(address student) external view returns (string)',
   'function revocationDate(address student) external view returns (uint256)',
   'function resolvePaxId(string memory paxId) external view returns (address)',
-  'function setInstitutionConfig(string memory deanName, string memory registrarName, string memory viceChancellorName, string memory verificationDomain) external',
-  'function institutionConfig() external view returns (string deanName, string registrarName, string viceChancellorName, string verificationDomain)',
+  'function setInstitutionConfig(string memory deanName, string memory registrarName, string memory viceChancellorName, string memory verificationDomain, string memory logoURL) external',
+  'function institutionConfig() external view returns (string deanName, string registrarName, string viceChancellorName, string verificationDomain, string logoURL)',
   'function walletToPaxId(address student) external view returns (string)',
 ];
 
@@ -172,6 +172,9 @@ export default function Dashboard() {
   const [registrarName, setRegistrarName] = useState('');
   const [vcName, setVcName] = useState('');
   const [verificationDomain, setVerificationDomain] = useState('');
+  const [logoFile, setLogoFile] = useState<File | null>(null);
+  const [logoURL, setLogoURL] = useState('');
+  const [logoUploading, setLogoUploading] = useState(false);
   const [isSettingConfig, setIsSettingConfig] = useState(false);
 
   // Verify tab
@@ -524,22 +527,42 @@ export default function Dashboard() {
     }
   };
 
+  const uploadLogo = async (file: File): Promise<string> => {
+    const formData = new FormData();
+    formData.append('file', file);
+    const res = await fetch('/api/upload-logo', { method: 'POST', body: formData });
+    if (!res.ok) throw new Error('Logo upload failed');
+    const { url } = await res.json();
+    return url;
+  };
+
   const saveInstitutionConfig = async () => {
     if (!signer) { showMsg('error', 'Please connect your wallet first.'); return; }
     if (!configUnivAddress || !ethers.isAddress(configUnivAddress)) { showMsg('error', 'Please enter a valid programme contract address.'); return; }
     if (!deanName || !registrarName || !vcName) { showMsg('error', 'Please fill in all signatory names.'); return; }
     setIsSettingConfig(true);
+    let finalLogoURL = logoURL;
     try {
+      // Upload logo if provided
+      if (logoFile) {
+        setLogoUploading(true);
+        showMsg('info', 'Uploading institution logo...');
+        finalLogoURL = await uploadLogo(logoFile);
+        setLogoURL(finalLogoURL);
+        setLogoUploading(false);
+      }
+
       const university = new ethers.Contract(configUnivAddress, UNIVERSITY_ABI, signer);
       showMsg('info', 'Saving institution config... Please confirm in MetaMask.');
-      const tx = await university.setInstitutionConfig(deanName, registrarName, vcName, verificationDomain);
+      const tx = await university.setInstitutionConfig(deanName, registrarName, vcName, verificationDomain, finalLogoURL);
       await tx.wait();
-      showMsg('success', 'Institution configuration saved. Your signatories will now appear on all certificates from this programme.');
-      setDeanName(''); setRegistrarName(''); setVcName(''); setVerificationDomain('');
+      showMsg('success', 'Institution configuration saved. Logo and signatories will appear on all certificates from this programme.');
+      setDeanName(''); setRegistrarName(''); setVcName(''); setVerificationDomain(''); setLogoFile(null); setLogoURL('');
     } catch (error) {
       showMsg('error', parseError(error));
     } finally {
       setIsSettingConfig(false);
+      setLogoUploading(false);
     }
   };
 
@@ -869,8 +892,34 @@ export default function Dashboard() {
               <input className={inputClass} placeholder="e.g. verify.oauife.edu.ng" value={verificationDomain} onChange={(e) => setVerificationDomain(e.target.value)} />
               <p className="text-xs text-slate-500 mt-1">The domain printed on certificates for QR code verification. Defaults to your platform URL.</p>
             </div>
-            <button onClick={saveInstitutionConfig} disabled={isSettingConfig} className={`${btnClass} bg-blue-600 hover:bg-blue-700`}>
-              {isSettingConfig ? 'Saving... Please wait' : 'Save Signatories to Blockchain'}
+            <div>
+              <label className={labelClass}>Institution Logo (optional)</label>
+              <input
+                type="file"
+                accept="image/*"
+                onChange={(e) => setLogoFile(e.target.files?.[0] || null)}
+                className={inputClass}
+              />
+              <p className="text-xs text-slate-500 mt-1">Upload a logo (PNG, JPG, SVG — max 2MB). Will appear in the certificate circle. Leave blank to use default PAX branding.</p>
+              {logoFile && (
+                <div className="mt-2 flex items-center gap-2">
+                  <span className="text-sm text-green-400">✓ {logoFile.name} selected</span>
+                  <button
+                    onClick={() => setLogoFile(null)}
+                    className="text-xs text-slate-400 hover:text-slate-300 underline"
+                  >
+                    Clear
+                  </button>
+                </div>
+              )}
+              {logoURL && (
+                <div className="mt-2 flex items-center gap-2">
+                  <span className="text-sm text-green-400">✓ Logo uploaded and saved</span>
+                </div>
+              )}
+            </div>
+            <button onClick={saveInstitutionConfig} disabled={isSettingConfig || logoUploading} className={`${btnClass} bg-blue-600 hover:bg-blue-700`}>
+              {logoUploading ? 'Uploading logo...' : isSettingConfig ? 'Saving... Please wait' : 'Save Institution Config to Blockchain'}
             </button>
           </div>
           </div>

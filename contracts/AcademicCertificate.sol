@@ -29,6 +29,7 @@ contract AcademicCertificate is ERC721, ERC721URIStorage, AccessControl {
         string registrarName;
         string viceChancellorName;
         string verificationDomain; // e.g. "verify.oauife.edu.ng"
+        string logoURL; // Institution logo for certificate display
     }
 
     InstitutionConfig public institutionConfig;
@@ -59,16 +60,17 @@ contract AcademicCertificate is ERC721, ERC721URIStorage, AccessControl {
     }
 
     /**
-     * @dev ADMIN ONLY: Set the institution's signatory names and verification domain.
-     * Called once after deployment. Can be updated by admin if personnel changes.
+     * @dev ADMIN ONLY: Set the institution's signatory names, verification domain, and logo.
+     * Called once after deployment. Can be updated by admin if personnel or branding changes.
      */
     function setInstitutionConfig(
         string memory deanName,
         string memory registrarName,
         string memory viceChancellorName,
-        string memory verificationDomain
+        string memory verificationDomain,
+        string memory logoURL
     ) external onlyRole(DEFAULT_ADMIN_ROLE) {
-        institutionConfig = InstitutionConfig(deanName, registrarName, viceChancellorName, verificationDomain);
+        institutionConfig = InstitutionConfig(deanName, registrarName, viceChancellorName, verificationDomain, logoURL);
         institutionConfigSet = true;
         emit InstitutionConfigUpdated(msg.sender);
     }

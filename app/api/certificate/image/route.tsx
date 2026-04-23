@@ -16,6 +16,7 @@ export async function GET(req: NextRequest) {
   const registrar      = searchParams.get('registrar')     || '';
   const viceChancellor = searchParams.get('vc')            || '';
   const domain         = searchParams.get('domain')        || 'v0-paxadmin.vercel.app';
+  const logoUrl        = searchParams.get('logo')          || '';
   const revoked        = searchParams.get('revoked')       === 'true';
   const revokeReason   = searchParams.get('revokeReason') || '';
   const verifyUrl      = searchParams.get('verifyUrl')     || '';
@@ -55,14 +56,22 @@ export async function GET(req: NextRequest) {
           background: 'rgba(210,110,70,0.10)', transform: 'rotate(13deg)', display: 'flex',
         }} />
 
-        {/* Faint PAX watermark */}
+        {/* Faint institution watermark */}
         <div style={{
           position: 'absolute', top: '380px', left: '50%',
-          fontSize: '260px', fontWeight: 'bold', fontFamily: 'serif',
-          color: `rgba(201,169,110,0.06)`, letterSpacing: '-8px',
+          fontSize: '220px', fontWeight: 'bold', fontFamily: 'serif',
+          color: `rgba(201,169,110,0.05)`, letterSpacing: '-4px',
           display: 'flex', zIndex: 0,
           transform: 'translateX(-50%)',
-        }}>PAX</div>
+          lineHeight: '1',
+          textAlign: 'center',
+          maxWidth: '90%',
+          overflow: 'hidden',
+          whiteSpace: 'nowrap',
+          textOverflow: 'ellipsis',
+        }}>
+          {university.split(' ')[0]}
+        </div>
 
         {revoked && (
           <div style={{
@@ -81,16 +90,31 @@ export async function GET(req: NextRequest) {
 
           {/* Logo + Institution */}
           <div style={{ display: 'flex', alignItems: 'center', gap: '16px', marginBottom: '4px' }}>
-            <div style={{
-              width: '66px', height: '66px', borderRadius: '50%',
-              background: DARK, border: `3px solid ${GOLD}`,
-              display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
-            }}>
-              <span style={{ color: GOLD, fontSize: '17px', fontWeight: 'bold', fontStyle: 'italic', fontFamily: 'serif' }}>Pax</span>
-            </div>
+            {logoUrl ? (
+              <img
+                src={logoUrl}
+                width={66}
+                height={66}
+                alt="Institution Logo"
+                style={{
+                  borderRadius: '50%',
+                  border: `3px solid ${GOLD}`,
+                  objectFit: 'cover',
+                  flexShrink: 0,
+                }}
+              />
+            ) : (
+              <div style={{
+                width: '66px', height: '66px', borderRadius: '50%',
+                background: DARK, border: `3px solid ${GOLD}`,
+                display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+              }}>
+                <span style={{ color: GOLD, fontSize: '17px', fontWeight: 'bold', fontStyle: 'italic', fontFamily: 'serif' }}>Pax</span>
+              </div>
+            )}
             <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
               <span style={{ fontSize: '21px', fontWeight: 'bold', color: DARK, fontFamily: 'serif', letterSpacing: '0.3px', lineHeight: '1.2' }}>
-                PaxBlockchain Technologies Inc.
+                {university}
               </span>
               <span style={{ fontSize: '11px', color: BROWN, letterSpacing: '2.5px', textTransform: 'uppercase' }}>
                 Blockchain-Verified Academic Credentials
@@ -224,14 +248,17 @@ export async function GET(req: NextRequest) {
             </div>
           </div>
 
-          {/* Gold footer bar */}
+          {/* Gold footer bar + Powered by Pax */}
           <div style={{
             width: '100%', marginTop: '18px',
             borderTop: `1.5px solid ${GOLD}`, paddingTop: '10px',
-            display: 'flex', justifyContent: 'center',
+            display: 'flex', justifyContent: 'space-between', alignItems: 'center',
           }}>
             <span style={{ fontSize: '10px', color: '#9a8a7a', letterSpacing: '2.5px', textTransform: 'uppercase' }}>
               Blockchain-Verified &nbsp;&mdash;&nbsp; Tamper-Proof &nbsp;&mdash;&nbsp; Permanent
+            </span>
+            <span style={{ fontSize: '9px', color: '#a89968', fontStyle: 'italic', letterSpacing: '0.5px' }}>
+              Powered by Pax
             </span>
           </div>
 

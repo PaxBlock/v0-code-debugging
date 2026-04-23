@@ -11,7 +11,7 @@ const UNIVERSITY_ABI = [
   'function hasCertificate(address student) external view returns (bool)',
   'function isRevoked(address student) external view returns (bool)',
   'function revocationReason(address student) external view returns (string)',
-  'function institutionConfig() external view returns (string deanName, string registrarName, string viceChancellorName, string verificationDomain)',
+  'function institutionConfig() external view returns (string deanName, string registrarName, string viceChancellorName, string verificationDomain, string logoURL)',
 ];
 
 const APP_SALT = 'pax-academic-certificate-system-v1';
@@ -100,6 +100,7 @@ export async function GET(
       registrar: config.registrarName || '',
       vc: config.viceChancellorName || '',
       domain: domain,
+      logo: config.logoURL || '',
       revoked: revoked ? 'true' : 'false',
       revokeReason: revoked ? revokeReason : '',
       verifyUrl: verifyUrl,

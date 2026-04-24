@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { PDFDocument } from 'pdf-lib';
 
 export const runtime = 'nodejs';
 
@@ -30,7 +31,7 @@ export async function POST(req: NextRequest) {
 
     const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://v0-paxadmin.vercel.app';
 
-    // Build the certificate image URL with ALL fields to ensure email certificate is IDENTICAL to web view
+    // Build the certificate image URL with ALL fields
     const verifyUrl = `${siteUrl}/?tab=verify&paxId=${encodeURIComponent(paxId)}&contract=${contractAddress}`;
     const imageParams = new URLSearchParams({
       name: studentName,
@@ -49,6 +50,53 @@ export async function POST(req: NextRequest) {
     });
 
     const certificateImageUrl = `${siteUrl}/api/certificate/image?${imageParams.toString()}`;
+
+    // Fetch the certificate image and convert to PDF for attachment
+    let pdfBase64 = '';
+    try {
+      const imageRes = await fetch(certificateImageUrl);
+      if (imageRes.ok) {
+        const imageBuffer = await imageRes.arrayBuffer();
+        
+        // Create PDF with the certificate image embedded
+        const pdfDoc = await PDFDocument.create();
+        const pngImage = await pdfDoc.embedPng(imageBuffer);
+        
+        // A4-ish dimensions that fit the certificate aspect ratio (900x1240)
+        const pageWidth = 595; // A4 width in points
+        const pageHeight = 820; // Proportional to certificate aspect ratio
+        
+        const page = pdfDoc.addPage([pageWidth, pageHeight]);
+        
+        // Scale image to fit page with some margin
+        const margin = 20;
+        const availableWidth = pageWidth - (margin * 2);
+        const availableHeight = pageHeight - (margin * 2);
+        const scale = Math.min(
+          availableWidth / pngImage.width,
+          availableHeight / pngImage.height
+        );
+        const scaledWidth = pngImage.width * scale;
+        const scaledHeight = pngImage.height * scale;
+        
+        // Center the image on the page
+        const x = (pageWidth - scaledWidth) / 2;
+        const y = (pageHeight - scaledHeight) / 2;
+        
+        page.drawImage(pngImage, {
+          x,
+          y,
+          width: scaledWidth,
+          height: scaledHeight,
+        });
+        
+        const pdfBytes = await pdfDoc.save();
+        pdfBase64 = Buffer.from(pdfBytes).toString('base64');
+      }
+    } catch (pdfError) {
+      console.error('[v0] PDF generation error:', pdfError);
+      // Continue without attachment if PDF generation fails
+    }
 
     // Beautiful HTML email — matches the certificate aesthetic
     const html = `
@@ -78,8 +126,9 @@ export async function POST(req: NextRequest) {
             <td style="padding:32px 40px 0;text-align:center;">
               <p style="margin:0 0 16px;color:#5a4a3a;font-size:15px;">Dear <strong>${studentName}</strong>,</p>
               <p style="margin:0 0 24px;color:#5a4a3a;font-size:14px;line-height:1.6;">
-                Congratulations. Your academic certificate has been permanently issued on the blockchain
+                Congratulations! Your academic certificate has been permanently issued on the blockchain
                 and is now securely held in your wallet. Below is your official softcopy for your records.
+                ${pdfBase64 ? '<strong>A PDF copy is attached to this email for easy download and printing.</strong>' : ''}
               </p>
               <img
                 src="${certificateImageUrl}"
@@ -166,18 +215,38 @@ export async function POST(req: NextRequest) {
 </html>
     `.trim();
 
+    // Build email payload with optional PDF attachment
+    const emailPayload: {
+      from: string;
+      to: string[];
+      subject: string;
+      html: string;
+      attachments?: { filename: string; content: string }[];
+    } = {
+      from: 'PaxBlockchain Certificates <certificates@resend.dev>',
+      to: [to],
+      subject: `Your Academic Certificate — ${universityName}`,
+      html,
+    };
+
+    // Attach PDF if successfully generated
+    if (pdfBase64) {
+      const safeFileName = `Certificate_${studentName.replace(/[^a-zA-Z0-9]/g, '_')}_${paxId.replace(/[^a-zA-Z0-9]/g, '_')}.pdf`;
+      emailPayload.attachments = [
+        {
+          filename: safeFileName,
+          content: pdfBase64,
+        },
+      ];
+    }
+
     const res = await fetch('https://api.resend.com/emails', {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${apiKey}`,
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({
-        from: 'PaxBlockchain Certificates <certificates@resend.dev>',
-        to: [to],
-        subject: `Your Academic Certificate — ${universityName}`,
-        html,
-      }),
+      body: JSON.stringify(emailPayload),
     });
 
     if (!res.ok) {

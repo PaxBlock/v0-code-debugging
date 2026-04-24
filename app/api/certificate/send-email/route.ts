@@ -49,7 +49,6 @@ export async function POST(req: NextRequest) {
     });
 
     const certificateImageUrl = `${siteUrl}/api/certificate/image?${imageParams.toString()}`;
-    const verifyUrl = `${siteUrl}/?tab=verify&paxId=${encodeURIComponent(paxId)}&contract=${contractAddress}`;
 
     // Beautiful HTML email — matches the certificate aesthetic
     const html = `

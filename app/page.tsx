@@ -4,8 +4,8 @@
 import { useState, useEffect } from 'react';
 import { ethers } from 'ethers';
 
-// Factory contract - PaxID, grade, signatory config, NFT metadata support
-const FACTORY_ADDRESS = '0xEFc402FaF0b275E0DdB25870fea17A717d3B98ae';
+// Factory contract - PaxID, grade, signatory config, logo URL, NFT metadata support
+const FACTORY_ADDRESS = '0x171Bc9E6D6Db8b1a8d125a752a3681483c9023E9';
 const SEPOLIA_CHAIN_ID = 11155111;
 const SEPOLIA_HEX = '0xaa36a7';
 

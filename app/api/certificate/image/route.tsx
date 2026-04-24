@@ -164,13 +164,13 @@ export async function GET(req: NextRequest) {
 
           {/* Grade */}
           {grade && (
-            <>
-              <div style={{ display: 'flex', alignItems: 'baseline', gap: '8px', marginBottom: '4px' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', marginBottom: '10px' }}>
+              <div style={{ display: 'flex', alignItems: 'baseline', gap: '8px', marginBottom: '6px' }}>
                 <span style={{ fontSize: '15px', color: BROWN }}>with</span>
                 <span style={{ fontSize: '22px', fontWeight: 'bold', fontStyle: 'italic', color: DARK, fontFamily: 'serif' }}>{grade}</span>
               </div>
-              <div style={{ display: 'flex', gap: '4px', marginBottom: '10px' }}>{dots(40, GOLD)}</div>
-            </>
+              <div style={{ display: 'flex', gap: '4px' }}>{dots(40, GOLD)}</div>
+            </div>
           )}
 
           {/* Date + PaxID / Certificate ID */}

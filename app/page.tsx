@@ -216,6 +216,7 @@ export default function Dashboard() {
   const [revokeAddress, setRevokeAddress] = useState('');
   const [revokeReason, setRevokeReason] = useState('');
   const [customReason, setCustomReason] = useState('');
+  const [revokeEmail, setRevokeEmail] = useState('');
   const [isRevoking, setIsRevoking] = useState(false);
 
   const showMsg = (type: Msg['type'], text: string) => setMsg({ type, text });
@@ -572,6 +573,9 @@ export default function Dashboard() {
     if (!ethers.isAddress(revokeAddress)) { showMsg('error', 'Please enter a valid student wallet address.'); return; }
     const finalReason = revokeReason === 'custom' ? customReason.trim() : revokeReason;
     if (!finalReason) { showMsg('error', 'Please select or enter a revocation reason.'); return; }
+    if (revokeEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(revokeEmail)) {
+      showMsg('error', 'Please enter a valid email address or leave it blank.'); return;
+    }
     setIsRevoking(true);
     try {
       const university = new ethers.Contract(univAddress, UNIVERSITY_ABI, signer);
@@ -583,9 +587,41 @@ export default function Dashboard() {
       const tx = await university.revokeCertificate(revokeAddress, finalReason);
       await tx.wait();
       showMsg('success', `Certificate revoked. Reason recorded permanently on blockchain: "${finalReason}"`);
+
+      // Send revocation email if provided
+      if (revokeEmail) {
+        showMsg('info', 'Sending revocation notification email...');
+        try {
+          // Fetch certificate details for the email
+          const tokenId = await university.studentToTokenId(revokeAddress);
+          const cert = await university.certificates(tokenId);
+          const univName = myUniversities.find(u => u.address.toLowerCase() === univAddress.toLowerCase())?.name || 'Your Institution';
+          const decryptedName = await decryptField(cert.candidateName, univAddress, revokeAddress);
+          const decryptedCourse = await decryptField(cert.courseName, univAddress, revokeAddress);
+
+          await fetch('/api/certificate/send-revocation-email', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              to: revokeEmail,
+              studentName: decryptedName,
+              course: decryptedCourse,
+              paxId: cert.paxId,
+              universityName: univName,
+              reason: finalReason,
+              revokedDate: new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' }),
+            }),
+          });
+          showMsg('success', `Revocation email sent to ${revokeEmail}`);
+        } catch (_e) {
+          showMsg('error', 'Certificate revoked but email notification failed to send.');
+        }
+      }
+
       setRevokeAddress('');
       setRevokeReason('');
       setCustomReason('');
+      setRevokeEmail('');
     } catch (error) {
       showMsg('error', parseError(error));
     } finally {
@@ -1173,6 +1209,18 @@ export default function Dashboard() {
                   </p>
                 </div>
               )}
+              <div>
+                <label className={labelClass}>Student Email <span className="text-slate-500 font-normal">(optional — to notify them)</span></label>
+                <input
+                  type="email"
+                  className={inputClass}
+                  placeholder="e.g. student@university.edu"
+                  value={revokeEmail}
+                  onChange={(e) => setRevokeEmail(e.target.value)}
+                  maxLength={254}
+                />
+                <p className="text-xs text-slate-500 mt-1">If provided, the student will receive an email notifying them of the revocation and the reason. The email is not stored.</p>
+              </div>
               <button
                 onClick={handleRevoke}
                 disabled={isRevoking || !revokeAddress || !revokeReason}

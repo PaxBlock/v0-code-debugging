@@ -625,6 +625,21 @@ export default function Dashboard() {
         showMsg('info', 'Sending certificate to student email...');
         try {
           const univName = myUniversities.find(u => u.address.toLowerCase() === univAddress.toLowerCase())?.name || 'Your Institution';
+          
+          // Fetch institution config to get signatories and logo for email certificate
+          let deanName = '', registrarName = '', vcName = '', logoUrl = '';
+          try {
+            const provider = await getReadOnlyProvider();
+            const university = new ethers.Contract(univAddress, UNIVERSITY_ABI, provider);
+            const config = await university.institutionConfig();
+            deanName = config.deanName || '';
+            registrarName = config.registrarName || '';
+            vcName = config.viceChancellorName || '';
+            logoUrl = config.logoURL || '';
+          } catch (_e) {
+            // Silent — if config fetch fails, email will use defaults (empty signatories)
+          }
+
           await fetch('/api/certificate/send-email', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -637,6 +652,10 @@ export default function Dashboard() {
               universityName: univName,
               studentAddress,
               contractAddress: univAddress,
+              dean: deanName,
+              registrar: registrarName,
+              vc: vcName,
+              logoUrl: logoUrl,
             }),
           });
           showMsg('success', `Certificate email sent to ${studentEmail}`);

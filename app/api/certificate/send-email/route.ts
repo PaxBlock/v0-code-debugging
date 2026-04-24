@@ -13,6 +13,10 @@ export async function POST(req: NextRequest) {
       universityName,
       studentAddress,
       contractAddress,
+      dean,
+      registrar,
+      vc,
+      logoUrl,
     } = await req.json();
 
     if (!to || !studentName || !course || !paxId || !universityName) {
@@ -26,7 +30,8 @@ export async function POST(req: NextRequest) {
 
     const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://v0-paxadmin.vercel.app';
 
-    // Build the certificate image URL with all fields
+    // Build the certificate image URL with ALL fields to ensure email certificate is IDENTICAL to web view
+    const verifyUrl = `${siteUrl}/?tab=verify&paxId=${encodeURIComponent(paxId)}&contract=${contractAddress}`;
     const imageParams = new URLSearchParams({
       name: studentName,
       course,
@@ -34,12 +39,13 @@ export async function POST(req: NextRequest) {
       paxId,
       university: universityName,
       date: new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' }),
-      dean: '',
-      registrar: '',
-      vc: '',
+      dean: dean || '',
+      registrar: registrar || '',
+      vc: vc || '',
       domain: new URL(siteUrl).hostname,
+      logo: logoUrl || '',
       revoked: 'false',
-      verifyUrl: `${siteUrl}/?tab=verify&paxId=${encodeURIComponent(paxId)}&contract=${contractAddress}`,
+      verifyUrl: verifyUrl,
     });
 
     const certificateImageUrl = `${siteUrl}/api/certificate/image?${imageParams.toString()}`;

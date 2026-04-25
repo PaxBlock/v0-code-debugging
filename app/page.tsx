@@ -202,6 +202,11 @@ export default function Dashboard() {
     isRevoked: boolean;
     revocationReason: string;
     revocationDate: string;
+    dean: string;
+    registrar: string;
+    vc: string;
+    logoUrl: string;
+    domain: string;
   } | null>(null);
 
   // Revocation state - Issue tab
@@ -761,6 +766,12 @@ export default function Dashboard() {
         try { univName = await university.name(); } catch (_e) { univName = `Programme (${verifyUniv.slice(0, 8)}...)`; }
       }
 
+      // Fetch institution config for signatories and logo
+      let institutionConfig = { deanName: '', registrarName: '', viceChancellorName: '', verificationDomain: '', logoURL: '' };
+      try {
+        institutionConfig = await university.institutionConfig();
+      } catch (_e) { /* Silent — institution config may not be set */ }
+
       const [decryptedName, decryptedCourse, decryptedGrade] = await Promise.all([
         decryptField(cert.candidateName, verifyUniv, resolvedStudent),
         decryptField(cert.courseName, verifyUniv, resolvedStudent),
@@ -782,6 +793,11 @@ export default function Dashboard() {
         revocationDate: revoked && Number(revDate) > 0
           ? new Date(Number(revDate) * 1000).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })
           : '',
+        dean: institutionConfig.deanName || '',
+        registrar: institutionConfig.registrarName || '',
+        vc: institutionConfig.viceChancellorName || '',
+        logoUrl: institutionConfig.logoURL || '',
+        domain: institutionConfig.verificationDomain || 'v0-paxadmin.vercel.app',
       });
       showMsg(revoked ? 'error' : 'success', revoked ? 'This certificate has been revoked by the issuing institution.' : 'Certificate verified on the blockchain!');
     } catch (error) {

@@ -258,6 +258,9 @@ export default function Dashboard() {
           ]);
           let univName;
           try { univName = await university.name(); } catch (_e) { univName = `Programme (${contractParam.slice(0, 8)}...)`; }
+          // Fetch institution config for signatories and logo
+          let config = { deanName: '', registrarName: '', viceChancellorName: '', verificationDomain: '', logoURL: '' };
+          try { config = await university.institutionConfig(); } catch (_e) { /* silent */ }
           const [decryptedName, decryptedCourse, decryptedGrade] = await Promise.all([
             decryptField(cert.candidateName, contractParam, resolvedStudent),
             decryptField(cert.courseName, contractParam, resolvedStudent),
@@ -278,6 +281,11 @@ export default function Dashboard() {
             revocationDate: revoked && Number(revDate) > 0
               ? new Date(Number(revDate) * 1000).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })
               : '',
+            dean: config.deanName || '',
+            registrar: config.registrarName || '',
+            vc: config.viceChancellorName || '',
+            logoUrl: config.logoURL || '',
+            domain: config.verificationDomain || 'v0-paxadmin.vercel.app',
           });
           showMsg(revoked ? 'error' : 'success', revoked ? 'This certificate has been revoked.' : 'Certificate verified on the blockchain!');
         } catch (_e) { /* silent — user can manually hit Verify if auto fails */ }
@@ -352,7 +360,9 @@ export default function Dashboard() {
     throw new Error('Could not connect to Sepolia. Please install MetaMask or try again in a moment.');
   };
 
-  const loadUniversities = async () => {
+  const loadUniversities = async (force = false) => {
+    // Return cached list instantly if already loaded — avoids repeated RPC calls on tab switches
+    if (!force && universities.length > 0) return;
     setIsLoadingUnis(true);
     try {
       const provider = await getReadOnlyProvider();
@@ -365,7 +375,7 @@ export default function Dashboard() {
       );
       const addresses: string[] = await Promise.all(addressPromises);
 
-      // Then fetch all names in parallel using Promise.all()
+      // Then fetch all names in parallel — all RPC calls fire simultaneously
       const unis = await Promise.all(
         addresses.map(async (addr) => {
           try {
@@ -1399,7 +1409,7 @@ export default function Dashboard() {
                       View on Blockchain
                     </a>
                     <a
-                      href={`/api/certificate/image?name=${encodeURIComponent(certResult.candidateName)}&course=${encodeURIComponent(certResult.courseName)}&grade=${encodeURIComponent(certResult.grade)}&paxId=${encodeURIComponent(certResult.paxId)}&university=${encodeURIComponent(certResult.universityName)}&date=${encodeURIComponent(certResult.issuedAt)}`}
+                      href={`/api/certificate/image?name=${encodeURIComponent(certResult.candidateName)}&course=${encodeURIComponent(certResult.courseName)}&grade=${encodeURIComponent(certResult.grade)}&paxId=${encodeURIComponent(certResult.paxId)}&university=${encodeURIComponent(certResult.universityName)}&date=${encodeURIComponent(certResult.issuedAt)}&dean=${encodeURIComponent(certResult.dean || '')}&registrar=${encodeURIComponent(certResult.registrar || '')}&vc=${encodeURIComponent(certResult.vc || '')}&logo=${encodeURIComponent(certResult.logoUrl || '')}&domain=${encodeURIComponent(certResult.domain || 'v0-paxadmin.vercel.app')}&verifyUrl=${encodeURIComponent(`${process.env.NEXT_PUBLIC_SITE_URL || 'https://v0-paxadmin.vercel.app'}/?tab=verify&paxId=${certResult.paxId}&contract=${certResult.univAddress}`)}&revoked=${certResult.isRevoked ? 'true' : 'false'}&revokeReason=${encodeURIComponent(certResult.revocationReason || '')}`}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="text-xs text-green-400 hover:text-green-300 underline"

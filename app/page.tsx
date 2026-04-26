@@ -453,21 +453,26 @@ export default function Dashboard() {
         return;
       }
 
-      // Fetch all university names in parallel using Promise.all()
-      // All name() calls fire simultaneously instead of one by one
-      const names = await Promise.all(
+      // Fetch name AND deactivation status in parallel for every university
+      // Filter out deactivated ones — issuers should never see or use them
+      const results = await Promise.all(
         addresses.map(async (addr) => {
           try {
             const univContract = new ethers.Contract(addr, UNIVERSITY_ABI, provider);
-            const name = await univContract.name();
-            return { address: addr, name };
+            const [name, deactivated] = await Promise.all([
+              univContract.name(),
+              factory.isDeactivated(addr),
+            ]);
+            return { address: addr, name, deactivated: deactivated as boolean, deactivationReason: '' };
           } catch (_e) {
-            return { address: addr, name: `University (${addr.slice(0, 6)}...)` };
+            return { address: addr, name: `University (${addr.slice(0, 6)}...)`, deactivated: false, deactivationReason: '' };
           }
         })
       );
 
-      setMyUniversities(names);
+      // Only show active institutions in the Issue tab dropdown
+      const activeOnly = results.filter((u) => !u.deactivated);
+      setMyUniversities(activeOnly);
     } catch (error) {
       showMsg('error', error instanceof Error ? error.message : 'Could not load your universities. Please try again.');
     } finally {

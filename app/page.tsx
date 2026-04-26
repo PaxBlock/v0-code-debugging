@@ -16,6 +16,8 @@ const FACTORY_ABI = [
   'function getWalletUniversities(address wallet) external view returns (address[])',
   'function registerIssuer(address universityContract, address wallet) external',
   'function isUniversityContract(address) external view returns (bool)',
+  'function hasRole(bytes32 role, address account) external view returns (bool)',
+  'function DEFAULT_ADMIN_ROLE() external view returns (bytes32)',
 ];
 
 const UNIVERSITY_ABI = [
@@ -142,7 +144,12 @@ export default function Dashboard() {
   const [account, setAccount] = useState('');
   const [signer, setSigner] = useState<ethers.Signer | null>(null);
   const [isConnecting, setIsConnecting] = useState(false);
-  const [activeTab, setActiveTab] = useState<'deploy' | 'issue' | 'verify'>('deploy');
+  // 'owner'  = Pax Factory admin (full access)
+  // 'admin'  = University DEFAULT_ADMIN_ROLE on at least one programme (issue + verify)
+  // 'issuer' = ISSUER_ROLE on at least one programme (issue + verify)
+  // 'none'   = wallet connected but no role found (verify only)
+  const [walletRole, setWalletRole] = useState<'owner' | 'admin' | 'issuer' | 'none' | null>(null);
+  const [activeTab, setActiveTab] = useState<'deploy' | 'issue' | 'verify'>('verify');
   const [msg, setMsg] = useState<Msg | null>(null);
 
   // Deploy tab
@@ -433,6 +440,47 @@ export default function Dashboard() {
     }
   };
 
+  const detectRole = async (walletAddress: string) => {
+    try {
+      const provider = await getReadOnlyProvider();
+      const factory = new ethers.Contract(FACTORY_ADDRESS, FACTORY_ABI, provider);
+
+      // Check if this wallet is the Pax Factory owner (DEFAULT_ADMIN_ROLE on Factory)
+      const adminRole = await factory.DEFAULT_ADMIN_ROLE();
+      const isPaxOwner = await factory.hasRole(adminRole, walletAddress);
+      if (isPaxOwner) {
+        setWalletRole('owner');
+        setActiveTab('deploy'); // Owner lands on Register Programme
+        return;
+      }
+
+      // Check if this wallet is a University Admin or Issuer on any programme
+      const walletUnivs: string[] = await factory.getWalletUniversities(walletAddress);
+      if (walletUnivs.length === 0) {
+        setWalletRole('none');
+        setActiveTab('verify'); // No role — verify only
+        return;
+      }
+
+      // Check role on first associated university to distinguish admin vs issuer
+      const univContract = new ethers.Contract(walletUnivs[0], UNIVERSITY_ABI, provider);
+      const defaultAdminRole = await univContract.DEFAULT_ADMIN_ROLE();
+      const isAdmin = await univContract.hasRole(defaultAdminRole, walletAddress);
+      if (isAdmin) {
+        setWalletRole('admin');
+        setActiveTab('issue'); // Admin lands on Issue tab
+        return;
+      }
+
+      // Must be an issuer
+      setWalletRole('issuer');
+      setActiveTab('issue'); // Issuer lands on Issue tab
+    } catch (_e) {
+      setWalletRole('none');
+      setActiveTab('verify');
+    }
+  };
+
   const connectWallet = async () => {
     setIsConnecting(true);
     try {
@@ -468,8 +516,11 @@ export default function Dashboard() {
       setSigner(s);
       setAccount(accounts[0]);
       showMsg('success', 'Wallet connected to Sepolia!');
-      // Load only the universities this wallet has access to
-      await loadMyUniversities(accounts[0]);
+      // Detect role and load universities in parallel — detectRole sets the active tab
+      await Promise.all([
+        detectRole(accounts[0]),
+        loadMyUniversities(accounts[0]),
+      ]);
     } catch (error) {
       showMsg('error', parseError(error));
     } finally {
@@ -830,13 +881,25 @@ export default function Dashboard() {
             <h1 className="text-xl font-bold text-white">PAX Certificate System</h1>
             <p className="text-xs text-slate-400">Blockchain-Verified Academic Credentials</p>
           </div>
-          <button
-            onClick={connectWallet}
-            disabled={isConnecting}
-            className={`px-4 py-2 rounded-lg text-sm font-semibold transition-all ${account ? 'bg-green-700 hover:bg-green-600' : 'bg-blue-600 hover:bg-blue-700'} disabled:opacity-50`}
-          >
-            {isConnecting ? 'Connecting...' : account ? `${account.slice(0, 6)}...${account.slice(-4)}` : 'Connect Wallet'}
-          </button>
+          <div className="flex items-center gap-2">
+            {account && walletRole && (
+              <span className={`text-xs font-semibold px-2 py-1 rounded-full border ${
+                walletRole === 'owner'  ? 'bg-yellow-900/40 border-yellow-600 text-yellow-300' :
+                walletRole === 'admin'  ? 'bg-purple-900/40 border-purple-600 text-purple-300' :
+                walletRole === 'issuer' ? 'bg-blue-900/40 border-blue-600 text-blue-300' :
+                'bg-slate-700 border-slate-600 text-slate-400'
+              }`}>
+                {walletRole === 'owner' ? 'Pax Owner' : walletRole === 'admin' ? 'Admin' : walletRole === 'issuer' ? 'Issuer' : 'Verifier'}
+              </span>
+            )}
+            <button
+              onClick={connectWallet}
+              disabled={isConnecting}
+              className={`px-4 py-2 rounded-lg text-sm font-semibold transition-all ${account ? 'bg-green-700 hover:bg-green-600' : 'bg-blue-600 hover:bg-blue-700'} disabled:opacity-50`}
+            >
+              {isConnecting ? 'Connecting...' : account ? `${account.slice(0, 6)}...${account.slice(-4)}` : 'Connect Wallet'}
+            </button>
+          </div>
         </div>
       </header>
 
@@ -854,21 +917,78 @@ export default function Dashboard() {
           </div>
         )}
 
-        {/* Tabs */}
+        {/* Tabs — visibility depends on connected wallet role */}
         <div className="flex gap-1 bg-slate-800 p-1 rounded-lg mb-8 border border-slate-700">
-          {(['deploy', 'issue', 'verify'] as const).map((tab) => (
-            <button
-              key={tab}
-              onClick={() => { setActiveTab(tab); setMsg(null); }}
-              className={`flex-1 py-2.5 px-3 rounded-md text-sm font-medium transition-all ${activeTab === tab ? 'bg-blue-600 text-white shadow' : 'text-slate-400 hover:text-white'}`}
-            >
-              {tab === 'deploy' ? 'Register Programme' : tab === 'issue' ? 'Issue Certificate' : 'Verify Certificate'}
-            </button>
-          ))}
+          {(['deploy', 'issue', 'verify'] as const).map((tab) => {
+            // Determine if this tab is accessible to the current wallet
+            const canAccess =
+              tab === 'verify' ? true : // always open
+              tab === 'deploy' ? walletRole === 'owner' :
+              tab === 'issue' ? (walletRole === 'owner' || walletRole === 'admin' || walletRole === 'issuer') :
+              false;
+
+            return (
+              <button
+                key={tab}
+                onClick={() => { if (canAccess) { setActiveTab(tab); setMsg(null); } }}
+                disabled={!canAccess}
+                title={!canAccess && !account ? 'Connect your wallet to access this tab' : !canAccess ? 'Your wallet does not have permission to access this tab' : undefined}
+                className={`flex-1 py-2.5 px-3 rounded-md text-sm font-medium transition-all
+                  ${activeTab === tab ? 'bg-blue-600 text-white shadow' : ''}
+                  ${canAccess ? 'text-slate-300 hover:text-white cursor-pointer' : 'text-slate-600 cursor-not-allowed opacity-40'}
+                `}
+              >
+                {tab === 'deploy' ? 'Register Programme' : tab === 'issue' ? 'Issue Certificate' : 'Verify Certificate'}
+              </button>
+            );
+          })}
         </div>
 
+        {/* Access guard — shown when a tab is active but wallet has no permission */}
+        {activeTab === 'deploy' && walletRole !== 'owner' && (
+          <div className="flex flex-col items-center justify-center py-24 text-center gap-4">
+            <div className="w-16 h-16 rounded-full bg-slate-800 border border-slate-700 flex items-center justify-center text-3xl">
+              <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="text-slate-500"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+            </div>
+            <h2 className="text-lg font-bold text-slate-300">Access Restricted</h2>
+            <p className="text-slate-500 text-sm max-w-xs">
+              {!account
+                ? 'Please connect your wallet to access this section.'
+                : 'This section is only available to the Pax platform owner. Your wallet does not have the required permission.'}
+            </p>
+            {!account && (
+              <button onClick={connectWallet} className="mt-2 px-5 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg text-sm font-semibold">
+                Connect Wallet
+              </button>
+            )}
+          </div>
+        )}
+
+        {activeTab === 'issue' && !account && (
+          <div className="flex flex-col items-center justify-center py-24 text-center gap-4">
+            <div className="w-16 h-16 rounded-full bg-slate-800 border border-slate-700 flex items-center justify-center">
+              <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="text-slate-500"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+            </div>
+            <h2 className="text-lg font-bold text-slate-300">Connect Your Wallet</h2>
+            <p className="text-slate-500 text-sm max-w-xs">You need to connect a wallet with Issuer or Admin permission to issue certificates.</p>
+            <button onClick={connectWallet} className="mt-2 px-5 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg text-sm font-semibold">
+              Connect Wallet
+            </button>
+          </div>
+        )}
+
+        {activeTab === 'issue' && account && walletRole === 'none' && (
+          <div className="flex flex-col items-center justify-center py-24 text-center gap-4">
+            <div className="w-16 h-16 rounded-full bg-slate-800 border border-slate-700 flex items-center justify-center">
+              <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="text-slate-500"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+            </div>
+            <h2 className="text-lg font-bold text-slate-300">No Permission Found</h2>
+            <p className="text-slate-500 text-sm max-w-xs">Your connected wallet ({account.slice(0, 6)}...{account.slice(-4)}) does not have Issuer or Admin access on any programme. Contact your institution administrator.</p>
+          </div>
+        )}
+
         {/* Deploy University Tab */}
-        {activeTab === 'deploy' && (
+        {activeTab === 'deploy' && walletRole === 'owner' && (
           <div className="space-y-6">
           <div className="bg-slate-800 rounded-xl p-6 border border-slate-700 space-y-4">
             <div>
@@ -1007,7 +1127,7 @@ export default function Dashboard() {
         )}
 
         {/* Issue Certificate Tab */}
-        {activeTab === 'issue' && (
+        {activeTab === 'issue' && account && (walletRole === 'owner' || walletRole === 'admin' || walletRole === 'issuer') && (
           <div className="space-y-6">
             {/* Step 1: Grant Role */}
             <div className="bg-slate-800 rounded-xl p-6 border border-amber-700/40 space-y-4">

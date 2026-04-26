@@ -13,9 +13,16 @@ const FACTORY_ABI = [
   'function deployUniversity(string memory universityName, string memory symbol, address universityAdmin, string memory baseMetadataURI) external returns (address)',
   'function getUniversityCount() external view returns (uint256)',
   'function deployedUniversities(uint256 index) external view returns (address)',
+  'function getActiveUniversities() external view returns (address[])',
+  'function getAllUniversities() external view returns (address[])',
   'function getWalletUniversities(address wallet) external view returns (address[])',
   'function registerIssuer(address universityContract, address wallet) external',
   'function isUniversityContract(address) external view returns (bool)',
+  'function isDeactivated(address) external view returns (bool)',
+  'function deactivationReason(address) external view returns (string)',
+  'function deactivationDate(address) external view returns (uint256)',
+  'function deactivateUniversity(address universityContract, string memory reason) external',
+  'function reactivateUniversity(address universityContract) external',
   'function hasRole(bytes32 role, address account) external view returns (bool)',
   'function DEFAULT_ADMIN_ROLE() external view returns (bytes32)',
 ];
@@ -101,7 +108,7 @@ async function decryptField(value: string, univAddr: string, studentAddr: string
 }
 
 type Msg = { type: 'success' | 'error' | 'info'; text: string };
-type University = { address: string; name: string };
+type University = { address: string; name: string; deactivated: boolean; deactivationReason: string };
 
 // Translate raw blockchain errors into human-readable messages
 function parseError(error: unknown): string {
@@ -183,6 +190,12 @@ export default function Dashboard() {
   const [logoURL, setLogoURL] = useState('');
   const [logoUploading, setLogoUploading] = useState(false);
   const [isSettingConfig, setIsSettingConfig] = useState(false);
+
+  // Deactivation (owner only)
+  const [deactivateAddress, setDeactivateAddress] = useState('');
+  const [deactivateReason, setDeactivateReason] = useState('');
+  const [isDeactivating, setIsDeactivating] = useState(false);
+  const [isReactivating, setIsReactivating] = useState(''); // stores address being reactivated
 
   // Verify tab
   const [universities, setUniversities] = useState<University[]>([]);
@@ -367,30 +380,34 @@ export default function Dashboard() {
     throw new Error('Could not connect to Sepolia. Please install MetaMask or try again in a moment.');
   };
 
-  const loadUniversities = async (force = false) => {
+  const loadUniversities = async (force = false, role?: string) => {
     // Return cached list instantly if already loaded — avoids repeated RPC calls on tab switches
     if (!force && universities.length > 0) return;
     setIsLoadingUnis(true);
     try {
       const provider = await getReadOnlyProvider();
       const factory = new ethers.Contract(FACTORY_ADDRESS, FACTORY_ABI, provider);
-      const count = await factory.getUniversityCount();
 
-      // Fetch all university addresses in parallel first
-      const addressPromises = Array.from({ length: Number(count) }, (_, i) =>
-        factory.deployedUniversities(i)
-      );
-      const addresses: string[] = await Promise.all(addressPromises);
+      // Owner sees ALL universities (including deactivated) for management
+      // Everyone else only sees active universities
+      const effectiveRole = role ?? walletRole;
+      const addresses: string[] = effectiveRole === 'owner'
+        ? await factory.getAllUniversities()
+        : await factory.getActiveUniversities();
 
-      // Then fetch all names in parallel — all RPC calls fire simultaneously
+      // Fetch names + deactivation status in parallel
       const unis = await Promise.all(
         addresses.map(async (addr) => {
           try {
             const univContract = new ethers.Contract(addr, UNIVERSITY_ABI, provider);
-            const name = await univContract.name();
-            return { address: addr, name };
+            const [name, deactivated, reason] = await Promise.all([
+              univContract.name(),
+              factory.isDeactivated(addr),
+              factory.deactivationReason(addr).catch(() => ''),
+            ]);
+            return { address: addr, name, deactivated: deactivated as boolean, deactivationReason: reason as string };
           } catch (_e) {
-            return { address: addr, name: `University (${addr.slice(0, 6)}...)` };
+            return { address: addr, name: `University (${addr.slice(0, 6)}...)`, deactivated: false, deactivationReason: '' };
           }
         })
       );
@@ -630,6 +647,48 @@ export default function Dashboard() {
     } finally {
       setIsSettingConfig(false);
       setLogoUploading(false);
+    }
+  };
+
+  const handleDeactivate = async () => {
+    if (!signer) { showMsg('error', 'Please connect your wallet first.'); return; }
+    if (!ethers.isAddress(deactivateAddress)) { showMsg('error', 'Please enter a valid university contract address.'); return; }
+    if (!deactivateReason.trim()) { showMsg('error', 'Please provide a reason for deactivation.'); return; }
+    setIsDeactivating(true);
+    try {
+      const factory = new ethers.Contract(FACTORY_ADDRESS, FACTORY_ABI, signer);
+      const isValid = await factory.isUniversityContract(deactivateAddress);
+      if (!isValid) { showMsg('error', 'This address is not a valid university contract from this factory.'); return; }
+      const alreadyDeactivated = await factory.isDeactivated(deactivateAddress);
+      if (alreadyDeactivated) { showMsg('error', 'This institution is already deactivated.'); return; }
+      showMsg('info', 'Deactivating institution... Please confirm in MetaMask.');
+      const tx = await factory.deactivateUniversity(deactivateAddress, deactivateReason.trim());
+      await tx.wait();
+      showMsg('success', 'Institution deactivated. They can no longer issue certificates. Existing certificates remain verifiable.');
+      setDeactivateAddress('');
+      setDeactivateReason('');
+      await loadUniversities(true, 'owner');
+    } catch (error) {
+      showMsg('error', parseError(error));
+    } finally {
+      setIsDeactivating(false);
+    }
+  };
+
+  const handleReactivate = async (addr: string) => {
+    if (!signer) { showMsg('error', 'Please connect your wallet first.'); return; }
+    setIsReactivating(addr);
+    try {
+      const factory = new ethers.Contract(FACTORY_ADDRESS, FACTORY_ABI, signer);
+      showMsg('info', 'Reactivating institution... Please confirm in MetaMask.');
+      const tx = await factory.reactivateUniversity(addr);
+      await tx.wait();
+      showMsg('success', 'Institution reactivated. They can now issue certificates again.');
+      await loadUniversities(true, 'owner');
+    } catch (error) {
+      showMsg('error', parseError(error));
+    } finally {
+      setIsReactivating('');
     }
   };
 
@@ -1122,6 +1181,121 @@ export default function Dashboard() {
             <button onClick={saveInstitutionConfig} disabled={isSettingConfig || logoUploading} className={`${btnClass} bg-blue-600 hover:bg-blue-700`}>
               {logoUploading ? 'Uploading logo...' : isSettingConfig ? 'Saving... Please wait' : 'Save Institution Config to Blockchain'}
             </button>
+          </div>
+
+          {/* Step 3: Manage Institutions — Owner only */}
+          <div className="bg-slate-800 rounded-xl p-6 border border-red-900/40 space-y-5 mt-6">
+            <div className="flex items-center gap-2">
+              <span className="bg-red-700 text-white text-xs font-bold px-2 py-0.5 rounded-full">Step 3</span>
+              <h2 className="text-base font-bold">Manage Registered Institutions</h2>
+              <span className="text-xs text-slate-400 ml-auto">Owner access only</span>
+            </div>
+            <p className="text-slate-400 text-sm">
+              Deactivate an institution to remove them from the platform. Their existing certificates remain permanently verifiable on-chain, but no new certificates can be issued. You can reactivate them at any time.
+            </p>
+
+            {/* Deactivate form */}
+            <div className="space-y-3 border border-slate-700 rounded-lg p-4">
+              <h3 className="text-sm font-semibold text-red-400">Deactivate an Institution</h3>
+              <div>
+                <label className={labelClass}>Institution Contract Address</label>
+                <input
+                  className={inputClass}
+                  placeholder="0x..."
+                  value={deactivateAddress}
+                  onChange={(e) => setDeactivateAddress(e.target.value)}
+                />
+              </div>
+              <div>
+                <label className={labelClass}>Reason for Deactivation</label>
+                <select
+                  className={inputClass}
+                  value={deactivateReason}
+                  onChange={(e) => setDeactivateReason(e.target.value)}
+                >
+                  <option value="">-- Select a reason --</option>
+                  <option value="Non-compliance with Pax platform terms">Non-compliance with platform terms</option>
+                  <option value="Institution requested removal from platform">Institution requested removal</option>
+                  <option value="Fraudulent certificate activity detected">Fraudulent activity detected</option>
+                  <option value="Licence or subscription expired">Licence / subscription expired</option>
+                  <option value="Accreditation or regulatory issue">Accreditation or regulatory issue</option>
+                  <option value="Institution permanently closed">Institution permanently closed</option>
+                </select>
+              </div>
+              {deactivateReason && deactivateAddress && (
+                <div className="p-3 bg-red-900/20 border border-red-800/50 rounded-lg">
+                  <p className="text-xs text-red-300">
+                    This will permanently record on the blockchain: <span className="font-semibold">&quot;{deactivateReason}&quot;</span>. Existing certificates remain verifiable.
+                  </p>
+                </div>
+              )}
+              <button
+                onClick={handleDeactivate}
+                disabled={isDeactivating || !deactivateAddress || !deactivateReason}
+                className={`${btnClass} bg-red-700 hover:bg-red-600 disabled:opacity-50`}
+              >
+                {isDeactivating ? 'Deactivating... Please wait' : 'Deactivate Institution'}
+              </button>
+            </div>
+
+            {/* Current institutions list with status */}
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <h3 className="text-sm font-semibold text-slate-300">All Registered Institutions</h3>
+                <button
+                  onClick={() => loadUniversities(true, 'owner')}
+                  className="text-xs text-blue-400 hover:text-blue-300 underline"
+                >
+                  Refresh
+                </button>
+              </div>
+              {isLoadingUnis ? (
+                <p className="text-xs text-slate-500">Loading institutions...</p>
+              ) : universities.length === 0 ? (
+                <p className="text-xs text-slate-500">No institutions registered yet.</p>
+              ) : (
+                <div className="space-y-2">
+                  {universities.map((u) => (
+                    <div
+                      key={u.address}
+                      className={`flex items-center justify-between p-3 rounded-lg border text-sm ${
+                        u.deactivated
+                          ? 'bg-red-950/20 border-red-900/50'
+                          : 'bg-slate-700/40 border-slate-700'
+                      }`}
+                    >
+                      <div className="flex flex-col gap-0.5 min-w-0">
+                        <span className={`font-medium truncate ${u.deactivated ? 'text-red-400 line-through opacity-60' : 'text-slate-200'}`}>
+                          {u.name}
+                        </span>
+                        <span className="font-mono text-xs text-slate-500 truncate">{u.address}</span>
+                        {u.deactivated && u.deactivationReason && (
+                          <span className="text-xs text-red-400 mt-0.5">Reason: {u.deactivationReason}</span>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-2 ml-3 shrink-0">
+                        <span className={`text-xs font-semibold px-2 py-0.5 rounded-full border ${
+                          u.deactivated
+                            ? 'bg-red-900/30 border-red-700 text-red-400'
+                            : 'bg-green-900/30 border-green-700 text-green-400'
+                        }`}>
+                          {u.deactivated ? 'Deactivated' : 'Active'}
+                        </span>
+                        {u.deactivated && (
+                          <button
+                            onClick={() => handleReactivate(u.address)}
+                            disabled={isReactivating === u.address}
+                            className="text-xs text-blue-400 hover:text-blue-300 underline disabled:opacity-50"
+                          >
+                            {isReactivating === u.address ? 'Reactivating...' : 'Reactivate'}
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
           </div>
         )}

@@ -13,6 +13,12 @@ contract UniversityFactory is AccessControl {
     // Mapping to quickly check if an address is a valid university contract from this factory
     mapping(address => bool) public isUniversityContract;
 
+    // Deactivation — Owner can remove a university from the platform
+    // Existing certificates remain verifiable but no new ones can be issued
+    mapping(address => bool) public isDeactivated;
+    mapping(address => string) public deactivationReason;
+    mapping(address => uint256) public deactivationDate;
+
     /**
      * @dev Tracks which university contracts a wallet is associated with.
      * Updated when a university is deployed (admin) or when a role is granted (issuer).
@@ -25,6 +31,19 @@ contract UniversityFactory is AccessControl {
         address indexed contractAddress,
         string universityName,
         address indexed universityAdmin
+    );
+
+    event UniversityDeactivated(
+        address indexed contractAddress,
+        string reason,
+        address indexed deactivatedBy,
+        uint256 timestamp
+    );
+
+    event UniversityReactivated(
+        address indexed contractAddress,
+        address indexed reactivatedBy,
+        uint256 timestamp
     );
 
     event WalletRoleGranted(
@@ -114,9 +133,75 @@ contract UniversityFactory is AccessControl {
     }
 
     /**
-     * @dev Returns the total number of deployed universities.
+     * @dev Returns the total number of deployed universities (including deactivated).
      */
     function getUniversityCount() external view returns (uint256) {
         return deployedUniversities.length;
+    }
+
+    /**
+     * @dev OWNER ONLY: Deactivates a university from the platform.
+     * Existing certificates remain verifiable on-chain forever — this only
+     * hides the institution from the dApp and prevents new certificate issuance.
+     * @param universityContract The university contract to deactivate.
+     * @param reason The reason for deactivation (recorded on-chain permanently).
+     */
+    function deactivateUniversity(
+        address universityContract,
+        string memory reason
+    ) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        require(isUniversityContract[universityContract], "Not a valid university contract from this factory.");
+        require(!isDeactivated[universityContract], "University is already deactivated.");
+        require(bytes(reason).length > 0, "A deactivation reason is required.");
+
+        isDeactivated[universityContract] = true;
+        deactivationReason[universityContract] = reason;
+        deactivationDate[universityContract] = block.timestamp;
+
+        emit UniversityDeactivated(universityContract, reason, msg.sender, block.timestamp);
+    }
+
+    /**
+     * @dev OWNER ONLY: Reactivates a previously deactivated university.
+     * @param universityContract The university contract to reactivate.
+     */
+    function reactivateUniversity(
+        address universityContract
+    ) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        require(isUniversityContract[universityContract], "Not a valid university contract from this factory.");
+        require(isDeactivated[universityContract], "University is not currently deactivated.");
+
+        isDeactivated[universityContract] = false;
+        delete deactivationReason[universityContract];
+        delete deactivationDate[universityContract];
+
+        emit UniversityReactivated(universityContract, msg.sender, block.timestamp);
+    }
+
+    /**
+     * @dev Returns all active (non-deactivated) university contracts.
+     * Used by the dApp to display the live institution list.
+     */
+    function getActiveUniversities() external view returns (address[] memory) {
+        uint256 count = 0;
+        for (uint256 i = 0; i < deployedUniversities.length; i++) {
+            if (!isDeactivated[deployedUniversities[i]]) count++;
+        }
+        address[] memory active = new address[](count);
+        uint256 idx = 0;
+        for (uint256 i = 0; i < deployedUniversities.length; i++) {
+            if (!isDeactivated[deployedUniversities[i]]) {
+                active[idx++] = deployedUniversities[i];
+            }
+        }
+        return active;
+    }
+
+    /**
+     * @dev Returns ALL university contracts including deactivated ones.
+     * Used by the Owner's admin view to manage all institutions.
+     */
+    function getAllUniversities() external view returns (address[] memory) {
+        return deployedUniversities;
     }
 }

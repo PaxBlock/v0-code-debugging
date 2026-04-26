@@ -4,8 +4,8 @@
 import { useState, useEffect } from 'react';
 import { ethers } from 'ethers';
 
-// Factory contract - PaxID, grade, signatory config, logo URL, NFT metadata support
-const FACTORY_ADDRESS = '0x171Bc9E6D6Db8b1a8d125a752a3681483c9023E9';
+// Factory contract - PaxID, grade, signatory config, logo URL, deactivation support
+const FACTORY_ADDRESS = '0xd16dfe6B7135135c558F512Eaa8eD9B68FF1E96F';
 const SEPOLIA_CHAIN_ID = 11155111;
 const SEPOLIA_HEX = '0xaa36a7';
 
@@ -391,9 +391,19 @@ export default function Dashboard() {
       // Owner sees ALL universities (including deactivated) for management
       // Everyone else only sees active universities
       const effectiveRole = role ?? walletRole;
-      const addresses: string[] = effectiveRole === 'owner'
-        ? await factory.getAllUniversities()
-        : await factory.getActiveUniversities();
+      let addresses: string[] = [];
+      try {
+        addresses = effectiveRole === 'owner'
+          ? await factory.getAllUniversities()
+          : await factory.getActiveUniversities();
+      } catch (_e) {
+        // Fallback: old factory contract — iterate by index
+        const count = await factory.getUniversityCount();
+        const addressPromises = Array.from({ length: Number(count) }, (_, i) =>
+          factory.deployedUniversities(i)
+        );
+        addresses = await Promise.all(addressPromises);
+      }
 
       // Fetch names + deactivation status in parallel
       const unis = await Promise.all(
@@ -1719,8 +1729,19 @@ export default function Dashboard() {
 
         {/* Footer */}
         <div className="mt-10 text-center text-xs text-slate-600 space-y-1">
-          <p>Platform Registry: <span className="font-mono">{FACTORY_ADDRESS}</span></p>
-          <p>Running on Sepolia Testnet</p>
+          <p>Powered by Pax &mdash; Blockchain-Verified Academic Credentials</p>
+          <p className="text-slate-700">
+            Running on Sepolia Testnet &mdash; Registry:{' '}
+            <a
+              href={`https://sepolia.etherscan.io/address/${FACTORY_ADDRESS}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="font-mono hover:text-slate-500 underline"
+              title="View factory contract on Etherscan"
+            >
+              {FACTORY_ADDRESS.slice(0, 6)}...{FACTORY_ADDRESS.slice(-4)}
+            </a>
+          </p>
         </div>
       </div>
     </main>

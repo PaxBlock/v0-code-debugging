@@ -389,20 +389,28 @@ export default function Dashboard() {
       const factory = new ethers.Contract(FACTORY_ADDRESS, FACTORY_ABI, provider);
 
       // Owner sees ALL universities (including deactivated) for management
-      // Everyone else only sees active universities
+      // Everyone else (including unauthenticated visitors) only sees active universities
       const effectiveRole = role ?? walletRole;
       let addresses: string[] = [];
       try {
-        addresses = effectiveRole === 'owner'
-          ? await factory.getAllUniversities()
-          : await factory.getActiveUniversities();
+        if (effectiveRole === 'owner') {
+          addresses = await factory.getAllUniversities();
+        } else {
+          addresses = await factory.getActiveUniversities();
+        }
       } catch (_e) {
-        // Fallback: old factory contract — iterate by index
-        const count = await factory.getUniversityCount();
-        const addressPromises = Array.from({ length: Number(count) }, (_, i) =>
-          factory.deployedUniversities(i)
-        );
-        addresses = await Promise.all(addressPromises);
+        // Fallback for older factory deployments that lack these methods
+        try {
+          const count = await factory.getUniversityCount();
+          const addressPromises = Array.from({ length: Number(count) }, (_, i) =>
+            factory.deployedUniversities(i)
+          );
+          addresses = await Promise.all(addressPromises);
+        } catch (_e2) {
+          // Factory unreachable or wrong network — silently return empty list
+          console.log('[v0] Could not load universities from factory:', FACTORY_ADDRESS);
+          addresses = [];
+        }
       }
 
       // Fetch names + deactivation status in parallel

@@ -166,8 +166,8 @@ Revoke it (marks it as revoked on blockchain) and issue a new one with correct i
 ## Support
 
 For technical issues or questions:
-- Contact: support@paxcertificates.io
-- Documentation: https://paxcertificates.io/docs
+- Contact: support@paxblockchain.com
+- Documentation: https://docs.paxblockchain.com
 - Smart contract is open-source and auditable on the blockchain
 
 ---

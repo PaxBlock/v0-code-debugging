@@ -645,6 +645,7 @@ export default function Dashboard() {
 
   const saveInstitutionConfig = async () => {
     if (!signer) { showMsg('error', 'Please connect your wallet first.'); return; }
+    if (walletRole !== 'owner') { showMsg('error', 'Only the Pax platform owner can configure institution signatories.'); return; }
     if (!configUnivAddress || !ethers.isAddress(configUnivAddress)) { showMsg('error', 'Please enter a valid programme contract address.'); return; }
     if (!deanName || !registrarName || !vcName) { showMsg('error', 'Please fill in all signatory names.'); return; }
     setIsSettingConfig(true);
@@ -1144,11 +1145,18 @@ export default function Dashboard() {
             <div className="flex items-center gap-2">
               <span className="bg-blue-700 text-white text-xs font-bold px-2 py-0.5 rounded-full">Step 2</span>
               <h2 className="text-base font-bold">Configure Institution Signatories</h2>
-              <span className="text-xs text-slate-400 ml-auto">One-time setup per programme</span>
+              <span className="text-xs text-slate-400 ml-auto">Pax owner only</span>
             </div>
             <p className="text-slate-400 text-sm">
-              These names will appear on every certificate NFT issued under this programme — Dean, Registrar, and Vice-Chancellor. You can update them if personnel changes.
+              Set the Dean, Registrar, and Vice-Chancellor names that will appear on all certificates issued under this programme. You can update these if personnel changes.
             </p>
+            {walletRole !== 'owner' && (
+              <div className="p-3 bg-red-900/20 border border-red-800/50 rounded-lg">
+                <p className="text-xs text-red-300">
+                  ⚠️ This section is restricted to the Pax platform owner. Your wallet does not have permission to configure signatories.
+                </p>
+              </div>
+            )}
             <div>
               <label className={labelClass}>Programme Contract Address</label>
               <input
@@ -1523,7 +1531,7 @@ export default function Dashboard() {
                   {REVOCATION_PRESETS.map((preset) => (
                     <option key={preset} value={preset}>{preset}</option>
                   ))}
-                  <option value="custom">Other — enter custom reason</option>
+                  <option value="custom">Other ��� enter custom reason</option>
                 </select>
               </div>
               {revokeReason === 'custom' && (

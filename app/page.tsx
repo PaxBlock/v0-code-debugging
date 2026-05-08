@@ -178,7 +178,8 @@ export default function Dashboard() {
   const [isIssuing, setIsIssuing] = useState(false);
   const [grantAddress, setGrantAddress] = useState('');
   const [isGranting, setIsGranting] = useState(false);
-  const [hasIssuerRole, setHasIssuerRole] = useState<boolean | null>(null);
+  const [adminHasIssuerRole, setAdminHasIssuerRole] = useState<boolean | null>(null);
+  const [targetHasIssuerRole, setTargetHasIssuerRole] = useState<boolean | null>(null);
 
   // Institution config (Register tab - step 2)
   const [configUnivAddress, setConfigUnivAddress] = useState('');
@@ -325,24 +326,45 @@ export default function Dashboard() {
     }
   }, [activeTab, account]);
 
-  // Check if current wallet has issuer role when univAddress changes
+  // Check if admin has issuer role when univAddress changes
   useEffect(() => {
     if (!account || !univAddress || !ethers.isAddress(univAddress)) {
-      setHasIssuerRole(null);
+      setAdminHasIssuerRole(null);
       return;
     }
-    checkIssuerRole();
+    checkAdminIssuerRole();
   }, [account, univAddress]);
 
-  const checkIssuerRole = async () => {
+  // Check if TARGET address has issuer role when grantAddress changes
+  useEffect(() => {
+    if (!univAddress || !grantAddress || !ethers.isAddress(grantAddress)) {
+      setTargetHasIssuerRole(null);
+      return;
+    }
+    checkTargetIssuerRole();
+  }, [univAddress, grantAddress]);
+
+  const checkAdminIssuerRole = async () => {
     try {
       const provider = await getReadOnlyProvider();
       const university = new ethers.Contract(univAddress, UNIVERSITY_ABI, provider);
       const issuerRole = await university.ISSUER_ROLE();
       const hasRole = await university.hasRole(issuerRole, account);
-      setHasIssuerRole(hasRole);
+      setAdminHasIssuerRole(hasRole);
     } catch (_e) {
-      setHasIssuerRole(null);
+      setAdminHasIssuerRole(null);
+    }
+  };
+
+  const checkTargetIssuerRole = async () => {
+    try {
+      const provider = await getReadOnlyProvider();
+      const university = new ethers.Contract(univAddress, UNIVERSITY_ABI, provider);
+      const issuerRole = await university.ISSUER_ROLE();
+      const hasRole = await university.hasRole(issuerRole, grantAddress);
+      setTargetHasIssuerRole(hasRole);
+    } catch (_e) {
+      setTargetHasIssuerRole(null);
     }
   };
 
@@ -623,7 +645,8 @@ export default function Dashboard() {
       const registerTx = await factory.registerIssuer(univAddress, grantAddress);
       await registerTx.wait();
 
-      setHasIssuerRole(grantAddress.toLowerCase() === account.toLowerCase() ? true : hasIssuerRole);
+      // Re-check the target's issuer role to update UI
+      await checkTargetIssuerRole();
       showMsg('success', `Issuer Role granted to ${grantAddress.slice(0, 6)}...${grantAddress.slice(-4)}. They can now issue certificates on this programme.`);
       // Refresh the wallet's university list in case the grantee is the current wallet
       await loadMyUniversities(account);
@@ -1359,7 +1382,7 @@ export default function Dashboard() {
                     <select
                       className={inputClass}
                       value={univAddress}
-                      onChange={(e) => { setUnivAddress(e.target.value); setHasIssuerRole(null); }}
+                      onChange={(e) => { setUnivAddress(e.target.value); setAdminHasIssuerRole(null); }}
                     >
                       <option value="">-- Select a programme --</option>
                       {myUniversities.map((u) => (
@@ -1369,11 +1392,11 @@ export default function Dashboard() {
                     <button onClick={() => loadMyUniversities(account)} className="shrink-0 px-3 py-3 rounded-lg bg-slate-700 hover:bg-slate-600 text-sm text-slate-300" title="Refresh">Reload</button>
                   </div>
                 )}
-                {hasIssuerRole === true && (
-                  <p className="text-xs text-green-400 mt-1">This wallet is already authorised to issue certificates for this programme. You may proceed to Step 2.</p>
+                {adminHasIssuerRole === true && (
+                  <p className="text-xs text-green-400 mt-1">Your wallet is authorised to issue certificates on this programme. You can use Step 2 to issue or grant issuer role to other staff members here.</p>
                 )}
-                {hasIssuerRole === false && (
-                  <p className="text-xs text-amber-400 mt-1">This wallet is not yet authorised. Please complete Step 1 before issuing certificates.</p>
+                {adminHasIssuerRole === false && (
+                  <p className="text-xs text-amber-400 mt-1">Your wallet is not yet authorised for this programme. Contact the admin or Pax owner to grant you issuer role first.</p>
                 )}
               </div>
               <div>
@@ -1384,9 +1407,15 @@ export default function Dashboard() {
                     Use my connected wallet ({account.slice(0, 6)}...{account.slice(-4)})
                   </button>
                 )}
+                {grantAddress && targetHasIssuerRole === true && (
+                  <p className="text-xs text-green-400 mt-2">This wallet is already authorised to issue certificates on this programme.</p>
+                )}
+                {grantAddress && targetHasIssuerRole === false && (
+                  <p className="text-xs text-amber-400 mt-2">This wallet is not yet authorised. Click below to grant issuer role.</p>
+                )}
               </div>
-              <button onClick={grantIssuerRole} disabled={isGranting || hasIssuerRole === true} className={`${btnClass} bg-amber-600 hover:bg-amber-700 disabled:opacity-50`}>
-                {isGranting ? 'Authorising... Please wait' : hasIssuerRole === true ? 'Already Authorised' : 'Authorise Issuer'}
+              <button onClick={grantIssuerRole} disabled={isGranting || targetHasIssuerRole === true || !grantAddress} className={`${btnClass} bg-amber-600 hover:bg-amber-700 disabled:opacity-50`}>
+                {isGranting ? 'Authorising... Please wait' : targetHasIssuerRole === true ? 'Already Authorised' : 'Authorise Issuer'}
               </button>
             </div>
 

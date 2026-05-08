@@ -4,8 +4,8 @@
 import { useState, useEffect } from 'react';
 import { ethers } from 'ethers';
 
-// Factory contract - PaxID, grade, signatory config, logo URL, deactivation support
-const FACTORY_ADDRESS = '0xd16dfe6B7135135c558F512Eaa8eD9B68FF1E96F';
+// Factory contract - Faculty-based signatories, auto-issuer grant, deactivation support
+const FACTORY_ADDRESS = '0x15E2982c1d932f66Dd0128Bc0533B174fb07704D';
 const SEPOLIA_CHAIN_ID = 11155111;
 const SEPOLIA_HEX = '0xaa36a7';
 
@@ -29,15 +29,22 @@ const FACTORY_ABI = [
 
 const UNIVERSITY_ABI = [
   'function name() external view returns (string)',
-  'function issueCertificate(address student, string memory _candidateName, string memory _courseName, string memory _grade, string memory _paxId) external returns (uint256)',
+  'function issueCertificate(address student, string memory _candidateName, string memory _courseName, string memory _grade, string memory _paxId, uint256 _facultyIndex) external returns (uint256)',
   'function hasCertificate(address student) external view returns (bool)',
-  'function certificates(uint256 tokenId) external view returns (string candidateName, string courseName, string grade, string paxId, uint256 issuanceDate, address issuer)',
+  'function certificates(uint256 tokenId) external view returns (string candidateName, string courseName, string grade, string paxId, uint256 issuanceDate, address issuer, uint256 facultyIndex)',
   'function studentToTokenId(address student) external view returns (uint256)',
   'function grantRole(bytes32 role, address account) external',
   'function hasRole(bytes32 role, address account) external view returns (bool)',
   'function ISSUER_ROLE() external view returns (bytes32)',
   'function DEFAULT_ADMIN_ROLE() external view returns (bytes32)',
   'function revokeCertificate(address student, string memory reason) external',
+  'function getFaculties() external view returns (tuple(string name, string deanName, string deanSignatureURL)[])',
+  'function getFaculty(uint256 index) external view returns (tuple(string name, string deanName, string deanSignatureURL))',
+  'function getFacultyCount() external view returns (uint256)',
+  'function getDeanSignatureURL(uint256 facultyIndex) external view returns (string)',
+  'function getRegistrarSignatureURL() external view returns (string)',
+  'function getVCSignatureURL() external view returns (string)',
+  'function setInstitutionConfig(tuple(string name, string deanName, string deanSignatureURL)[] faculties, string registrarName, string registrarSignatureURL, string viceChancellorName, string vceSignatureURL, string verificationDomain, string logoURL) external',
   'function isRevoked(address student) external view returns (bool)',
   'function revocationReason(address student) external view returns (string)',
   'function revocationDate(address student) external view returns (uint256)',
@@ -178,7 +185,8 @@ export default function Dashboard() {
   const [isIssuing, setIsIssuing] = useState(false);
   const [grantAddress, setGrantAddress] = useState('');
   const [isGranting, setIsGranting] = useState(false);
-  const [hasIssuerRole, setHasIssuerRole] = useState<boolean | null>(null);
+  const [adminHasIssuerRole, setAdminHasIssuerRole] = useState<boolean | null>(null);
+  const [targetHasIssuerRole, setTargetHasIssuerRole] = useState<boolean | null>(null);
 
   // Institution config (Register tab - step 2)
   const [configUnivAddress, setConfigUnivAddress] = useState('');
@@ -209,6 +217,8 @@ export default function Dashboard() {
   // Issue tab - only universities where connected wallet has admin or issuer role
   const [myUniversities, setMyUniversities] = useState<University[]>([]);
   const [isLoadingMyUnis, setIsLoadingMyUnis] = useState(false);
+  const [faculties, setFaculties] = useState<Array<{ name: string; deanName: string; deanSignatureURL: string }>>([]);
+  const [selectedFacultyIndex, setSelectedFacultyIndex] = useState<number | ''>('');
   const [certResult, setCertResult] = useState<{
     tokenId: string;
     candidateName: string;
@@ -325,24 +335,45 @@ export default function Dashboard() {
     }
   }, [activeTab, account]);
 
-  // Check if current wallet has issuer role when univAddress changes
+  // Check if admin has issuer role when univAddress changes
   useEffect(() => {
     if (!account || !univAddress || !ethers.isAddress(univAddress)) {
-      setHasIssuerRole(null);
+      setAdminHasIssuerRole(null);
       return;
     }
-    checkIssuerRole();
+    checkAdminIssuerRole();
   }, [account, univAddress]);
 
-  const checkIssuerRole = async () => {
+  // Check if TARGET address has issuer role when grantAddress changes
+  useEffect(() => {
+    if (!univAddress || !grantAddress || !ethers.isAddress(grantAddress)) {
+      setTargetHasIssuerRole(null);
+      return;
+    }
+    checkTargetIssuerRole();
+  }, [univAddress, grantAddress]);
+
+  const checkAdminIssuerRole = async () => {
     try {
       const provider = await getReadOnlyProvider();
       const university = new ethers.Contract(univAddress, UNIVERSITY_ABI, provider);
       const issuerRole = await university.ISSUER_ROLE();
       const hasRole = await university.hasRole(issuerRole, account);
-      setHasIssuerRole(hasRole);
+      setAdminHasIssuerRole(hasRole);
     } catch (_e) {
-      setHasIssuerRole(null);
+      setAdminHasIssuerRole(null);
+    }
+  };
+
+  const checkTargetIssuerRole = async () => {
+    try {
+      const provider = await getReadOnlyProvider();
+      const university = new ethers.Contract(univAddress, UNIVERSITY_ABI, provider);
+      const issuerRole = await university.ISSUER_ROLE();
+      const hasRole = await university.hasRole(issuerRole, grantAddress);
+      setTargetHasIssuerRole(hasRole);
+    } catch (_e) {
+      setTargetHasIssuerRole(null);
     }
   };
 
@@ -473,10 +504,37 @@ export default function Dashboard() {
       // Only show active institutions in the Issue tab dropdown
       const activeOnly = results.filter((u) => !u.deactivated);
       setMyUniversities(activeOnly);
+      // Reset selected faculty when universities change
+      setSelectedFacultyIndex('');
+      setFaculties([]);
     } catch (error) {
-      showMsg('error', error instanceof Error ? error.message : 'Could not load your universities. Please try again.');
+      showMsg('error', error instanceof Error ? error.message : 'Could not load universities. Please try again.');
     } finally {
       setIsLoadingMyUnis(false);
+    }
+  };
+
+  // Load faculties when user selects a university in the Issue form
+  const loadFacultiesForUniversity = async (univAddr: string) => {
+    if (!univAddr || !ethers.isAddress(univAddr)) {
+      setFaculties([]);
+      setSelectedFacultyIndex('');
+      return;
+    }
+    try {
+      const provider = await getReadOnlyProvider();
+      const university = new ethers.Contract(univAddr, UNIVERSITY_ABI, provider);
+      const facultyList = await university.getFaculties();
+      setFaculties(facultyList);
+      // Auto-select first faculty if available
+      if (facultyList.length > 0) {
+        setSelectedFacultyIndex(0);
+      } else {
+        showMsg('error', 'This programme has no faculties configured. Contact the administrator.');
+      }
+    } catch (_e) {
+      setFaculties([]);
+      setSelectedFacultyIndex('');
     }
   };
 
@@ -623,7 +681,8 @@ export default function Dashboard() {
       const registerTx = await factory.registerIssuer(univAddress, grantAddress);
       await registerTx.wait();
 
-      setHasIssuerRole(grantAddress.toLowerCase() === account.toLowerCase() ? true : hasIssuerRole);
+      // Re-check the target's issuer role to update UI
+      await checkTargetIssuerRole();
       showMsg('success', `Issuer Role granted to ${grantAddress.slice(0, 6)}...${grantAddress.slice(-4)}. They can now issue certificates on this programme.`);
       // Refresh the wallet's university list in case the grantee is the current wallet
       await loadMyUniversities(account);
@@ -645,6 +704,7 @@ export default function Dashboard() {
 
   const saveInstitutionConfig = async () => {
     if (!signer) { showMsg('error', 'Please connect your wallet first.'); return; }
+    if (walletRole !== 'owner') { showMsg('error', 'Only the Pax platform owner can configure institution signatories.'); return; }
     if (!configUnivAddress || !ethers.isAddress(configUnivAddress)) { showMsg('error', 'Please enter a valid programme contract address.'); return; }
     if (!deanName || !registrarName || !vcName) { showMsg('error', 'Please fill in all signatory names.'); return; }
     setIsSettingConfig(true);
@@ -782,6 +842,9 @@ export default function Dashboard() {
     if (!univAddress || !studentAddress || !certificateName || !courseName || !grade || !paxId) {
       showMsg('error', 'Please fill in all fields including grade and PaxID before issuing a certificate.'); return;
     }
+    if (selectedFacultyIndex === '') {
+      showMsg('error', 'Please select a faculty for this certificate.'); return;
+    }
     if (!ethers.isAddress(univAddress)) { showMsg('error', 'The university contract address is not valid.'); return; }
     if (!ethers.isAddress(studentAddress)) { showMsg('error', 'The student wallet address is not valid.'); return; }
     if (studentEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(studentEmail)) {
@@ -799,7 +862,7 @@ export default function Dashboard() {
 
       const university = new ethers.Contract(univAddress, UNIVERSITY_ABI, signer);
       showMsg('info', 'Issuing certificate... Please confirm in MetaMask.');
-      const tx = await university.issueCertificate(studentAddress, encryptedName, encryptedCourse, encryptedGrade, normalisedPaxId);
+      const tx = await university.issueCertificate(studentAddress, encryptedName, encryptedCourse, encryptedGrade, normalisedPaxId, selectedFacultyIndex);
       const receipt = await tx.wait();
 
       showMsg('success', `Certificate issued to ${certificateName}! PaxID: ${normalisedPaxId}`);
@@ -815,11 +878,17 @@ export default function Dashboard() {
           try {
             const provider = await getReadOnlyProvider();
             const university = new ethers.Contract(univAddress, UNIVERSITY_ABI, provider);
-            const config = await university.institutionConfig();
-            deanName = config.deanName || '';
-            registrarName = config.registrarName || '';
-            vcName = config.viceChancellorName || '';
-            logoUrl = config.logoURL || '';
+            
+            // Get the dean for this specific faculty
+            if (typeof selectedFacultyIndex === 'number' && selectedFacultyIndex < faculties.length) {
+              deanName = faculties[selectedFacultyIndex].deanName || '';
+            }
+            
+            // For now, fetch registrar and VC — these are global (will be stored in contract config)
+            // TODO: Add getRegistrarName() and getVCName() to ABI once contract is updated
+            registrarName = 'Registrar';
+            vcName = 'Vice-Chancellor';
+            logoUrl = ''; // TODO: Fetch logo URL from contract
           } catch (_e) {
             // Silent — if config fetch fails, email will use defaults (empty signatories)
           }
@@ -1144,11 +1213,18 @@ export default function Dashboard() {
             <div className="flex items-center gap-2">
               <span className="bg-blue-700 text-white text-xs font-bold px-2 py-0.5 rounded-full">Step 2</span>
               <h2 className="text-base font-bold">Configure Institution Signatories</h2>
-              <span className="text-xs text-slate-400 ml-auto">One-time setup per programme</span>
+              <span className="text-xs text-slate-400 ml-auto">Pax owner only</span>
             </div>
             <p className="text-slate-400 text-sm">
-              These names will appear on every certificate NFT issued under this programme — Dean, Registrar, and Vice-Chancellor. You can update them if personnel changes.
+              Set the Dean, Registrar, and Vice-Chancellor names that will appear on all certificates issued under this programme. You can update these if personnel changes.
             </p>
+            {walletRole !== 'owner' && (
+              <div className="p-3 bg-red-900/20 border border-red-800/50 rounded-lg">
+                <p className="text-xs text-red-300">
+                  ⚠️ This section is restricted to the Pax platform owner. Your wallet does not have permission to configure signatories.
+                </p>
+              </div>
+            )}
             <div>
               <label className={labelClass}>Programme Contract Address</label>
               <input
@@ -1158,259 +1234,31 @@ export default function Dashboard() {
                 onChange={(e) => setConfigUnivAddress(e.target.value)}
               />
             </div>
-            <div>
-              <label className={labelClass}>Dean&apos;s Name</label>
-              <input className={inputClass} placeholder="e.g. Prof. Adewale Olumide" value={deanName} onChange={(e) => setDeanName(e.target.value)} />
-            </div>
-            <div>
-              <label className={labelClass}>Registrar&apos;s Name</label>
-              <input className={inputClass} placeholder="e.g. Dr. Ngozi Eze" value={registrarName} onChange={(e) => setRegistrarName(e.target.value)} />
-            </div>
-            <div>
-              <label className={labelClass}>Vice-Chancellor&apos;s Name</label>
-              <input className={inputClass} placeholder="e.g. Prof. Samuel Ajayi" value={vcName} onChange={(e) => setVcName(e.target.value)} />
-            </div>
-            <div>
-              <label className={labelClass}>Verification Domain (optional)</label>
-              <input className={inputClass} placeholder="e.g. verify.oauife.edu.ng" value={verificationDomain} onChange={(e) => setVerificationDomain(e.target.value)} />
-              <p className="text-xs text-slate-500 mt-1">The domain printed on certificates for QR code verification. Defaults to your platform URL.</p>
-            </div>
-            <div>
-              <label className={labelClass}>Institution Logo (optional)</label>
-              <input
-                type="file"
-                accept="image/*"
-                onChange={(e) => setLogoFile(e.target.files?.[0] || null)}
-                className={inputClass}
-              />
-              <p className="text-xs text-slate-500 mt-1">Upload a logo (PNG, JPG, SVG — max 2MB). Will appear in the certificate circle. Leave blank to use default PAX branding.</p>
-              {logoFile && (
-                <div className="mt-2 flex items-center gap-2">
-                  <span className="text-sm text-green-400">✓ {logoFile.name} selected</span>
-                  <button
-                    onClick={() => setLogoFile(null)}
-                    className="text-xs text-slate-400 hover:text-slate-300 underline"
-                  >
-                    Clear
-                  </button>
-                </div>
-              )}
-              {logoURL && (
-                <div className="mt-2 flex items-center gap-2">
-                  <span className="text-sm text-green-400">✓ Logo uploaded and saved</span>
-                </div>
-              )}
-            </div>
-            <button onClick={saveInstitutionConfig} disabled={isSettingConfig || logoUploading} className={`${btnClass} bg-blue-600 hover:bg-blue-700`}>
-              {logoUploading ? 'Uploading logo...' : isSettingConfig ? 'Saving... Please wait' : 'Save Institution Config to Blockchain'}
-            </button>
-          </div>
-
-          {/* Step 3: Manage Institutions — Owner only */}
-          <div className="bg-slate-800 rounded-xl p-6 border border-red-900/40 space-y-5 mt-6">
-            <div className="flex items-center gap-2">
-              <span className="bg-red-700 text-white text-xs font-bold px-2 py-0.5 rounded-full">Step 3</span>
-              <h2 className="text-base font-bold">Manage Registered Institutions</h2>
-              <span className="text-xs text-slate-400 ml-auto">Owner access only</span>
-            </div>
-            <p className="text-slate-400 text-sm">
-              Deactivate an institution to remove them from the platform. Their existing certificates remain permanently verifiable on-chain, but no new certificates can be issued. You can reactivate them at any time.
-            </p>
-
-            {/* Deactivate form */}
-            <div className="space-y-3 border border-slate-700 rounded-lg p-4">
-              <h3 className="text-sm font-semibold text-red-400">Deactivate an Institution</h3>
               <div>
-                <label className={labelClass}>Institution Contract Address</label>
-                <input
-                  className={inputClass}
-                  placeholder="0x..."
-                  value={deactivateAddress}
-                  onChange={(e) => setDeactivateAddress(e.target.value)}
-                />
-              </div>
-              <div>
-                <label className={labelClass}>Reason for Deactivation</label>
-                <select
-                  className={inputClass}
-                  value={deactivateReason}
-                  onChange={(e) => setDeactivateReason(e.target.value)}
-                >
-                  <option value="">-- Select a reason --</option>
-                  <option value="Non-compliance with Pax platform terms">Non-compliance with platform terms</option>
-                  <option value="Institution requested removal from platform">Institution requested removal</option>
-                  <option value="Fraudulent certificate activity detected">Fraudulent activity detected</option>
-                  <option value="Licence or subscription expired">Licence / subscription expired</option>
-                  <option value="Accreditation or regulatory issue">Accreditation or regulatory issue</option>
-                  <option value="Institution permanently closed">Institution permanently closed</option>
-                </select>
-              </div>
-              {deactivateReason && deactivateAddress && (
-                <div className="p-3 bg-red-900/20 border border-red-800/50 rounded-lg">
-                  <p className="text-xs text-red-300">
-                    This will permanently record on the blockchain: <span className="font-semibold">&quot;{deactivateReason}&quot;</span>. Existing certificates remain verifiable.
-                  </p>
-                </div>
-              )}
-              <button
-                onClick={handleDeactivate}
-                disabled={isDeactivating || !deactivateAddress || !deactivateReason}
-                className={`${btnClass} bg-red-700 hover:bg-red-600 disabled:opacity-50`}
-              >
-                {isDeactivating ? 'Deactivating... Please wait' : 'Deactivate Institution'}
-              </button>
-            </div>
-
-            {/* Current institutions list with status */}
-            <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <h3 className="text-sm font-semibold text-slate-300">All Registered Institutions</h3>
-                <button
-                  onClick={() => loadUniversities(true, 'owner')}
-                  className="text-xs text-blue-400 hover:text-blue-300 underline"
-                >
-                  Refresh
-                </button>
-              </div>
-              {isLoadingUnis ? (
-                <p className="text-xs text-slate-500">Loading institutions...</p>
-              ) : universities.length === 0 ? (
-                <p className="text-xs text-slate-500">No institutions registered yet.</p>
-              ) : (
-                <div className="space-y-2">
-                  {universities.map((u) => (
-                    <div
-                      key={u.address}
-                      className={`flex items-center justify-between p-3 rounded-lg border text-sm ${
-                        u.deactivated
-                          ? 'bg-red-950/20 border-red-900/50'
-                          : 'bg-slate-700/40 border-slate-700'
-                      }`}
-                    >
-                      <div className="flex flex-col gap-0.5 min-w-0">
-                        <span className={`font-medium truncate ${u.deactivated ? 'text-red-400 line-through opacity-60' : 'text-slate-200'}`}>
-                          {u.name}
-                        </span>
-                        <span className="font-mono text-xs text-slate-500 truncate">{u.address}</span>
-                        {u.deactivated && u.deactivationReason && (
-                          <span className="text-xs text-red-400 mt-0.5">Reason: {u.deactivationReason}</span>
-                        )}
-                      </div>
-                      <div className="flex items-center gap-2 ml-3 shrink-0">
-                        <span className={`text-xs font-semibold px-2 py-0.5 rounded-full border ${
-                          u.deactivated
-                            ? 'bg-red-900/30 border-red-700 text-red-400'
-                            : 'bg-green-900/30 border-green-700 text-green-400'
-                        }`}>
-                          {u.deactivated ? 'Deactivated' : 'Active'}
-                        </span>
-                        {u.deactivated && (
-                          <button
-                            onClick={() => handleReactivate(u.address)}
-                            disabled={isReactivating === u.address}
-                            className="text-xs text-blue-400 hover:text-blue-300 underline disabled:opacity-50"
-                          >
-                            {isReactivating === u.address ? 'Reactivating...' : 'Reactivate'}
-                          </button>
-                        )}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          </div>
-          </div>
-        )}
-
-        {/* Issue Certificate Tab */}
-        {activeTab === 'issue' && account && (walletRole === 'owner' || walletRole === 'admin' || walletRole === 'issuer') && (
-          <div className="space-y-6">
-            {/* Step 1: Grant Role */}
-            <div className="bg-slate-800 rounded-xl p-6 border border-amber-700/40 space-y-4">
-              <div className="flex items-center gap-2">
-                <span className="bg-amber-600 text-white text-xs font-bold px-2 py-0.5 rounded-full">Step 1</span>
-                <h2 className="text-base font-bold">Authorise a Certificate Issuer</h2>
-                <span className="text-xs text-slate-400 ml-auto">One-time setup per programme</span>
-              </div>
-              <p className="text-slate-400 text-sm">The programme administrator must authorise a staff member before they can issue certificates. This only needs to be done once per issuer.</p>
-              <div>
-                <label className={labelClass}>Select University Programme</label>
-                {!account ? (
-                  <div className={`${inputClass} text-amber-400`}>Please connect your wallet to view your assigned programmes.</div>
-                ) : isLoadingMyUnis ? (
-                  <div className={`${inputClass} text-slate-400`}>Loading your programmes...</div>
-                ) : myUniversities.length === 0 ? (
-                  <div className="space-y-1">
-                    <div className={`${inputClass} text-slate-500`}>No programmes are currently assigned to your wallet.</div>
-                    <p className="text-xs text-slate-500">Your wallet must be registered as an administrator or authorised issuer on a programme to appear here.</p>
-                    <button onClick={() => loadMyUniversities(account)} className="text-xs text-blue-400 hover:text-blue-300 underline">Refresh</button>
+                <label className={labelClass}>Select Faculty</label>
+                {faculties.length === 0 ? (
+                  <div className={`${inputClass} text-slate-400`}>
+                    Select a programme above to load faculties.
                   </div>
-                ) : (
-                  <div className="flex gap-2">
-                    <select
-                      className={inputClass}
-                      value={univAddress}
-                      onChange={(e) => { setUnivAddress(e.target.value); setHasIssuerRole(null); }}
-                    >
-                      <option value="">-- Select a programme --</option>
-                      {myUniversities.map((u) => (
-                        <option key={u.address} value={u.address}>{u.name}</option>
-                      ))}
-                    </select>
-                    <button onClick={() => loadMyUniversities(account)} className="shrink-0 px-3 py-3 rounded-lg bg-slate-700 hover:bg-slate-600 text-sm text-slate-300" title="Refresh">Reload</button>
-                  </div>
-                )}
-                {hasIssuerRole === true && (
-                  <p className="text-xs text-green-400 mt-1">This wallet is already authorised to issue certificates for this programme. You may proceed to Step 2.</p>
-                )}
-                {hasIssuerRole === false && (
-                  <p className="text-xs text-amber-400 mt-1">This wallet is not yet authorised. Please complete Step 1 before issuing certificates.</p>
-                )}
-              </div>
-              <div>
-                <label className={labelClass}>Staff Wallet Address</label>
-                <input className={inputClass} placeholder="0x... (wallet address of the staff member to authorise)" value={grantAddress} onChange={(e) => setGrantAddress(e.target.value)} />
-                {account && (
-                  <button onClick={() => setGrantAddress(account)} className="mt-1 text-xs text-blue-400 hover:text-blue-300 underline">
-                    Use my connected wallet ({account.slice(0, 6)}...{account.slice(-4)})
-                  </button>
-                )}
-              </div>
-              <button onClick={grantIssuerRole} disabled={isGranting || hasIssuerRole === true} className={`${btnClass} bg-amber-600 hover:bg-amber-700 disabled:opacity-50`}>
-                {isGranting ? 'Authorising... Please wait' : hasIssuerRole === true ? 'Already Authorised' : 'Authorise Issuer'}
-              </button>
-            </div>
-
-            {/* Step 2: Issue Certificate */}
-            <div className="bg-slate-800 rounded-xl p-6 border border-slate-700 space-y-4">
-              <div className="flex items-center gap-2">
-                <span className="bg-green-600 text-white text-xs font-bold px-2 py-0.5 rounded-full">Step 2</span>
-                <h2 className="text-base font-bold">Issue Certificate</h2>
-              </div>
-              <p className="text-slate-400 text-sm">Issue a tamper-proof, permanent certificate to a student. The certificate is tied to their wallet and cannot be transferred.</p>
-              <div>
-                <label className={labelClass}>Select Programme</label>
-                {myUniversities.length === 0 ? (
-                  <div className={`${inputClass} text-slate-400`}>Please complete Step 1 first to load your assigned programmes.</div>
                 ) : (
                   <select
                     className={inputClass}
-                    value={univAddress}
-                    onChange={(e) => setUnivAddress(e.target.value)}
+                    value={selectedFacultyIndex}
+                    onChange={(e) => setSelectedFacultyIndex(Number(e.target.value))}
                   >
-                    <option value="">-- Select a programme --</option>
-                    {myUniversities.map((u) => (
-                      <option key={u.address} value={u.address}>{u.name}</option>
+                    <option value="">-- Select a faculty --</option>
+                    {faculties.map((faculty, idx) => (
+                      <option key={idx} value={idx}>
+                        {faculty.name} — {faculty.deanName}
+                      </option>
                     ))}
                   </select>
                 )}
-                <p className="text-xs text-slate-500 mt-1">Select the programme this certificate is being issued under.</p>
+                <p className="text-xs text-slate-500 mt-1">This certificate will be signed by the selected faculty's Dean.</p>
               </div>
               <div>
                 <label className={labelClass}>Student Wallet Address</label>
                 <input className={inputClass} placeholder="0x... (student's wallet address)" value={studentAddress} onChange={(e) => setStudentAddress(e.target.value)} />
-                <p className="text-xs text-slate-500 mt-1">The certificate will be permanently issued to this wallet address.</p>
               </div>
               <div>
                 <label className={labelClass}>Student Full Name</label>
@@ -1494,7 +1342,10 @@ export default function Dashboard() {
                   <select
                     className={inputClass}
                     value={univAddress}
-                    onChange={(e) => setUnivAddress(e.target.value)}
+                    onChange={(e) => {
+                      setUnivAddress(e.target.value);
+                      loadFacultiesForUniversity(e.target.value);
+                    }}
                   >
                     <option value="">-- Select a programme --</option>
                     {myUniversities.map((u) => (
@@ -1523,7 +1374,7 @@ export default function Dashboard() {
                   {REVOCATION_PRESETS.map((preset) => (
                     <option key={preset} value={preset}>{preset}</option>
                   ))}
-                  <option value="custom">Other — enter custom reason</option>
+                  <option value="custom">Other ��� enter custom reason</option>
                 </select>
               </div>
               {revokeReason === 'custom' && (

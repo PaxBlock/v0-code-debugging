@@ -5,7 +5,7 @@ import { useState, useEffect } from 'react';
 import { ethers } from 'ethers';
 
 // Factory contract - Faculty-based signatories, auto-issuer grant, deactivation support
-const FACTORY_ADDRESS = '0x15E2982c1d932f66Dd0128Bc0533B174fb07704D';
+const FACTORY_ADDRESS = '0x15aED424D5b30B67480045d95aB6fB4B3917F566';
 const SEPOLIA_CHAIN_ID = 11155111;
 const SEPOLIA_HEX = '0xaa36a7';
 
@@ -49,8 +49,6 @@ const UNIVERSITY_ABI = [
   'function revocationReason(address student) external view returns (string)',
   'function revocationDate(address student) external view returns (uint256)',
   'function resolvePaxId(string memory paxId) external view returns (address)',
-  'function setInstitutionConfig(string memory deanName, string memory registrarName, string memory viceChancellorName, string memory verificationDomain, string memory logoURL) external',
-  'function institutionConfig() external view returns (string deanName, string registrarName, string viceChancellorName, string verificationDomain, string logoURL)',
   'function walletToPaxId(address student) external view returns (string)',
 ];
 
@@ -721,7 +719,11 @@ export default function Dashboard() {
 
       const university = new ethers.Contract(configUnivAddress, UNIVERSITY_ABI, signer);
       showMsg('info', 'Saving institution config... Please confirm in MetaMask.');
-      const tx = await university.setInstitutionConfig(deanName, registrarName, vcName, verificationDomain, finalLogoURL);
+      // For now, use empty faculties array — faculty config will be added in next phase
+      const faculties = [];
+      const registrarSignatureURL = '';
+      const vcSignatureURL = '';
+      const tx = await university.setInstitutionConfig(faculties, registrarName, registrarSignatureURL, vcName, vcSignatureURL, verificationDomain, finalLogoURL);
       await tx.wait();
       showMsg('success', 'Institution configuration saved. Logo and signatories will appear on all certificates from this programme.');
       setDeanName(''); setRegistrarName(''); setVcName(''); setVerificationDomain(''); setLogoFile(null); setLogoURL('');

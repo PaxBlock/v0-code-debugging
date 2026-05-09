@@ -546,7 +546,9 @@ export default function Dashboard() {
       // Check if this wallet is the Pax Factory owner (DEFAULT_ADMIN_ROLE on Factory)
       const adminRole = await factory.DEFAULT_ADMIN_ROLE();
       const isPaxOwner = await factory.hasRole(adminRole, walletAddress);
+      console.log('[v0] Role detection:', { walletAddress, adminRole, isPaxOwner, factoryAddress: FACTORY_ADDRESS });
       if (isPaxOwner) {
+        console.log('[v0] Wallet is Pax owner');
         setWalletRole('owner');
         setActiveTab('deploy'); // Owner lands on Register Programme
         return;
@@ -554,7 +556,9 @@ export default function Dashboard() {
 
       // Check if this wallet is a University Admin or Issuer on any programme
       const walletUnivs: string[] = await factory.getWalletUniversities(walletAddress);
+      console.log('[v0] Found universities for wallet:', walletUnivs);
       if (walletUnivs.length === 0) {
+        console.log('[v0] No universities found, setting role to none');
         setWalletRole('none');
         setActiveTab('verify'); // No role — verify only
         return;
@@ -564,16 +568,20 @@ export default function Dashboard() {
       const univContract = new ethers.Contract(walletUnivs[0], UNIVERSITY_ABI, provider);
       const defaultAdminRole = await univContract.DEFAULT_ADMIN_ROLE();
       const isAdmin = await univContract.hasRole(defaultAdminRole, walletAddress);
+      console.log('[v0] Admin check on first university:', { univAddr: walletUnivs[0], isAdmin });
       if (isAdmin) {
+        console.log('[v0] Wallet is admin');
         setWalletRole('admin');
         setActiveTab('issue'); // Admin lands on Issue tab
         return;
       }
 
       // Must be an issuer
+      console.log('[v0] Wallet is issuer');
       setWalletRole('issuer');
       setActiveTab('issue'); // Issuer lands on Issue tab
     } catch (_e) {
+      console.log('[v0] Role detection error:', _e);
       setWalletRole('none');
       setActiveTab('verify');
     }

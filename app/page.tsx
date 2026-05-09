@@ -1218,7 +1218,7 @@ export default function Dashboard() {
               <span className="text-xs text-slate-400 ml-auto">Pax owner only</span>
             </div>
             <p className="text-slate-400 text-sm">
-              Set the Dean, Registrar, and Vice-Chancellor names that will appear on all certificates issued under this programme. You can update these if personnel changes.
+              Configure the Registrar, Vice-Chancellor, and faculty deans that will sign all certificates issued under this programme. You can update signatories anytime when personnel changes.
             </p>
             {walletRole !== 'owner' && (
               <div className="p-3 bg-red-900/20 border border-red-800/50 rounded-lg">
@@ -1227,15 +1227,213 @@ export default function Dashboard() {
                 </p>
               </div>
             )}
-            <div>
-              <label className={labelClass}>Programme Contract Address</label>
-              <input
-                className={inputClass}
-                placeholder="0x... (the address from Step 1)"
-                value={configUnivAddress}
-                onChange={(e) => setConfigUnivAddress(e.target.value)}
-              />
+            {walletRole === 'owner' && (
+              <>
+                <div>
+                  <label className={labelClass}>Programme Contract Address</label>
+                  <input
+                    className={inputClass}
+                    placeholder="0x... (the address from Step 1)"
+                    value={configUnivAddress}
+                    onChange={(e) => setConfigUnivAddress(e.target.value)}
+                  />
+                </div>
+
+                {/* Global Signatories */}
+                <div className="border-t border-slate-700 pt-4 mt-4">
+                  <h3 className="text-sm font-bold mb-3">Global Signatories</h3>
+                  <div>
+                    <label className={labelClass}>Registrar Name</label>
+                    <input className={inputClass} placeholder="e.g. Dr. Afolayan Olufemi" value={registrarName} onChange={(e) => setRegistrarName(e.target.value)} />
+                  </div>
+                  <div>
+                    <label className={labelClass}>Vice-Chancellor Name</label>
+                    <input className={inputClass} placeholder="e.g. Prof. Bamitale Omole" value={vcName} onChange={(e) => setVcName(e.target.value)} />
+                  </div>
+                  <div>
+                    <label className={labelClass}>Institution Logo</label>
+                    <input
+                      className={inputClass}
+                      type="file"
+                      accept="image/*"
+                      onChange={(e) => {
+                        if (e.target.files?.[0]) setLogoFile(e.target.files[0]);
+                      }}
+                    />
+                    {logoURL && (
+                      <div className="mt-2">
+                        <img src={logoURL} alt="Logo preview" className="h-12 w-12 object-contain" />
+                      </div>
+                    )}
+                  </div>
+                  <div>
+                    <label className={labelClass}>Verification Domain (optional)</label>
+                    <input className={inputClass} placeholder="e.g. verify.oauife.edu.ng" value={verificationDomain} onChange={(e) => setVerificationDomain(e.target.value)} />
+                    <p className="text-xs text-slate-500 mt-1">Where students can verify their certificates. Leave blank to use the Pax platform.</p>
+                  </div>
+                </div>
+
+                {/* Faculty Management */}
+                <div className="border-t border-slate-700 pt-4 mt-4">
+                  <div className="flex items-center justify-between mb-3">
+                    <h3 className="text-sm font-bold">Faculties & Deans</h3>
+                    <button className="text-xs bg-blue-700 hover:bg-blue-600 px-3 py-1 rounded">
+                      Add Faculty
+                    </button>
+                  </div>
+                  <p className="text-xs text-slate-500 mb-3">Add each faculty with its dean. Each dean's signature will appear on certificates from their faculty.</p>
+                  {/* Faculty list will go here — for now empty state */}
+                  <div className="p-4 bg-slate-900/50 rounded border border-slate-700 text-center">
+                    <p className="text-xs text-slate-500">No faculties configured yet. Add a faculty to get started.</p>
+                  </div>
+                </div>
+
+                <button onClick={() => {
+                  if (!configUnivAddress) { showMsg('error', 'Please enter a programme contract address.'); return; }
+                  // TODO: Call saveInstitutionConfig with faculties array
+                }} disabled={isSettingConfig} className={`${btnClass} bg-amber-600 hover:bg-amber-700`}>
+                  {isSettingConfig ? 'Saving Configuration... Please wait' : 'Save Institution Configuration'}
+                </button>
+              </>
+            )}
+          </div>
+
+            {/* Step 3: Revoke Certificate */}
+            <div className="bg-slate-800 rounded-xl p-6 border border-red-900/40 space-y-4">
+              <div className="flex items-center gap-2">
+                <span className="bg-red-800 text-white text-xs font-bold px-2 py-0.5 rounded-full">Step 3</span>
+                <h2 className="text-base font-bold">Revoke a Certificate</h2>
+                <span className="text-xs text-slate-400 ml-auto">Admin only</span>
+              </div>
+              <p className="text-slate-400 text-sm">
+                Revoke an issued certificate. The revocation and its reason are recorded permanently on the blockchain and will be visible to anyone who verifies that certificate.
+              </p>
+              <div>
+                <label className={labelClass}>Select Programme</label>
+                {myUniversities.length === 0 ? (
+                  <div className={`${inputClass} text-slate-400`}>No programmes assigned to your wallet yet.</div>
+                ) : (
+                  <select
+                    className={inputClass}
+                    value={univAddress}
+                    onChange={(e) => {
+                      setUnivAddress(e.target.value);
+                      loadFacultiesForUniversity(e.target.value);
+                    }}
+                  >
+                    <option value="">-- Select a programme --</option>
+                    {myUniversities.map((u) => (
+                      <option key={u.address} value={u.address}>{u.name}</option>
+                    ))}
+                  </select>
+                )}
+              </div>
+              <div>
+                <label className={labelClass}>Student Wallet Address</label>
+                <input
+                  className={inputClass}
+                  placeholder="0x... (wallet address of the student)"
+                  value={revokeAddress}
+                  onChange={(e) => setRevokeAddress(e.target.value)}
+                />
+              </div>
+              <div>
+                <label className={labelClass}>Reason for Revocation</label>
+                <select
+                  className={inputClass}
+                  value={revokeReason}
+                  onChange={(e) => setRevokeReason(e.target.value)}
+                >
+                  <option value="">-- Select a reason --</option>
+                  {REVOCATION_PRESETS.map((preset) => (
+                    <option key={preset} value={preset}>{preset}</option>
+                  ))}
+                  <option value="custom">Other ��� enter custom reason</option>
+                </select>
+              </div>
+              {revokeReason === 'custom' && (
+                <div>
+                  <label className={labelClass}>Custom Reason</label>
+                  <input
+                    className={inputClass}
+                    placeholder="Describe the reason for revocation..."
+                    value={customReason}
+                    onChange={(e) => setCustomReason(e.target.value)}
+                    maxLength={200}
+                  />
+                </div>
+              )}
+              {revokeReason && revokeReason !== 'custom' && (
+                <div className="p-3 bg-red-900/20 border border-red-800/50 rounded-lg">
+                  <p className="text-xs text-red-300">
+                    This will be recorded on the blockchain as: <span className="font-semibold">&quot;{revokeReason}&quot;</span>
+                  </p>
+                </div>
+              )}
+              {revokeReason === 'custom' && customReason && (
+                <div className="p-3 bg-red-900/20 border border-red-800/50 rounded-lg">
+                  <p className="text-xs text-red-300">
+                    This will be recorded on the blockchain as: <span className="font-semibold">&quot;{customReason}&quot;</span>
+                  </p>
+                </div>
+              )}
+              <div>
+                <label className={labelClass}>Student Email <span className="text-slate-500 font-normal">(optional — to notify them)</span></label>
+                <input
+                  type="email"
+                  className={inputClass}
+                  placeholder="e.g. student@university.edu"
+                  value={revokeEmail}
+                  onChange={(e) => setRevokeEmail(e.target.value)}
+                  maxLength={254}
+                />
+                <p className="text-xs text-slate-500 mt-1">If provided, the student will receive an email notifying them of the revocation and the reason. The email is not stored.</p>
+              </div>
+              <button
+                onClick={handleRevoke}
+                disabled={isRevoking || !revokeAddress || !revokeReason}
+                className={`${btnClass} bg-red-700 hover:bg-red-600 disabled:opacity-50`}
+              >
+                {isRevoking ? 'Revoking... Please wait' : 'Revoke Certificate'}
+              </button>
             </div>
+          </div>
+        )}
+
+        {/* Issue Certificate Tab */}
+        {activeTab === 'issue' && account && (walletRole === 'owner' || walletRole === 'admin' || walletRole === 'issuer') && (
+          <div className="space-y-6">
+            {/* Step 2: Issue Certificate */}
+            <div className="bg-slate-800 rounded-xl p-6 border border-green-900/40 space-y-4">
+              <div className="flex items-center gap-2">
+                <span className="bg-green-700 text-white text-xs font-bold px-2 py-0.5 rounded-full">Step 2</span>
+                <h2 className="text-base font-bold">Issue Certificate</h2>
+              </div>
+              <p className="text-slate-400 text-sm">
+                Issue a new blockchain-verified certificate to a student. All information is encrypted and stored securely.
+              </p>
+
+              <div>
+                <label className={labelClass}>Select Programme</label>
+                {myUniversities.length === 0 ? (
+                  <div className={`${inputClass} text-slate-400`}>No programmes assigned to your wallet yet.</div>
+                ) : (
+                  <select
+                    className={inputClass}
+                    value={univAddress}
+                    onChange={(e) => {
+                      setUnivAddress(e.target.value);
+                      loadFacultiesForUniversity(e.target.value);
+                    }}
+                  >
+                    <option value="">-- Select a programme --</option>
+                    {myUniversities.map((u) => (
+                      <option key={u.address} value={u.address}>{u.name}</option>
+                    ))}
+                  </select>
+                )}
+              </div>
+
               <div>
                 <label className={labelClass}>Select Faculty</label>
                 {faculties.length === 0 ? (
@@ -1258,6 +1456,7 @@ export default function Dashboard() {
                 )}
                 <p className="text-xs text-slate-500 mt-1">This certificate will be signed by the selected faculty's Dean.</p>
               </div>
+
               <div>
                 <label className={labelClass}>Student Wallet Address</label>
                 <input className={inputClass} placeholder="0x... (student's wallet address)" value={studentAddress} onChange={(e) => setStudentAddress(e.target.value)} />
@@ -1376,7 +1575,7 @@ export default function Dashboard() {
                   {REVOCATION_PRESETS.map((preset) => (
                     <option key={preset} value={preset}>{preset}</option>
                   ))}
-                  <option value="custom">Other ��� enter custom reason</option>
+                  <option value="custom">Other — enter custom reason</option>
                 </select>
               </div>
               {revokeReason === 'custom' && (

@@ -120,7 +120,7 @@ function parseError(error: unknown): string {
   const raw = error instanceof Error ? error.message : String(error);
 
   if (raw.includes('0xe2517d3f') || raw.includes('AccessControlUnauthorizedAccount')) {
-    return 'Access denied. Your wallet does not have the required permission to perform this action. Only the programme administrator can authorise issuers or register programmes.';
+    return 'Access denied: Your wallet does not have admin permission on the Factory contract. If you are the Pax platform owner, contact the person who deployed the Factory to grant your wallet address DEFAULT_ADMIN_ROLE. Your wallet: 0x81cfbda75f9fbdb84364ae887409e56636389ad2. Factory: 0x15aED424D5b30B67480045d95aB6fB4B3917F566';
   }
   if (raw.includes('Only the university admin') || raw.includes('Not a valid university contract')) {
     return 'Access denied. Only the programme administrator can authorise new issuers on this programme.';
@@ -1107,7 +1107,7 @@ export default function Dashboard() {
             <p className="text-slate-500 text-sm max-w-xs">
               {!account
                 ? 'Please connect your wallet to access this section.'
-                : 'This section is only available to the Pax platform owner. Your wallet does not have the required permission.'}
+                : 'This section requires Pax platform owner permissions. If you are the Pax owner, your wallet (0x81cfbda75f9fbdb84364ae887409e56636389ad2) must be granted DEFAULT_ADMIN_ROLE on the Factory contract (0x15aED424D5b30B67480045d95aB6fB4B3917F566). Contact the deployer.'}
             </p>
             {!account && (
               <button onClick={connectWallet} className="mt-2 px-5 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg text-sm font-semibold">
@@ -1432,29 +1432,6 @@ export default function Dashboard() {
                     ))}
                   </select>
                 )}
-              </div>
-
-              <div>
-                <label className={labelClass}>Select Faculty</label>
-                {faculties.length === 0 ? (
-                  <div className={`${inputClass} text-slate-400`}>
-                    Select a programme above to load faculties.
-                  </div>
-                ) : (
-                  <select
-                    className={inputClass}
-                    value={selectedFacultyIndex}
-                    onChange={(e) => setSelectedFacultyIndex(Number(e.target.value))}
-                  >
-                    <option value="">-- Select a faculty --</option>
-                    {faculties.map((faculty, idx) => (
-                      <option key={idx} value={idx}>
-                        {faculty.name} — {faculty.deanName}
-                      </option>
-                    ))}
-                  </select>
-                )}
-                <p className="text-xs text-slate-500 mt-1">This certificate will be signed by the selected faculty's Dean.</p>
               </div>
 
               <div>

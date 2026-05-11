@@ -5,7 +5,8 @@ import { useState, useEffect } from 'react';
 import { ethers } from 'ethers';
 
 // Factory contract - Faculty-based signatories, auto-issuer grant, deactivation support
-const FACTORY_ADDRESS = '0x15aED424D5b30B67480045d95aB6fB4B3917F566';
+// DEPLOYED WITH YOUR WALLET — automatically grants you DEFAULT_ADMIN_ROLE
+const FACTORY_ADDRESS = '0x15aED424D5b30B67480045d95aB6fB4B3917F566'; // Replace this with your new Factory address from Remix
 const SEPOLIA_CHAIN_ID = 11155111;
 const SEPOLIA_HEX = '0xaa36a7';
 

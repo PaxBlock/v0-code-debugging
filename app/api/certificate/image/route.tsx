@@ -15,20 +15,14 @@ export async function GET(req: NextRequest) {
   const dean           = searchParams.get('dean')          || '';
   const registrar      = searchParams.get('registrar')     || '';
   const viceChancellor = searchParams.get('vc')            || '';
+  const domain         = searchParams.get('domain')        || 'v0-paxadmin.vercel.app';
   const logoUrl        = searchParams.get('logo')          || '';
   const revoked        = searchParams.get('revoked')       === 'true';
   const revokeReason   = searchParams.get('revokeReason') || '';
+  const verifyUrl      = searchParams.get('verifyUrl')     || '';
 
-  // Detect actual request domain dynamically (e.g., test.paxblockchain.com, localhost:3000)
-  const requestUrl = new URL(req.url);
-  const actualDomain = requestUrl.hostname;
-  const actualProtocol = requestUrl.protocol;
-  const baseUrl = `${actualProtocol}//${actualDomain}`;
-
-  // Use provided verifyUrl if available, otherwise construct from actual domain
-  const verifyUrl = searchParams.get('verifyUrl') || `${baseUrl}/?tab=verify&paxId=${paxId}`;
-  const domain = searchParams.get('domain') || actualDomain;
-  const qrImageUrl = `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(verifyUrl)}&bgcolor=fdf6e3&color=1a1a2e&margin=8&qzone=2`;
+  const qrData = verifyUrl || `https://${domain}`;
+  const qrImageUrl = `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(qrData)}&bgcolor=fdf6e3&color=1a1a2e&margin=8&qzone=2`;
 
   // Dot row helper
   const dots = (count: number, color = '#c9a96e') =>

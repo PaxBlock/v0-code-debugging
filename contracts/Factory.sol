@@ -87,11 +87,6 @@ contract UniversityFactory is AccessControl {
         // Record that the admin wallet is associated with this university contract
         _walletUniversities[universityAdmin].push(universityAddress);
 
-        // AUTO-GRANT: The admin automatically gets ISSUER_ROLE so they can immediately issue certificates
-        // This saves a separate step and improves UX — admins don't need separate issuer registration
-        bytes32 issuerRole = keccak256("ISSUER_ROLE");
-        newUniversity.grantRole(issuerRole, universityAdmin);
-
         emit UniversityDeployed(universityAddress, universityName, universityAdmin);
 
         return universityAddress;

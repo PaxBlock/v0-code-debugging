@@ -5,7 +5,7 @@ import { useState, useEffect } from 'react';
 import { ethers } from 'ethers';
 
 // Factory contract - PaxID, grade, signatory config, logo URL, deactivation support
-const FACTORY_ADDRESS = '0xd16dfe6B7135135c558F512Eaa8eD9B68FF1E96F';
+const FACTORY_ADDRESS = '0x28FD0cF2a7045FC4BB1D11401AA0Af48701Cc4fC';
 const SEPOLIA_CHAIN_ID = 11155111;
 const SEPOLIA_HEX = '0xaa36a7';
 

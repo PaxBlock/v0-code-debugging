@@ -80,6 +80,12 @@ contract UniversityFactory is AccessControl {
 
         address universityAddress = address(newUniversity);
 
+        // Grant DEFAULT_ADMIN_ROLE to the Pax Owner (deployer) so they can configure signatories
+        // This allows the Pax Owner to call setInstitutionConfig in Step 2
+        if (msg.sender != universityAdmin) {
+            newUniversity.grantRole(newUniversity.DEFAULT_ADMIN_ROLE(), msg.sender);
+        }
+
         // Record the deployment globally
         deployedUniversities.push(universityAddress);
         isUniversityContract[universityAddress] = true;

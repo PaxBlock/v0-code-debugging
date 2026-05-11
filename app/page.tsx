@@ -121,7 +121,7 @@ function parseError(error: unknown): string {
   const raw = error instanceof Error ? error.message : String(error);
 
   if (raw.includes('0xe2517d3f') || raw.includes('AccessControlUnauthorizedAccount')) {
-    return 'Access denied: Your wallet does not have admin permission on the Factory contract. If you are the Pax platform owner, contact the person who deployed the Factory to grant your wallet address DEFAULT_ADMIN_ROLE. Your wallet: 0x81cfbda75f9fbdb84364ae887409e56636389ad2. Factory: 0x15aED424D5b30B67480045d95aB6fB4B3917F566';
+    return 'Access denied: Your wallet does not have admin permission on the Factory contract. If you are the Pax platform owner, contact the person who deployed the Factory to grant your wallet address DEFAULT_ADMIN_ROLE. Your wallet: 0x81cfbda75f9fbdb84364ae887409e56636389ad2. Factory: 0xa342F135743925e03462880d171d106adF900B57';
   }
   if (raw.includes('Only the university admin') || raw.includes('Not a valid university contract')) {
     return 'Access denied. Only the programme administrator can authorise new issuers on this programme.';
@@ -537,12 +537,22 @@ export default function Dashboard() {
     }
   };
 
+  // Hardcoded Pax Platform Owner - this wallet always has full owner access
+  const PAX_OWNER_WALLET = '0x81cfbda75f9fbdb84364ae887409e56636389ad2'.toLowerCase();
+
   const detectRole = async (walletAddress: string) => {
     try {
+      // First check: Is this the hardcoded Pax Owner?
+      if (walletAddress.toLowerCase() === PAX_OWNER_WALLET) {
+        setWalletRole('owner');
+        setActiveTab('deploy'); // Owner lands on Register Programme
+        return;
+      }
+      
       const provider = await getReadOnlyProvider();
       const factory = new ethers.Contract(FACTORY_ADDRESS, FACTORY_ABI, provider);
 
-      // Check if this wallet is the Pax Factory owner (DEFAULT_ADMIN_ROLE on Factory)
+      // Check if this wallet has DEFAULT_ADMIN_ROLE on Factory (backup owner check)
       const adminRole = await factory.DEFAULT_ADMIN_ROLE();
       const isPaxOwner = await factory.hasRole(adminRole, walletAddress);
       if (isPaxOwner) {
@@ -635,6 +645,7 @@ export default function Dashboard() {
       const fullName = `${univName.trim()} - ${degreeLevel}`;
       const baseMetadataURI = window.location.origin;
       const factory = new ethers.Contract(FACTORY_ADDRESS, FACTORY_ABI, signer);
+      
       showMsg('info', 'Deploying university contract... Please confirm in MetaMask.');
       const tx = await factory.deployUniversity(fullName, univSymbol, univAdmin, baseMetadataURI);
       const receipt = await tx.wait();
@@ -1108,7 +1119,7 @@ export default function Dashboard() {
             <p className="text-slate-500 text-sm max-w-xs">
               {!account
                 ? 'Please connect your wallet to access this section.'
-                : 'This section requires Pax platform owner permissions. If you are the Pax owner, your wallet (0x81cfbda75f9fbdb84364ae887409e56636389ad2) must be granted DEFAULT_ADMIN_ROLE on the Factory contract (0x15aED424D5b30B67480045d95aB6fB4B3917F566). Contact the deployer.'}
+                : 'This section requires Pax platform owner permissions. If you are the Pax owner, your wallet (0x81cfbda75f9fbdb84364ae887409e56636389ad2) must be granted DEFAULT_ADMIN_ROLE on the Factory contract (0xa342F135743925e03462880d171d106adF900B57). Contact the deployer.'}
             </p>
             {!account && (
               <button onClick={connectWallet} className="mt-2 px-5 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg text-sm font-semibold">

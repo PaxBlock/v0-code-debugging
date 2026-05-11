@@ -539,13 +539,21 @@ export default function Dashboard() {
 
   const detectRole = async (walletAddress: string) => {
     try {
+      console.log('[v0] detectRole called for wallet:', walletAddress);
+      console.log('[v0] Using Factory Address:', FACTORY_ADDRESS);
+      
       const provider = await getReadOnlyProvider();
       const factory = new ethers.Contract(FACTORY_ADDRESS, FACTORY_ABI, provider);
 
       // Check if this wallet is the Pax Factory owner (DEFAULT_ADMIN_ROLE on Factory)
       const adminRole = await factory.DEFAULT_ADMIN_ROLE();
+      console.log('[v0] Admin role bytes32:', adminRole);
+      
       const isPaxOwner = await factory.hasRole(adminRole, walletAddress);
+      console.log('[v0] isPaxOwner (hasRole result):', isPaxOwner);
+      
       if (isPaxOwner) {
+        console.log('[v0] Setting role to OWNER');
         setWalletRole('owner');
         setActiveTab('deploy'); // Owner lands on Register Programme
         return;
@@ -631,10 +639,27 @@ export default function Dashboard() {
     if (!ethers.isAddress(univAdmin)) { showMsg('error', 'The admin wallet address is not valid. Please check and try again.'); return; }
     setIsDeploying(true);
     try {
+      console.log('[v0] deployUniversity called');
+      console.log('[v0] Using Factory Address:', FACTORY_ADDRESS);
+      console.log('[v0] Signer address:', await signer.getAddress());
+      
       // Combine university name and degree level into one clear contract name
       const fullName = `${univName.trim()} - ${degreeLevel}`;
       const baseMetadataURI = window.location.origin;
       const factory = new ethers.Contract(FACTORY_ADDRESS, FACTORY_ABI, signer);
+      
+      // Debug: Check if our wallet has admin role on this factory
+      const adminRole = await factory.DEFAULT_ADMIN_ROLE();
+      const hasAdmin = await factory.hasRole(adminRole, await signer.getAddress());
+      console.log('[v0] Admin role check - hasRole:', hasAdmin);
+      console.log('[v0] Admin role bytes32:', adminRole);
+      
+      if (!hasAdmin) {
+        showMsg('error', `Your wallet does NOT have admin role on Factory ${FACTORY_ADDRESS}. Did you deploy this contract with your wallet?`);
+        setIsDeploying(false);
+        return;
+      }
+      
       showMsg('info', 'Deploying university contract... Please confirm in MetaMask.');
       const tx = await factory.deployUniversity(fullName, univSymbol, univAdmin, baseMetadataURI);
       const receipt = await tx.wait();
@@ -643,6 +668,7 @@ export default function Dashboard() {
       setDeployedUnivAddress(univAddr);
       showMsg('success', `University deployed successfully!`);
     } catch (error) {
+      console.log('[v0] deployUniversity error:', error);
       showMsg('error', parseError(error));
     } finally {
       setIsDeploying(false);

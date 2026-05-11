@@ -69,7 +69,7 @@ contract AcademicCertificate is ERC721, ERC721URIStorage, AccessControl {
         string memory viceChancellorName,
         string memory verificationDomain,
         string memory logoURL
-    ) external onlyRole(UPDATER_ROLE) {
+    ) external onlyRole(DEFAULT_ADMIN_ROLE) {
         institutionConfig = InstitutionConfig(deanName, registrarName, viceChancellorName, verificationDomain, logoURL);
         institutionConfigSet = true;
         emit InstitutionConfigUpdated(msg.sender);

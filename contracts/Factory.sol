@@ -80,10 +80,6 @@ contract UniversityFactory is AccessControl {
 
         address universityAddress = address(newUniversity);
 
-        // Grant UPDATER_ROLE to the Pax Factory admin (msg.sender) so they can configure signatories
-        bytes32 UPDATER_ROLE = keccak256("UPDATER_ROLE");
-        newUniversity.grantRole(UPDATER_ROLE, msg.sender);
-
         // Record the deployment globally
         deployedUniversities.push(universityAddress);
         isUniversityContract[universityAddress] = true;

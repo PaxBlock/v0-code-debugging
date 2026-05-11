@@ -14,12 +14,6 @@ contract AcademicCertificate is ERC721, ERC721URIStorage, AccessControl {
     // Base URL for the metadata API — set once at deploy time by the Factory
     string public baseMetadataURI;
 
-    struct Faculty {
-        string name;                    // e.g., "Faculty of Science"
-        string deanName;                // Dean's full name
-        string deanSignatureURL;        // URL to Blob signature image
-    }
-
     struct CertificateData {
         string candidateName;  // encrypted
         string courseName;     // encrypted
@@ -27,18 +21,15 @@ contract AcademicCertificate is ERC721, ERC721URIStorage, AccessControl {
         string paxId;          // e.g. PHY/2019/054 — stored plain, used for lookup
         uint256 issuanceDate;
         address issuer;
-        uint256 facultyIndex;  // Which faculty's dean signs this certificate
     }
 
-    // Institutional signature config — faculty-based signatories
+    // Institutional signature config — set once by admin, applies to all certificates
     struct InstitutionConfig {
-        Faculty[] faculties;                    // Dynamic faculty array
+        string deanName;
         string registrarName;
-        string registrarSignatureURL;
         string viceChancellorName;
-        string vceSignatureURL;
-        string verificationDomain;              // e.g. "verify.oauife.edu.ng"
-        string logoURL;                         // Institution logo for certificate display
+        string verificationDomain; // e.g. "verify.oauife.edu.ng"
+        string logoURL; // Institution logo for certificate display
     }
 
     InstitutionConfig public institutionConfig;
@@ -69,53 +60,35 @@ contract AcademicCertificate is ERC721, ERC721URIStorage, AccessControl {
     }
 
     /**
-     * @dev ADMIN ONLY: Set the institution's faculties, signatories, verification domain, and logo.
-     * Can be called anytime to update personnel, faculty structure, or branding.
+     * @dev ADMIN ONLY: Set the institution's signatory names, verification domain, and logo.
+     * Called once after deployment. Can be updated by admin if personnel or branding changes.
      */
     function setInstitutionConfig(
-        Faculty[] calldata faculties,
+        string memory deanName,
         string memory registrarName,
-        string memory registrarSignatureURL,
         string memory viceChancellorName,
-        string memory vceSignatureURL,
         string memory verificationDomain,
         string memory logoURL
     ) external onlyRole(DEFAULT_ADMIN_ROLE) {
-        // Clear old faculties
-        delete institutionConfig.faculties;
-        
-        // Add new faculties
-        for (uint256 i = 0; i < faculties.length; i++) {
-            institutionConfig.faculties.push(faculties[i]);
-        }
-        
-        institutionConfig.registrarName = registrarName;
-        institutionConfig.registrarSignatureURL = registrarSignatureURL;
-        institutionConfig.viceChancellorName = viceChancellorName;
-        institutionConfig.vceSignatureURL = vceSignatureURL;
-        institutionConfig.verificationDomain = verificationDomain;
-        institutionConfig.logoURL = logoURL;
+        institutionConfig = InstitutionConfig(deanName, registrarName, viceChancellorName, verificationDomain, logoURL);
         institutionConfigSet = true;
         emit InstitutionConfigUpdated(msg.sender);
     }
 
     /**
-     * @dev ISSUER ONLY: Mints a new certificate NFT with faculty designation.
+     * @dev ISSUER ONLY: Mints a new certificate NFT.
      * tokenURI is auto-generated from the baseMetadataURI + student address.
-     * @param _facultyIndex The index of the faculty whose dean signs this certificate.
      */
     function issueCertificate(
         address student,
         string memory _candidateName,
         string memory _courseName,
         string memory _grade,
-        string memory _paxId,
-        uint256 _facultyIndex
+        string memory _paxId
     ) external onlyRole(ISSUER_ROLE) returns (uint256) {
         require(!hasCertificate[student], "This student already has a certificate.");
         require(bytes(_paxId).length > 0, "PaxID is required.");
         require(paxIdToWallet[_paxId] == address(0), "This PaxID is already in use.");
-        require(_facultyIndex < institutionConfig.faculties.length, "Invalid faculty index.");
 
         uint256 tokenId = _nextTokenId++;
 
@@ -138,8 +111,7 @@ contract AcademicCertificate is ERC721, ERC721URIStorage, AccessControl {
             grade: _grade,
             paxId: _paxId,
             issuanceDate: block.timestamp,
-            issuer: msg.sender,
-            facultyIndex: _facultyIndex
+            issuer: msg.sender
         });
 
         hasCertificate[student] = true;
@@ -176,50 +148,6 @@ contract AcademicCertificate is ERC721, ERC721URIStorage, AccessControl {
      */
     function resolvePaxId(string memory paxId) external view returns (address) {
         return paxIdToWallet[paxId];
-    }
-
-    /**
-     * @dev Get all faculties for this institution.
-     */
-    function getFaculties() external view returns (Faculty[] memory) {
-        return institutionConfig.faculties;
-    }
-
-    /**
-     * @dev Get a specific faculty by index.
-     */
-    function getFaculty(uint256 index) external view returns (Faculty memory) {
-        require(index < institutionConfig.faculties.length, "Faculty index out of bounds.");
-        return institutionConfig.faculties[index];
-    }
-
-    /**
-     * @dev Get faculty count for this institution.
-     */
-    function getFacultyCount() external view returns (uint256) {
-        return institutionConfig.faculties.length;
-    }
-
-    /**
-     * @dev Get the dean signature URL for a specific faculty.
-     */
-    function getDeanSignatureURL(uint256 facultyIndex) external view returns (string memory) {
-        require(facultyIndex < institutionConfig.faculties.length, "Faculty index out of bounds.");
-        return institutionConfig.faculties[facultyIndex].deanSignatureURL;
-    }
-
-    /**
-     * @dev Get registrar signature URL.
-     */
-    function getRegistrarSignatureURL() external view returns (string memory) {
-        return institutionConfig.registrarSignatureURL;
-    }
-
-    /**
-     * @dev Get VC signature URL.
-     */
-    function getVCSignatureURL() external view returns (string memory) {
-        return institutionConfig.vceSignatureURL;
     }
 
     function _addressToString(address addr) internal pure returns (string memory) {

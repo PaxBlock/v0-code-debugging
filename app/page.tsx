@@ -6,14 +6,6 @@ import { ethers } from 'ethers';
 
 // Factory contract - Faculty-based signatories, auto-issuer grant, deactivation support
 const FACTORY_ADDRESS = '0x15aED424D5b30B67480045d95aB6fB4B3917F566';
-
-// Pax Owner wallet — must have DEFAULT_ADMIN_ROLE on Factory to deploy programmes
-// Wallet: 0x81cfbda75f9fbdb84364ae887409e56636389ad2
-// Role structure:
-//   - Pax Owner: Can deploy programmes, configure signatories, see all admin functions
-//   - Programme Admin: Represents the institution (Registrar), grants issuer roles, can issue certificates
-//   - Issuer: Can issue certificates to students
-//   - Verifier: Public access, no wallet needed
 const SEPOLIA_CHAIN_ID = 11155111;
 const SEPOLIA_HEX = '0xaa36a7';
 
@@ -128,7 +120,7 @@ function parseError(error: unknown): string {
   const raw = error instanceof Error ? error.message : String(error);
 
   if (raw.includes('0xe2517d3f') || raw.includes('AccessControlUnauthorizedAccount')) {
-    return 'Access denied. Your wallet does not have permission on the Factory contract. If you are the Pax owner, your wallet address must be granted DEFAULT_ADMIN_ROLE on the Factory. Contact the deployer or use a wallet that has admin rights.';
+    return 'Access denied. Your wallet does not have the required permission to perform this action. Only the programme administrator can authorise issuers or register programmes.';
   }
   if (raw.includes('Only the university admin') || raw.includes('Not a valid university contract')) {
     return 'Access denied. Only the programme administrator can authorise new issuers on this programme.';
@@ -1305,6 +1297,107 @@ export default function Dashboard() {
               </>
             )}
           </div>
+
+            {/* Step 3: Revoke Certificate */}
+            <div className="bg-slate-800 rounded-xl p-6 border border-red-900/40 space-y-4">
+              <div className="flex items-center gap-2">
+                <span className="bg-red-800 text-white text-xs font-bold px-2 py-0.5 rounded-full">Step 3</span>
+                <h2 className="text-base font-bold">Revoke a Certificate</h2>
+                <span className="text-xs text-slate-400 ml-auto">Admin only</span>
+              </div>
+              <p className="text-slate-400 text-sm">
+                Revoke an issued certificate. The revocation and its reason are recorded permanently on the blockchain and will be visible to anyone who verifies that certificate.
+              </p>
+              <div>
+                <label className={labelClass}>Select Programme</label>
+                {myUniversities.length === 0 ? (
+                  <div className={`${inputClass} text-slate-400`}>No programmes assigned to your wallet yet.</div>
+                ) : (
+                  <select
+                    className={inputClass}
+                    value={univAddress}
+                    onChange={(e) => {
+                      setUnivAddress(e.target.value);
+                      loadFacultiesForUniversity(e.target.value);
+                    }}
+                  >
+                    <option value="">-- Select a programme --</option>
+                    {myUniversities.map((u) => (
+                      <option key={u.address} value={u.address}>{u.name}</option>
+                    ))}
+                  </select>
+                )}
+              </div>
+              <div>
+                <label className={labelClass}>Student Wallet Address</label>
+                <input
+                  className={inputClass}
+                  placeholder="0x... (wallet address of the student)"
+                  value={revokeAddress}
+                  onChange={(e) => setRevokeAddress(e.target.value)}
+                />
+              </div>
+              <div>
+                <label className={labelClass}>Reason for Revocation</label>
+                <select
+                  className={inputClass}
+                  value={revokeReason}
+                  onChange={(e) => setRevokeReason(e.target.value)}
+                >
+                  <option value="">-- Select a reason --</option>
+                  {REVOCATION_PRESETS.map((preset) => (
+                    <option key={preset} value={preset}>{preset}</option>
+                  ))}
+                  <option value="custom">Other ��� enter custom reason</option>
+                </select>
+              </div>
+              {revokeReason === 'custom' && (
+                <div>
+                  <label className={labelClass}>Custom Reason</label>
+                  <input
+                    className={inputClass}
+                    placeholder="Describe the reason for revocation..."
+                    value={customReason}
+                    onChange={(e) => setCustomReason(e.target.value)}
+                    maxLength={200}
+                  />
+                </div>
+              )}
+              {revokeReason && revokeReason !== 'custom' && (
+                <div className="p-3 bg-red-900/20 border border-red-800/50 rounded-lg">
+                  <p className="text-xs text-red-300">
+                    This will be recorded on the blockchain as: <span className="font-semibold">&quot;{revokeReason}&quot;</span>
+                  </p>
+                </div>
+              )}
+              {revokeReason === 'custom' && customReason && (
+                <div className="p-3 bg-red-900/20 border border-red-800/50 rounded-lg">
+                  <p className="text-xs text-red-300">
+                    This will be recorded on the blockchain as: <span className="font-semibold">&quot;{customReason}&quot;</span>
+                  </p>
+                </div>
+              )}
+              <div>
+                <label className={labelClass}>Student Email <span className="text-slate-500 font-normal">(optional — to notify them)</span></label>
+                <input
+                  type="email"
+                  className={inputClass}
+                  placeholder="e.g. student@university.edu"
+                  value={revokeEmail}
+                  onChange={(e) => setRevokeEmail(e.target.value)}
+                  maxLength={254}
+                />
+                <p className="text-xs text-slate-500 mt-1">If provided, the student will receive an email notifying them of the revocation and the reason. The email is not stored.</p>
+              </div>
+              <button
+                onClick={handleRevoke}
+                disabled={isRevoking || !revokeAddress || !revokeReason}
+                className={`${btnClass} bg-red-700 hover:bg-red-600 disabled:opacity-50`}
+              >
+                {isRevoking ? 'Revoking... Please wait' : 'Revoke Certificate'}
+              </button>
+            </div>
+          </div>
         )}
 
         {/* Issue Certificate Tab */}
@@ -1482,7 +1575,7 @@ export default function Dashboard() {
                   {REVOCATION_PRESETS.map((preset) => (
                     <option key={preset} value={preset}>{preset}</option>
                   ))}
-                  <option value="custom">Other ��� enter custom reason</option>
+                  <option value="custom">Other — enter custom reason</option>
                 </select>
               </div>
               {revokeReason === 'custom' && (
@@ -1533,7 +1626,6 @@ export default function Dashboard() {
             </div>
           </div>
         )}
-
 
         {/* Verify Certificate Tab */}
         {activeTab === 'verify' && (

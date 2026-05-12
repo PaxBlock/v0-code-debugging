@@ -5,7 +5,7 @@ import { useState, useEffect } from 'react';
 import { ethers } from 'ethers';
 
 // Factory contract - PaxID, grade, signatory config, logo URL, deactivation support
-const FACTORY_ADDRESS = '0x28FD0cF2a7045FC4BB1D11401AA0Af48701Cc4fC';
+const FACTORY_ADDRESS = '0xd16dfe6B7135135c558F512Eaa8eD9B68FF1E96F';
 const SEPOLIA_CHAIN_ID = 11155111;
 const SEPOLIA_HEX = '0xaa36a7';
 
@@ -453,26 +453,21 @@ export default function Dashboard() {
         return;
       }
 
-      // Fetch name AND deactivation status in parallel for every university
-      // Filter out deactivated ones — issuers should never see or use them
-      const results = await Promise.all(
+      // Fetch all university names in parallel using Promise.all()
+      // All name() calls fire simultaneously instead of one by one
+      const names = await Promise.all(
         addresses.map(async (addr) => {
           try {
             const univContract = new ethers.Contract(addr, UNIVERSITY_ABI, provider);
-            const [name, deactivated] = await Promise.all([
-              univContract.name(),
-              factory.isDeactivated(addr),
-            ]);
-            return { address: addr, name, deactivated: deactivated as boolean, deactivationReason: '' };
+            const name = await univContract.name();
+            return { address: addr, name };
           } catch (_e) {
-            return { address: addr, name: `University (${addr.slice(0, 6)}...)`, deactivated: false, deactivationReason: '' };
+            return { address: addr, name: `University (${addr.slice(0, 6)}...)` };
           }
         })
       );
 
-      // Only show active institutions in the Issue tab dropdown
-      const activeOnly = results.filter((u) => !u.deactivated);
-      setMyUniversities(activeOnly);
+      setMyUniversities(names);
     } catch (error) {
       showMsg('error', error instanceof Error ? error.message : 'Could not load your universities. Please try again.');
     } finally {

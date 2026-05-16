@@ -318,7 +318,7 @@ export default function Dashboard() {
   // Load only wallet's universities when issue tab opens (role-filtered)
   useEffect(() => {
     if (activeTab === 'verify') {
-      loadUniversities();
+      loadUniversities(true); // Force refresh to always show latest programmes
     }
     if (activeTab === 'issue' && account) {
       loadMyUniversities(account);
@@ -1523,7 +1523,7 @@ export default function Dashboard() {
                   {REVOCATION_PRESETS.map((preset) => (
                     <option key={preset} value={preset}>{preset}</option>
                   ))}
-                  <option value="custom">Other — enter custom reason</option>
+                  <option value="custom">Other ��� enter custom reason</option>
                 </select>
               </div>
               {revokeReason === 'custom' && (

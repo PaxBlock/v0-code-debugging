@@ -1,11 +1,13 @@
 // @ts-nocheck
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { ethers } from 'ethers';
+import SignatureCanvas from 'react-signature-canvas';
+import { put } from '@vercel/blob';
 
 // Factory contract - PaxID, grade, signatory config, logo URL, deactivation support
-const FACTORY_ADDRESS = '0x28FD0cF2a7045FC4BB1D11401AA0Af48701Cc4fC';
+const FACTORY_ADDRESS = '0x0616C9EA5aEDf1eE30C5aFdAd1AC34D9aef56167';
 const SEPOLIA_CHAIN_ID = 11155111;
 const SEPOLIA_HEX = '0xaa36a7';
 
@@ -42,8 +44,11 @@ const UNIVERSITY_ABI = [
   'function revocationReason(address student) external view returns (string)',
   'function revocationDate(address student) external view returns (uint256)',
   'function resolvePaxId(string memory paxId) external view returns (address)',
-  'function setInstitutionConfig(string memory deanName, string memory registrarName, string memory viceChancellorName, string memory verificationDomain, string memory logoURL) external',
-  'function institutionConfig() external view returns (string deanName, string registrarName, string viceChancellorName, string verificationDomain, string logoURL)',
+  'function setInstitutionConfig(string memory registrarName, string memory registrarSignatureURL, string memory viceChancellorName, string memory viceChancellorSignatureURL, string memory verificationDomain, string memory logoURL) external',
+  'function setFacultySignatory(string memory facultyName, string memory deanName, string memory deanSignatureURL) external',
+  'function getFacultySignatories() external view returns (tuple(string facultyName, string deanName, string deanSignatureURL)[])',
+  'function getFacultyCount() external view returns (uint256)',
+  'function institutionConfig() external view returns (string registrarName, string registrarSignatureURL, string viceChancellorName, string viceChancellorSignatureURL, string verificationDomain, string logoURL)',
   'function walletToPaxId(address student) external view returns (string)',
 ];
 
@@ -190,6 +195,18 @@ export default function Dashboard() {
   const [logoURL, setLogoURL] = useState('');
   const [logoUploading, setLogoUploading] = useState(false);
   const [isSettingConfig, setIsSettingConfig] = useState(false);
+
+  // Signature system (Register tab - Step 2 redesigned)
+  const [registrarSignatureURL, setRegistrarSignatureURL] = useState('');
+  const [vcSignatureURL, setVcSignatureURL] = useState('');
+  const [isUploadingSignature, setIsUploadingSignature] = useState(false);
+  const [faculties, setFaculties] = useState<Array<{ id: string; name: string; deanName: string; signatureURL: string }>>([]);
+  const [newFacultyName, setNewFacultyName] = useState('');
+  const [newFacultyDean, setNewFacultyDean] = useState('');
+  const [isSavingFaculty, setIsSavingFaculty] = useState(false);
+  const registrarSignatureRef = useRef<any>(null);
+  const vcSignatureRef = useRef<any>(null);
+  const currentFacultySignatureRef = useRef<any>(null);
 
   // Deactivation (owner only)
   const [deactivateAddress, setDeactivateAddress] = useState('');
@@ -633,6 +650,26 @@ export default function Dashboard() {
     }
   };
 
+  // Upload signature image to Blob storage
+  const uploadSignatureToBlob = async (signatureDataURL: string): Promise<string> => {
+    try {
+      setIsUploadingSignature(true);
+      // Convert data URL to blob
+      const response = await fetch(signatureDataURL);
+      const blob = await response.blob();
+      
+      // Upload to Vercel Blob
+      const filename = `signatures/${Date.now()}-signature.png`;
+      const uploadRes = await put(filename, blob, { access: 'private' });
+      return uploadRes.url;
+    } catch (error) {
+      console.error('[v0] Signature upload failed:', error);
+      throw new Error('Failed to upload signature');
+    } finally {
+      setIsUploadingSignature(false);
+    }
+  };
+
   const uploadLogo = async (file: File): Promise<string> => {
     const formData = new FormData();
     formData.append('file', file);
@@ -642,10 +679,11 @@ export default function Dashboard() {
     return url;
   };
 
+  // Save core signatories (Registrar + Vice-Chancellor)
   const saveInstitutionConfig = async () => {
     if (!signer) { showMsg('error', 'Please connect your wallet first.'); return; }
     if (!configUnivAddress || !ethers.isAddress(configUnivAddress)) { showMsg('error', 'Please enter a valid programme contract address.'); return; }
-    if (!deanName || !registrarName || !vcName) { showMsg('error', 'Please fill in all signatory names.'); return; }
+    if (!registrarName || !registrarSignatureURL || !vcName || !vcSignatureURL) { showMsg('error', 'Please fill in all signatory names and draw their signatures.'); return; }
     setIsSettingConfig(true);
     let finalLogoURL = logoURL;
     try {
@@ -659,16 +697,88 @@ export default function Dashboard() {
       }
 
       const university = new ethers.Contract(configUnivAddress, UNIVERSITY_ABI, signer);
-      showMsg('info', 'Saving institution config... Please confirm in MetaMask.');
-      const tx = await university.setInstitutionConfig(deanName, registrarName, vcName, verificationDomain, finalLogoURL);
+      showMsg('info', 'Saving institution signatories... Please confirm in MetaMask.');
+      const tx = await university.setInstitutionConfig(registrarName, registrarSignatureURL, vcName, vcSignatureURL, verificationDomain, finalLogoURL);
       await tx.wait();
-      showMsg('success', 'Institution configuration saved. Logo and signatories will appear on all certificates from this programme.');
-      setDeanName(''); setRegistrarName(''); setVcName(''); setVerificationDomain(''); setLogoFile(null); setLogoURL('');
+      showMsg('success', 'Core signatories saved! Now add faculties below.');
+      setRegistrarName(''); setVcName(''); setRegistrarSignatureURL(''); setVcSignatureURL(''); setVerificationDomain(''); setLogoFile(null); setLogoURL('');
     } catch (error) {
       showMsg('error', parseError(error));
     } finally {
       setIsSettingConfig(false);
       setLogoUploading(false);
+    }
+  };
+
+  // Save Registrar signature
+  const saveRegistrarSignature = async () => {
+    if (!registrarSignatureRef.current || registrarSignatureRef.current.isEmpty()) {
+      showMsg('error', 'Please draw the registrar\'s signature.');
+      return;
+    }
+    try {
+      showMsg('info', 'Uploading registrar signature...');
+      const signatureDataURL = registrarSignatureRef.current.toDataURL();
+      const url = await uploadSignatureToBlob(signatureDataURL);
+      setRegistrarSignatureURL(url);
+      showMsg('success', 'Registrar signature saved!');
+    } catch (error) {
+      showMsg('error', 'Failed to save registrar signature');
+    }
+  };
+
+  // Save Vice-Chancellor signature
+  const saveVCSignature = async () => {
+    if (!vcSignatureRef.current || vcSignatureRef.current.isEmpty()) {
+      showMsg('error', 'Please draw the vice-chancellor\'s signature.');
+      return;
+    }
+    try {
+      showMsg('info', 'Uploading vice-chancellor signature...');
+      const signatureDataURL = vcSignatureRef.current.toDataURL();
+      const url = await uploadSignatureToBlob(signatureDataURL);
+      setVcSignatureURL(url);
+      showMsg('success', 'Vice-Chancellor signature saved!');
+    } catch (error) {
+      showMsg('error', 'Failed to save vice-chancellor signature');
+    }
+  };
+
+  // Add or update a faculty signatory
+  const addFacultySignatory = async () => {
+    if (!signer) { showMsg('error', 'Please connect your wallet first.'); return; }
+    if (!configUnivAddress || !ethers.isAddress(configUnivAddress)) { showMsg('error', 'Please enter a valid programme contract address first.'); return; }
+    if (!newFacultyName || !newFacultyDean) { showMsg('error', 'Please fill in faculty name and dean name.'); return; }
+    
+    // Get faculty signature from canvas
+    if (!currentFacultySignatureRef.current || currentFacultySignatureRef.current.isEmpty()) {
+      showMsg('error', 'Please draw the dean\'s signature.'); 
+      return;
+    }
+
+    setIsSavingFaculty(true);
+    try {
+      showMsg('info', 'Uploading dean signature...');
+      const signatureDataURL = currentFacultySignatureRef.current.toDataURL();
+      const signatureURL = await uploadSignatureToBlob(signatureDataURL);
+
+      const university = new ethers.Contract(configUnivAddress, UNIVERSITY_ABI, signer);
+      showMsg('info', 'Saving faculty signatory... Please confirm in MetaMask.');
+      const tx = await university.setFacultySignatory(newFacultyName, newFacultyDean, signatureURL);
+      await tx.wait();
+
+      // Add to local list
+      setFaculties([...faculties, { id: Date.now().toString(), name: newFacultyName, deanName: newFacultyDean, signatureURL }]);
+      showMsg('success', `${newFacultyName} with Dean ${newFacultyDean} added successfully!`);
+      
+      // Clear form
+      setNewFacultyName('');
+      setNewFacultyDean('');
+      if (currentFacultySignatureRef.current) currentFacultySignatureRef.current.clear();
+    } catch (error) {
+      showMsg('error', parseError(error));
+    } finally {
+      setIsSavingFaculty(false);
     }
   };
 
@@ -1138,16 +1248,18 @@ export default function Dashboard() {
             )}
           </div>
 
-          {/* Step 2: Signatory Configuration */}
-          <div className="bg-slate-800 rounded-xl p-6 border border-blue-900/40 space-y-4 mt-6">
+          {/* Step 2: Signature Configuration */}
+          <div className="bg-slate-800 rounded-xl p-6 border border-blue-900/40 space-y-6 mt-6">
             <div className="flex items-center gap-2">
               <span className="bg-blue-700 text-white text-xs font-bold px-2 py-0.5 rounded-full">Step 2</span>
-              <h2 className="text-base font-bold">Configure Institution Signatories</h2>
-              <span className="text-xs text-slate-400 ml-auto">One-time setup per programme</span>
+              <h2 className="text-base font-bold">Configure Institution Signatories with Signatures</h2>
+              <span className="text-xs text-slate-400 ml-auto">Draw real signatures using your mouse</span>
             </div>
             <p className="text-slate-400 text-sm">
-              These names will appear on every certificate NFT issued under this programme — Dean, Registrar, and Vice-Chancellor. You can update them if personnel changes.
+              Add the Registrar and Vice-Chancellor signatures, then dynamically add faculties. Signatures will appear on all issued certificates.
             </p>
+
+            {/* Programme Address */}
             <div>
               <label className={labelClass}>Programme Contract Address</label>
               <input
@@ -1157,52 +1269,157 @@ export default function Dashboard() {
                 onChange={(e) => setConfigUnivAddress(e.target.value)}
               />
             </div>
-            <div>
-              <label className={labelClass}>Dean&apos;s Name</label>
-              <input className={inputClass} placeholder="e.g. Prof. Adewale Olumide" value={deanName} onChange={(e) => setDeanName(e.target.value)} />
-            </div>
-            <div>
-              <label className={labelClass}>Registrar&apos;s Name</label>
-              <input className={inputClass} placeholder="e.g. Dr. Ngozi Eze" value={registrarName} onChange={(e) => setRegistrarName(e.target.value)} />
-            </div>
-            <div>
-              <label className={labelClass}>Vice-Chancellor&apos;s Name</label>
-              <input className={inputClass} placeholder="e.g. Prof. Samuel Ajayi" value={vcName} onChange={(e) => setVcName(e.target.value)} />
-            </div>
-            <div>
-              <label className={labelClass}>Verification Domain (optional)</label>
-              <input className={inputClass} placeholder="e.g. verify.oauife.edu.ng" value={verificationDomain} onChange={(e) => setVerificationDomain(e.target.value)} />
-              <p className="text-xs text-slate-500 mt-1">The domain printed on certificates for QR code verification. Defaults to your platform URL.</p>
-            </div>
-            <div>
-              <label className={labelClass}>Institution Logo (optional)</label>
-              <input
-                type="file"
-                accept="image/*"
-                onChange={(e) => setLogoFile(e.target.files?.[0] || null)}
-                className={inputClass}
-              />
-              <p className="text-xs text-slate-500 mt-1">Upload a logo (PNG, JPG, SVG — max 2MB). Will appear in the certificate circle. Leave blank to use default PAX branding.</p>
-              {logoFile && (
-                <div className="mt-2 flex items-center gap-2">
-                  <span className="text-sm text-green-400">✓ {logoFile.name} selected</span>
+
+            {/* CORE SIGNATORIES SECTION */}
+            <div className="border border-slate-700 rounded-lg p-4 space-y-6">
+              <h3 className="text-sm font-semibold text-blue-300">Core Signatories (Required)</h3>
+
+              {/* Registrar Signature */}
+              <div className="space-y-2">
+                <label className={labelClass}>Registrar&apos;s Name</label>
+                <input className={inputClass} placeholder="e.g. Dr. Ngozi Eze" value={registrarName} onChange={(e) => setRegistrarName(e.target.value)} />
+                <label className="text-xs text-slate-300 font-semibold block mt-3">Draw Registrar&apos;s Signature</label>
+                <div className="border border-slate-600 rounded-lg bg-slate-900 p-2">
+                  <SignatureCanvas
+                    ref={registrarSignatureRef}
+                    penColor="white"
+                    canvasProps={{ width: 500, height: 150, className: 'w-full cursor-crosshair' }}
+                  />
+                </div>
+                <div className="flex gap-2">
                   <button
-                    onClick={() => setLogoFile(null)}
-                    className="text-xs text-slate-400 hover:text-slate-300 underline"
+                    onClick={() => registrarSignatureRef.current?.clear()}
+                    className="text-xs px-3 py-1 bg-slate-700 hover:bg-slate-600 rounded text-slate-300"
                   >
                     Clear
                   </button>
+                  <button
+                    onClick={saveRegistrarSignature}
+                    disabled={isUploadingSignature}
+                    className={`text-xs px-3 py-1 ${registrarSignatureURL ? 'bg-green-700' : 'bg-blue-600 hover:bg-blue-700'} text-white rounded`}
+                  >
+                    {registrarSignatureURL ? '✓ Saved' : isUploadingSignature ? 'Uploading...' : 'Save Signature'}
+                  </button>
                 </div>
-              )}
-              {logoURL && (
-                <div className="mt-2 flex items-center gap-2">
-                  <span className="text-sm text-green-400">✓ Logo uploaded and saved</span>
+              </div>
+
+              {/* Vice-Chancellor Signature */}
+              <div className="space-y-2">
+                <label className={labelClass}>Vice-Chancellor&apos;s Name</label>
+                <input className={inputClass} placeholder="e.g. Prof. Samuel Ajayi" value={vcName} onChange={(e) => setVcName(e.target.value)} />
+                <label className="text-xs text-slate-300 font-semibold block mt-3">Draw Vice-Chancellor&apos;s Signature</label>
+                <div className="border border-slate-600 rounded-lg bg-slate-900 p-2">
+                  <SignatureCanvas
+                    ref={vcSignatureRef}
+                    penColor="white"
+                    canvasProps={{ width: 500, height: 150, className: 'w-full cursor-crosshair' }}
+                  />
+                </div>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => vcSignatureRef.current?.clear()}
+                    className="text-xs px-3 py-1 bg-slate-700 hover:bg-slate-600 rounded text-slate-300"
+                  >
+                    Clear
+                  </button>
+                  <button
+                    onClick={saveVCSignature}
+                    disabled={isUploadingSignature}
+                    className={`text-xs px-3 py-1 ${vcSignatureURL ? 'bg-green-700' : 'bg-blue-600 hover:bg-blue-700'} text-white rounded`}
+                  >
+                    {vcSignatureURL ? '✓ Saved' : isUploadingSignature ? 'Uploading...' : 'Save Signature'}
+                  </button>
+                </div>
+              </div>
+
+              {/* Verification Domain & Logo */}
+              <div>
+                <label className={labelClass}>Verification Domain (optional)</label>
+                <input className={inputClass} placeholder="e.g. verify.oauife.edu.ng" value={verificationDomain} onChange={(e) => setVerificationDomain(e.target.value)} />
+                <p className="text-xs text-slate-500 mt-1">The domain printed on certificates for QR verification. Defaults to your platform URL.</p>
+              </div>
+
+              <div>
+                <label className={labelClass}>Institution Logo (optional)</label>
+                <input
+                  type="file"
+                  accept="image/*"
+                  onChange={(e) => setLogoFile(e.target.files?.[0] || null)}
+                  className={inputClass}
+                />
+                <p className="text-xs text-slate-500 mt-1">Upload a logo (PNG, JPG, SVG — max 2MB). Will appear on certificates. Leave blank to use default PAX branding.</p>
+                {logoFile && (
+                  <div className="mt-2 flex items-center gap-2">
+                    <span className="text-sm text-green-400">✓ {logoFile.name} selected</span>
+                    <button onClick={() => setLogoFile(null)} className="text-xs text-slate-400 hover:text-slate-300 underline">Clear</button>
+                  </div>
+                )}
+                {logoURL && <div className="mt-2 flex items-center gap-2"><span className="text-sm text-green-400">✓ Logo uploaded</span></div>}
+              </div>
+
+              {/* Save Core Signatories Button */}
+              <button onClick={saveInstitutionConfig} disabled={isSettingConfig || logoUploading} className={`${btnClass} bg-blue-600 hover:bg-blue-700 w-full`}>
+                {logoUploading ? 'Uploading logo...' : isSettingConfig ? 'Saving... Please wait' : 'Save Core Signatories to Blockchain'}
+              </button>
+            </div>
+
+            {/* FACULTIES SECTION */}
+            <div className="border border-slate-700 rounded-lg p-4 space-y-4">
+              <h3 className="text-sm font-semibold text-green-300">Add Faculties</h3>
+              <p className="text-xs text-slate-400">Add faculty deans with their signatures. You can add as many faculties as your institution has.</p>
+
+              <div>
+                <label className={labelClass}>Faculty Name</label>
+                <input className={inputClass} placeholder="e.g. Faculty of Science" value={newFacultyName} onChange={(e) => setNewFacultyName(e.target.value)} />
+              </div>
+
+              <div>
+                <label className={labelClass}>Dean&apos;s Name</label>
+                <input className={inputClass} placeholder="e.g. Prof. Adewale Olumide" value={newFacultyDean} onChange={(e) => setNewFacultyDean(e.target.value)} />
+              </div>
+
+              <div>
+                <label className="text-xs text-slate-300 font-semibold block">Draw Dean&apos;s Signature</label>
+                <div className="border border-slate-600 rounded-lg bg-slate-900 p-2 mt-1">
+                  <SignatureCanvas
+                    ref={currentFacultySignatureRef}
+                    penColor="white"
+                    canvasProps={{ width: 500, height: 150, className: 'w-full cursor-crosshair' }}
+                  />
+                </div>
+                <div className="flex gap-2 mt-2">
+                  <button
+                    onClick={() => currentFacultySignatureRef.current?.clear()}
+                    className="text-xs px-3 py-1 bg-slate-700 hover:bg-slate-600 rounded text-slate-300"
+                  >
+                    Clear
+                  </button>
+                  <button
+                    onClick={addFacultySignatory}
+                    disabled={isSavingFaculty}
+                    className={`${btnClass} bg-green-600 hover:bg-green-700 text-sm`}
+                  >
+                    {isSavingFaculty ? 'Adding Faculty...' : '+ Add Faculty'}
+                  </button>
+                </div>
+              </div>
+
+              {/* Faculties List */}
+              {faculties.length > 0 && (
+                <div className="mt-4 space-y-2">
+                  <p className="text-xs text-slate-400">Added Faculties ({faculties.length}):</p>
+                  {faculties.map((fac) => (
+                    <div key={fac.id} className="flex items-center justify-between bg-slate-700/30 p-2 rounded text-sm">
+                      <div>
+                        <p className="text-slate-300 font-semibold">{fac.name}</p>
+                        <p className="text-xs text-slate-400">Dean: {fac.deanName}</p>
+                      </div>
+                      <span className="text-green-400 text-xs">✓ Signature saved</span>
+                    </div>
+                  ))}
                 </div>
               )}
             </div>
-            <button onClick={saveInstitutionConfig} disabled={isSettingConfig || logoUploading} className={`${btnClass} bg-blue-600 hover:bg-blue-700`}>
-              {logoUploading ? 'Uploading logo...' : isSettingConfig ? 'Saving... Please wait' : 'Save Institution Config to Blockchain'}
-            </button>
           </div>
 
           {/* Step 3: Manage Institutions — Owner only */}

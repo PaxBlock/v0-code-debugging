@@ -202,7 +202,7 @@ export default function Dashboard() {
   const [registrarSignatureURL, setRegistrarSignatureURL] = useState('');
   const [vcSignatureURL, setVcSignatureURL] = useState('');
   const [isUploadingSignature, setIsUploadingSignature] = useState(false);
-  const [faculties, setFaculties] = useState<Array<{ id: string; name: string; deanName: string; signatureURL: string }>>([]);
+  const [configuredFaculties, setConfiguredFaculties] = useState<Array<{ id: string; name: string; deanName: string; signatureURL: string }>>([]);
   const [newFacultyName, setNewFacultyName] = useState('');
   const [newFacultyDean, setNewFacultyDean] = useState('');
   const [isSavingFaculty, setIsSavingFaculty] = useState(false);
@@ -793,7 +793,7 @@ export default function Dashboard() {
       await tx.wait();
 
       // Add to local list
-      setFaculties([...faculties, { id: Date.now().toString(), name: newFacultyName, deanName: newFacultyDean, signatureURL }]);
+      setConfiguredFaculties([...configuredFaculties, { id: Date.now().toString(), name: newFacultyName, deanName: newFacultyDean, signatureURL }]);
       showMsg('success', `${newFacultyName} with Dean ${newFacultyDean} added successfully!`);
       
       // Clear form
@@ -1469,10 +1469,10 @@ export default function Dashboard() {
               </div>
 
               {/* Faculties List */}
-              {faculties.length > 0 && (
+              {configuredFaculties.length > 0 && (
                 <div className="mt-4 space-y-2">
-                  <p className="text-xs text-slate-400">Added Faculties ({faculties.length}):</p>
-                  {faculties.map((fac) => (
+                  <p className="text-xs text-slate-400">Added Faculties ({configuredFaculties.length}):</p>
+                  {configuredFaculties.map((fac) => (
                     <div key={fac.id} className="flex items-center justify-between bg-slate-700/30 p-2 rounded text-sm">
                       <div>
                         <p className="text-slate-300 font-semibold">{fac.name}</p>

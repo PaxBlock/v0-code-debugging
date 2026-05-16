@@ -664,8 +664,9 @@ export default function Dashboard() {
       });
 
       if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.error || 'Upload failed');
+        const errorData = await response.json();
+        console.error('[v0] API error response:', errorData);
+        throw new Error(errorData.error || errorData.details || 'Upload failed');
       }
 
       const { url } = await response.json();

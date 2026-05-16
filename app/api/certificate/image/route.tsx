@@ -256,15 +256,7 @@ export async function GET(req: NextRequest) {
                 </div>
               ))}
             </div>
-                    {script}
-                  </span>
-                  <div style={{ display: 'flex', gap: '3px' }}>{dots(30, GOLD)}</div>
-                  <span style={{ fontSize: '12.5px', fontWeight: 'bold', fontStyle: 'italic', color: DARK, fontFamily: 'serif' }}>
-                    {label}:
-                  </span>
-                </div>
-              ))}
-            </div>
+
           </div>
 
           {/* Gold footer bar + Powered by Pax */}

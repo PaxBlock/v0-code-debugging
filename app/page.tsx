@@ -1002,29 +1002,6 @@ export default function Dashboard() {
       setIsIssuing(false);
     }
   };
-              registrar: registrarName,
-              vc: vcName,
-              logoUrl: logoUrl,
-            }),
-          });
-          showMsg('success', `Certificate email sent to ${studentEmail}`);
-        } catch (_e) {
-          showMsg('error', 'Certificate issued successfully but email failed to send. The blockchain record is safe.');
-        }
-      }
-
-      setStudentAddress('');
-      setCertificateName('');
-      setCourseName('');
-      setGrade('');
-      setPaxId('');
-      setStudentEmail('');
-    } catch (error) {
-      showMsg('error', parseError(error));
-    } finally {
-      setIsIssuing(false);
-    }
-  };
 
   const verifyCertificate = async () => {
     if (!verifyUniv) { showMsg('error', 'Please select a university.'); return; }

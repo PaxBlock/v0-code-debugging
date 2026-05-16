@@ -176,6 +176,7 @@ export default function Dashboard() {
   const [studentAddress, setStudentAddress] = useState('');
   const [certificateName, setCertificateName] = useState('');
   const [courseName, setCourseName] = useState('');
+  const [selectedFaculty, setSelectedFaculty] = useState(''); // NEW: Faculty for dean signature
   const [grade, setGrade] = useState('');
   const [paxId, setPaxId] = useState('');
   const [studentEmail, setStudentEmail] = useState('');
@@ -910,8 +911,8 @@ export default function Dashboard() {
 
   const issueCertificate = async () => {
     if (!signer) { showMsg('error', 'Please connect your wallet first.'); return; }
-    if (!univAddress || !studentAddress || !certificateName || !courseName || !grade || !paxId) {
-      showMsg('error', 'Please fill in all fields including grade and PaxID before issuing a certificate.'); return;
+    if (!univAddress || !studentAddress || !certificateName || !courseName || !selectedFaculty || !grade || !paxId) {
+      showMsg('error', 'Please fill in all fields including faculty, grade, and PaxID before issuing a certificate.'); return;
     }
     if (!ethers.isAddress(univAddress)) { showMsg('error', 'The university contract address is not valid.'); return; }
     if (!ethers.isAddress(studentAddress)) { showMsg('error', 'The student wallet address is not valid.'); return; }
@@ -942,15 +943,28 @@ export default function Dashboard() {
           const univName = myUniversities.find(u => u.address.toLowerCase() === univAddress.toLowerCase())?.name || 'Your Institution';
           
           // Fetch institution config to get signatories and logo for email certificate
-          let deanName = '', registrarName = '', vcName = '', logoUrl = '';
+          let registrarSignature = '', vcSignature = '', deanSignature = '', logoUrl = '', registrarName = '', vcName = '', deanName = '';
           try {
             const provider = await getReadOnlyProvider();
-            const university = new ethers.Contract(univAddress, UNIVERSITY_ABI, provider);
-            const config = await university.institutionConfig();
-            deanName = config.deanName || '';
+            const universityContract = new ethers.Contract(univAddress, UNIVERSITY_ABI, provider);
+            const config = await universityContract.institutionConfig();
             registrarName = config.registrarName || '';
+            registrarSignature = config.registrarSignatureURL || '';
             vcName = config.viceChancellorName || '';
+            vcSignature = config.viceChancellorSignatureURL || '';
             logoUrl = config.logoURL || '';
+            
+            // Get dean signature for selected faculty
+            try {
+              const faculties = await universityContract.getFacultySignatories();
+              const selectedFac = faculties.find((f: any) => f.facultyName.toLowerCase() === selectedFaculty.toLowerCase());
+              if (selectedFac) {
+                deanName = selectedFac.deanName;
+                deanSignature = selectedFac.deanSignatureURL;
+              }
+            } catch (_e) {
+              // Faculty not found, continue with empty dean signature
+            }
           } catch (_e) {
             // Silent — if config fetch fails, email will use defaults (empty signatories)
           }
@@ -967,7 +981,27 @@ export default function Dashboard() {
               universityName: univName,
               studentAddress,
               contractAddress: univAddress,
+              registrar: registrarName,
+              registrarSignature,
+              vc: vcName,
+              vcSignature,
               dean: deanName,
+              deanSignature,
+              logoUrl,
+              domain: 'verify.example.edu',
+            }),
+          });
+        } catch (_e) {
+          console.error('[v0] Email send error (continuing):', _e);
+          // Fail silently — email is optional
+        }
+      }
+    } catch (error) {
+      showMsg('error', parseError(error));
+    } finally {
+      setIsIssuing(false);
+    }
+  };
               registrar: registrarName,
               vc: vcName,
               logoUrl: logoUrl,
@@ -1661,6 +1695,11 @@ export default function Dashboard() {
                 />
               </div>
               <div>
+                <label className={labelClass}>Select Faculty <span className="text-slate-500 font-normal">(for dean signature)</span></label>
+                <input className={inputClass} placeholder="e.g. Faculty of Science" value={selectedFaculty} onChange={(e) => setSelectedFaculty(e.target.value)} maxLength={120} />
+                <p className="text-xs text-slate-500 mt-1">The faculty name should match one you configured in Step 2. The dean's signature will appear on the certificate.</p>
+              </div>
+              <div>
                 <label className={labelClass}>Field of Study</label>
                 <input
                   className={inputClass}
@@ -1964,7 +2003,7 @@ export default function Dashboard() {
                       View on Blockchain
                     </a>
                     <a
-                      href={`/api/certificate/image?name=${encodeURIComponent(certResult.candidateName)}&course=${encodeURIComponent(certResult.courseName)}&grade=${encodeURIComponent(certResult.grade)}&paxId=${encodeURIComponent(certResult.paxId)}&university=${encodeURIComponent(certResult.universityName)}&date=${encodeURIComponent(certResult.issuedAt)}&dean=${encodeURIComponent(certResult.dean || '')}&registrar=${encodeURIComponent(certResult.registrar || '')}&vc=${encodeURIComponent(certResult.vc || '')}&logo=${encodeURIComponent(certResult.logoUrl || '')}&domain=${encodeURIComponent(certResult.domain || 'v0-paxadmin.vercel.app')}&verifyUrl=${encodeURIComponent(`${process.env.NEXT_PUBLIC_SITE_URL || 'https://v0-paxadmin.vercel.app'}/?tab=verify&paxId=${certResult.paxId}&contract=${certResult.univAddress}`)}&revoked=${certResult.isRevoked ? 'true' : 'false'}&revokeReason=${encodeURIComponent(certResult.revocationReason || '')}`}
+                      href={`/api/certificate/image?name=${encodeURIComponent(certResult.candidateName)}&course=${encodeURIComponent(certResult.courseName)}&grade=${encodeURIComponent(certResult.grade)}&paxId=${encodeURIComponent(certResult.paxId)}&university=${encodeURIComponent(certResult.universityName)}&date=${encodeURIComponent(certResult.issuedAt)}&registrar=${encodeURIComponent(certResult.registrar || '')}&registrarSig=${encodeURIComponent(certResult.registrarSignature || '')}&vc=${encodeURIComponent(certResult.vc || '')}&vcSig=${encodeURIComponent(certResult.vcSignature || '')}&dean=${encodeURIComponent(certResult.dean || '')}&deanSig=${encodeURIComponent(certResult.deanSignature || '')}&logo=${encodeURIComponent(certResult.logoUrl || '')}&domain=${encodeURIComponent(certResult.domain || 'v0-paxadmin.vercel.app')}&verifyUrl=${encodeURIComponent(`${process.env.NEXT_PUBLIC_SITE_URL || 'https://v0-paxadmin.vercel.app'}/?tab=verify&paxId=${certResult.paxId}&contract=${certResult.univAddress}`)}&revoked=${certResult.isRevoked ? 'true' : 'false'}&revokeReason=${encodeURIComponent(certResult.revocationReason || '')}`}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="text-xs text-green-400 hover:text-green-300 underline"

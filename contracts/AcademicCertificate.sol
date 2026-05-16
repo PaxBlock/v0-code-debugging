@@ -23,17 +23,32 @@ contract AcademicCertificate is ERC721, ERC721URIStorage, AccessControl {
         address issuer;
     }
 
+    // Faculty signatory structure — Dean name + signature image URL
+    struct FacultySignatory {
+        string facultyName;
+        string deanName;
+        string deanSignatureURL; // Image URL from Blob storage
+    }
+
     // Institutional signature config — set once by admin, applies to all certificates
     struct InstitutionConfig {
-        string deanName;
+        // Core signatories
         string registrarName;
+        string registrarSignatureURL; // Registrar's signature image
         string viceChancellorName;
+        string viceChancellorSignatureURL; // Vice-Chancellor's signature image
+        
+        // Verification & branding
         string verificationDomain; // e.g. "verify.oauife.edu.ng"
         string logoURL; // Institution logo for certificate display
     }
 
     InstitutionConfig public institutionConfig;
     bool public institutionConfigSet;
+    
+    // Faculty signatories — each institution can have multiple faculties
+    FacultySignatory[] public facultySignatories;
+    mapping(string => uint256) public facultyNameToIndex; // Quick lookup
 
     mapping(uint256 => CertificateData) public certificates;
     mapping(address => bool) public hasCertificate;
@@ -60,19 +75,75 @@ contract AcademicCertificate is ERC721, ERC721URIStorage, AccessControl {
     }
 
     /**
-     * @dev ADMIN ONLY: Set the institution's signatory names, verification domain, and logo.
+     * @dev ADMIN ONLY: Set the institution's core signatories with signature images, verification domain, and logo.
      * Called once after deployment. Can be updated by admin if personnel or branding changes.
      */
     function setInstitutionConfig(
-        string memory deanName,
         string memory registrarName,
+        string memory registrarSignatureURL,
         string memory viceChancellorName,
+        string memory viceChancellorSignatureURL,
         string memory verificationDomain,
         string memory logoURL
     ) external onlyRole(DEFAULT_ADMIN_ROLE) {
-        institutionConfig = InstitutionConfig(deanName, registrarName, viceChancellorName, verificationDomain, logoURL);
+        institutionConfig = InstitutionConfig(
+            registrarName,
+            registrarSignatureURL,
+            viceChancellorName,
+            viceChancellorSignatureURL,
+            verificationDomain,
+            logoURL
+        );
         institutionConfigSet = true;
         emit InstitutionConfigUpdated(msg.sender);
+    }
+
+    /**
+     * @dev ADMIN ONLY: Add or update faculty signatories.
+     * @param facultyName The name of the faculty (e.g., "Faculty of Science")
+     * @param deanName The dean's name
+     * @param deanSignatureURL URL to the dean's signature image (from Blob storage)
+     */
+    function setFacultySignatory(
+        string memory facultyName,
+        string memory deanName,
+        string memory deanSignatureURL
+    ) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        require(bytes(facultyName).length > 0, "Faculty name is required");
+        require(bytes(deanName).length > 0, "Dean name is required");
+        require(bytes(deanSignatureURL).length > 0, "Dean signature URL is required");
+
+        // Check if faculty already exists
+        uint256 index = facultyNameToIndex[facultyName];
+        if (index > 0 || (facultySignatories.length == 0)) {
+            // Update existing or add new
+            if (index == 0 && facultySignatories.length > 0) {
+                // Faculty doesn't exist yet
+                facultySignatories.push(FacultySignatory(facultyName, deanName, deanSignatureURL));
+                facultyNameToIndex[facultyName] = facultySignatories.length;
+            } else {
+                // Update existing
+                facultySignatories[index] = FacultySignatory(facultyName, deanName, deanSignatureURL);
+            }
+        } else {
+            // First faculty
+            facultySignatories.push(FacultySignatory(facultyName, deanName, deanSignatureURL));
+            facultyNameToIndex[facultyName] = 1;
+        }
+    }
+
+    /**
+     * @dev Returns all faculty signatories.
+     */
+    function getFacultySignatories() external view returns (FacultySignatory[] memory) {
+        return facultySignatories;
+    }
+
+    /**
+     * @dev Returns the count of faculties.
+     */
+    function getFacultyCount() external view returns (uint256) {
+        return facultySignatories.length;
     }
 
     /**

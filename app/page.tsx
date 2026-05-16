@@ -654,17 +654,29 @@ export default function Dashboard() {
   const uploadSignatureToBlob = async (signatureDataURL: string): Promise<string> => {
     try {
       setIsUploadingSignature(true);
-      // Convert data URL to blob
-      const response = await fetch(signatureDataURL);
-      const blob = await response.blob();
+      console.log('[v0] Starting signature upload');
+      
+      // Convert data URL to blob properly
+      const arr = signatureDataURL.split(',');
+      const mime = arr[0].match(/:(.*?);/)?.[1] || 'image/png';
+      const bstr = atob(arr[1]);
+      const n = bstr.length;
+      const u8arr = new Uint8Array(n);
+      for (let i = 0; i < n; i++) {
+        u8arr[i] = bstr.charCodeAt(i);
+      }
+      const blob = new Blob([u8arr], { type: mime });
+      console.log('[v0] Blob created:', blob.size, 'bytes');
       
       // Upload to Vercel Blob
       const filename = `signatures/${Date.now()}-signature.png`;
+      console.log('[v0] Uploading to Blob:', filename);
       const uploadRes = await put(filename, blob, { access: 'private' });
+      console.log('[v0] Blob upload successful:', uploadRes.url);
       return uploadRes.url;
     } catch (error) {
       console.error('[v0] Signature upload failed:', error);
-      throw new Error('Failed to upload signature');
+      throw new Error(`Failed to upload signature: ${error instanceof Error ? error.message : 'Unknown error'}`);
     } finally {
       setIsUploadingSignature(false);
     }
@@ -712,35 +724,47 @@ export default function Dashboard() {
 
   // Save Registrar signature
   const saveRegistrarSignature = async () => {
+    console.log('[v0] saveRegistrarSignature called');
     if (!registrarSignatureRef.current || registrarSignatureRef.current.isEmpty()) {
+      console.log('[v0] Registrar canvas is empty');
       showMsg('error', 'Please draw the registrar\'s signature.');
       return;
     }
     try {
+      console.log('[v0] Getting registrar signature data');
       showMsg('info', 'Uploading registrar signature...');
       const signatureDataURL = registrarSignatureRef.current.toDataURL();
+      console.log('[v0] Got data URL, length:', signatureDataURL.length);
       const url = await uploadSignatureToBlob(signatureDataURL);
+      console.log('[v0] Registrar signature URL:', url);
       setRegistrarSignatureURL(url);
       showMsg('success', 'Registrar signature saved!');
     } catch (error) {
-      showMsg('error', 'Failed to save registrar signature');
+      console.error('[v0] Error saving registrar signature:', error);
+      showMsg('error', `Failed to save registrar signature: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   };
 
   // Save Vice-Chancellor signature
   const saveVCSignature = async () => {
+    console.log('[v0] saveVCSignature called');
     if (!vcSignatureRef.current || vcSignatureRef.current.isEmpty()) {
+      console.log('[v0] VC canvas is empty');
       showMsg('error', 'Please draw the vice-chancellor\'s signature.');
       return;
     }
     try {
+      console.log('[v0] Getting VC signature data');
       showMsg('info', 'Uploading vice-chancellor signature...');
       const signatureDataURL = vcSignatureRef.current.toDataURL();
+      console.log('[v0] Got data URL, length:', signatureDataURL.length);
       const url = await uploadSignatureToBlob(signatureDataURL);
+      console.log('[v0] VC signature URL:', url);
       setVcSignatureURL(url);
       showMsg('success', 'Vice-Chancellor signature saved!');
     } catch (error) {
-      showMsg('error', 'Failed to save vice-chancellor signature');
+      console.error('[v0] Error saving VC signature:', error);
+      showMsg('error', `Failed to save VC signature: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   };
 

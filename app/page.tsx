@@ -176,7 +176,9 @@ export default function Dashboard() {
   const [studentAddress, setStudentAddress] = useState('');
   const [certificateName, setCertificateName] = useState('');
   const [courseName, setCourseName] = useState('');
-  const [selectedFaculty, setSelectedFaculty] = useState(''); // NEW: Faculty for dean signature
+  const [selectedFaculty, setSelectedFaculty] = useState(''); // Faculty for dean signature
+  const [faculties, setFaculties] = useState<Array<{facultyName: string; deanName: string}>>([]);
+  const [isLoadingFaculties, setIsLoadingFaculties] = useState(false);
   const [grade, setGrade] = useState('');
   const [paxId, setPaxId] = useState('');
   const [studentEmail, setStudentEmail] = useState('');
@@ -908,6 +910,35 @@ export default function Dashboard() {
       setIsRevoking(false);
     }
   };
+
+  // Fetch faculties when university address is selected in Issue tab
+  const loadFacultiesForIssue = async (address: string) => {
+    if (!address || !ethers.isAddress(address)) {
+      setFaculties([]);
+      setSelectedFaculty('');
+      return;
+    }
+    setIsLoadingFaculties(true);
+    try {
+      const provider = await getReadOnlyProvider();
+      const university = new ethers.Contract(address, UNIVERSITY_ABI, provider);
+      const facultyList = await university.getFacultySignatories();
+      console.log('[v0] Fetched faculties:', facultyList);
+      setFaculties(facultyList);
+      setSelectedFaculty(''); // Reset selection when new university is picked
+    } catch (error) {
+      console.error('[v0] Failed to fetch faculties:', error);
+      setFaculties([]);
+      setSelectedFaculty('');
+    } finally {
+      setIsLoadingFaculties(false);
+    }
+  };
+
+  // Call loadFacultiesForIssue when univAddress changes
+  useEffect(() => {
+    loadFacultiesForIssue(univAddress);
+  }, [univAddress]);
 
   const issueCertificate = async () => {
     if (!signer) { showMsg('error', 'Please connect your wallet first.'); return; }
@@ -1673,8 +1704,22 @@ export default function Dashboard() {
               </div>
               <div>
                 <label className={labelClass}>Select Faculty <span className="text-slate-500 font-normal">(for dean signature)</span></label>
-                <input className={inputClass} placeholder="e.g. Faculty of Science" value={selectedFaculty} onChange={(e) => setSelectedFaculty(e.target.value)} maxLength={120} />
-                <p className="text-xs text-slate-500 mt-1">The faculty name should match one you configured in Step 2. The dean's signature will appear on the certificate.</p>
+                <select 
+                  className={inputClass}
+                  value={selectedFaculty} 
+                  onChange={(e) => setSelectedFaculty(e.target.value)}
+                  disabled={!univAddress || faculties.length === 0 || isLoadingFaculties}
+                >
+                  <option value="">
+                    {isLoadingFaculties ? '⏳ Loading faculties...' : faculties.length === 0 ? 'Select a programme first' : '-- Select Faculty --'}
+                  </option>
+                  {faculties.map((fac) => (
+                    <option key={fac.facultyName} value={fac.facultyName}>
+                      {fac.facultyName} (Dean: {fac.deanName})
+                    </option>
+                  ))}
+                </select>
+                <p className="text-xs text-slate-500 mt-1">Select the faculty the student belongs to. The dean's signature for this faculty will appear on the certificate.</p>
               </div>
               <div>
                 <label className={labelClass}>Field of Study</label>

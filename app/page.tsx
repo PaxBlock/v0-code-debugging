@@ -6,7 +6,7 @@ import { ethers } from 'ethers';
 import SignatureCanvas from 'react-signature-canvas';
 
 // Factory contract - PaxID, grade, signatory config, logo URL, deactivation support
-const FACTORY_ADDRESS = '0x0616C9EA5aEDf1eE30C5aFdAd1AC34D9aef56167';
+const FACTORY_ADDRESS = '0x85ed98B33160679BFcF12d82F219Ee5cBB8B68a1';
 const SEPOLIA_CHAIN_ID = 11155111;
 const SEPOLIA_HEX = '0xaa36a7';
 

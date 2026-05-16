@@ -5,7 +5,7 @@ import { useState, useEffect } from 'react';
 import { ethers } from 'ethers';
 
 // Factory contract - PaxID, grade, signatory config, logo URL, deactivation support
-const FACTORY_ADDRESS = '0xd16dfe6B7135135c558F512Eaa8eD9B68FF1E96F';
+const FACTORY_ADDRESS = '0x28FD0cF2a7045FC4BB1D11401AA0Af48701Cc4fC';
 const SEPOLIA_CHAIN_ID = 11155111;
 const SEPOLIA_HEX = '0xaa36a7';
 
@@ -318,7 +318,7 @@ export default function Dashboard() {
   // Load only wallet's universities when issue tab opens (role-filtered)
   useEffect(() => {
     if (activeTab === 'verify') {
-      loadUniversities();
+      loadUniversities(true); // Force refresh to always show latest programmes
     }
     if (activeTab === 'issue' && account) {
       loadMyUniversities(account);
@@ -408,7 +408,6 @@ export default function Dashboard() {
           addresses = await Promise.all(addressPromises);
         } catch (_e2) {
           // Factory unreachable or wrong network — silently return empty list
-          console.log('[v0] Could not load universities from factory:', FACTORY_ADDRESS);
           addresses = [];
         }
       }
@@ -1523,7 +1522,7 @@ export default function Dashboard() {
                   {REVOCATION_PRESETS.map((preset) => (
                     <option key={preset} value={preset}>{preset}</option>
                   ))}
-                  <option value="custom">Other — enter custom reason</option>
+                  <option value="custom">Other ��� enter custom reason</option>
                 </select>
               </div>
               {revokeReason === 'custom' && (

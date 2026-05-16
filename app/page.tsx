@@ -5,7 +5,7 @@ import { useState, useEffect } from 'react';
 import { ethers } from 'ethers';
 
 // Factory contract - PaxID, grade, signatory config, logo URL, deactivation support
-const FACTORY_ADDRESS = '0xd16dfe6B7135135c558F512Eaa8eD9B68FF1E96F';
+const FACTORY_ADDRESS = '0x28FD0cF2a7045FC4BB1D11401AA0Af48701Cc4fC';
 const SEPOLIA_CHAIN_ID = 11155111;
 const SEPOLIA_HEX = '0xaa36a7';
 
@@ -385,38 +385,29 @@ export default function Dashboard() {
     if (!force && universities.length > 0) return;
     setIsLoadingUnis(true);
     try {
-      console.log('[v0] loadUniversities called - force:', force, 'walletRole:', walletRole);
       const provider = await getReadOnlyProvider();
       const factory = new ethers.Contract(FACTORY_ADDRESS, FACTORY_ABI, provider);
 
       // Owner sees ALL universities (including deactivated) for management
       // Everyone else (including unauthenticated visitors) only sees active universities
       const effectiveRole = role ?? walletRole;
-      console.log('[v0] effectiveRole:', effectiveRole, 'FACTORY_ADDRESS:', FACTORY_ADDRESS);
       let addresses: string[] = [];
       try {
         if (effectiveRole === 'owner') {
-          console.log('[v0] Calling getAllUniversities');
           addresses = await factory.getAllUniversities();
         } else {
-          console.log('[v0] Calling getActiveUniversities');
           addresses = await factory.getActiveUniversities();
         }
-        console.log('[v0] Got addresses:', addresses);
       } catch (_e) {
-        console.log('[v0] getActiveUniversities failed, trying fallback:', _e);
         // Fallback for older factory deployments that lack these methods
         try {
           const count = await factory.getUniversityCount();
-          console.log('[v0] University count:', count);
           const addressPromises = Array.from({ length: Number(count) }, (_, i) =>
             factory.deployedUniversities(i)
           );
           addresses = await Promise.all(addressPromises);
-          console.log('[v0] Got addresses from fallback:', addresses);
         } catch (_e2) {
           // Factory unreachable or wrong network — silently return empty list
-          console.log('[v0] Could not load universities from factory:', FACTORY_ADDRESS, _e2);
           addresses = [];
         }
       }
@@ -437,7 +428,6 @@ export default function Dashboard() {
           }
         })
       );
-      console.log('[v0] Setting universities state:', unis.length, 'universities');
       setUniversities(unis);
     } catch (error) {
       showMsg('error', error instanceof Error ? error.message : 'Could not load universities. Please try again.');

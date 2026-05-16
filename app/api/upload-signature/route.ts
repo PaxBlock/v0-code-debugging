@@ -19,7 +19,7 @@ export async function POST(req: NextRequest) {
     const blobName = `signatures/${timestamp}-${Math.random().toString(36).slice(2)}.png`;
 
     console.log('[upload-signature] Uploading to Blob:', blobName, 'size:', buffer.length);
-    const blob = await put(blobName, buffer, { access: 'private', contentType: 'image/png' });
+    const blob = await put(blobName, buffer, { access: 'public', contentType: 'image/png' });
     console.log('[upload-signature] Upload successful:', blob.url);
 
     return NextResponse.json({ url: blob.url });

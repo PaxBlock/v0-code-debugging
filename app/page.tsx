@@ -4,7 +4,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { ethers } from 'ethers';
 import SignatureCanvas from 'react-signature-canvas';
-import { put } from '@vercel/blob';
 
 // Factory contract - PaxID, grade, signatory config, logo URL, deactivation support
 const FACTORY_ADDRESS = '0x0616C9EA5aEDf1eE30C5aFdAd1AC34D9aef56167';
@@ -650,30 +649,28 @@ export default function Dashboard() {
     }
   };
 
-  // Upload signature image to Blob storage
+  // Upload signature image to Blob storage via API
   const uploadSignatureToBlob = async (signatureDataURL: string): Promise<string> => {
     try {
       setIsUploadingSignature(true);
       console.log('[v0] Starting signature upload');
       
-      // Convert data URL to blob properly
-      const arr = signatureDataURL.split(',');
-      const mime = arr[0].match(/:(.*?);/)?.[1] || 'image/png';
-      const bstr = atob(arr[1]);
-      const n = bstr.length;
-      const u8arr = new Uint8Array(n);
-      for (let i = 0; i < n; i++) {
-        u8arr[i] = bstr.charCodeAt(i);
+      // Call API endpoint to upload (server has BLOB_READ_WRITE_TOKEN)
+      console.log('[v0] Calling /api/upload-signature');
+      const response = await fetch('/api/upload-signature', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ imageData: signatureDataURL }),
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Upload failed');
       }
-      const blob = new Blob([u8arr], { type: mime });
-      console.log('[v0] Blob created:', blob.size, 'bytes');
-      
-      // Upload to Vercel Blob
-      const filename = `signatures/${Date.now()}-signature.png`;
-      console.log('[v0] Uploading to Blob:', filename);
-      const uploadRes = await put(filename, blob, { access: 'private' });
-      console.log('[v0] Blob upload successful:', uploadRes.url);
-      return uploadRes.url;
+
+      const { url } = await response.json();
+      console.log('[v0] Signature uploaded successfully:', url);
+      return url;
     } catch (error) {
       console.error('[v0] Signature upload failed:', error);
       throw new Error(`Failed to upload signature: ${error instanceof Error ? error.message : 'Unknown error'}`);

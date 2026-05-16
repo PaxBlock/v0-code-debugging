@@ -113,22 +113,19 @@ contract AcademicCertificate is ERC721, ERC721URIStorage, AccessControl {
         require(bytes(deanName).length > 0, "Dean name is required");
         require(bytes(deanSignatureURL).length > 0, "Dean signature URL is required");
 
-        // Check if faculty already exists
-        uint256 index = facultyNameToIndex[facultyName];
-        if (index > 0 || (facultySignatories.length == 0)) {
-            // Update existing or add new
-            if (index == 0 && facultySignatories.length > 0) {
-                // Faculty doesn't exist yet
-                facultySignatories.push(FacultySignatory(facultyName, deanName, deanSignatureURL));
-                facultyNameToIndex[facultyName] = facultySignatories.length;
-            } else {
-                // Update existing
-                facultySignatories[index] = FacultySignatory(facultyName, deanName, deanSignatureURL);
-            }
+        FacultySignatory memory newFaculty = FacultySignatory(facultyName, deanName, deanSignatureURL);
+        
+        // Check if faculty already exists (use 0 as "not found" sentinel since we store 1-based indices)
+        uint256 storedIndex = facultyNameToIndex[facultyName];
+        
+        if (storedIndex == 0) {
+            // Faculty doesn't exist yet, add it
+            facultySignatories.push(newFaculty);
+            // Store 1-based index (0 means "not found", so we store length which is 1-based)
+            facultyNameToIndex[facultyName] = facultySignatories.length;
         } else {
-            // First faculty
-            facultySignatories.push(FacultySignatory(facultyName, deanName, deanSignatureURL));
-            facultyNameToIndex[facultyName] = 1;
+            // Faculty exists, update it (convert stored 1-based index to 0-based for array access)
+            facultySignatories[storedIndex - 1] = newFaculty;
         }
     }
 

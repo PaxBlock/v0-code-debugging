@@ -80,12 +80,31 @@ contract UniversityFactory is AccessControl {
 
         address universityAddress = address(newUniversity);
 
+        // Grant DEFAULT_ADMIN_ROLE to the Pax Owner (deployer/msg.sender)
+        // This allows Pax Owner to configure signatories in Step 2
+        if (msg.sender != universityAdmin) {
+            newUniversity.grantRole(newUniversity.DEFAULT_ADMIN_ROLE(), msg.sender);
+        }
+
         // Record the deployment globally
         deployedUniversities.push(universityAddress);
         isUniversityContract[universityAddress] = true;
 
         // Record that the admin wallet is associated with this university contract
         _walletUniversities[universityAdmin].push(universityAddress);
+        
+        // Also record Pax Owner's association
+        address[] storage ownerList = _walletUniversities[msg.sender];
+        bool exists = false;
+        for (uint256 i = 0; i < ownerList.length; i++) {
+            if (ownerList[i] == universityAddress) {
+                exists = true;
+                break;
+            }
+        }
+        if (!exists) {
+            ownerList.push(universityAddress);
+        }
 
         emit UniversityDeployed(universityAddress, universityName, universityAdmin);
 

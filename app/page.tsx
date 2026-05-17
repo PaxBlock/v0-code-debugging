@@ -962,8 +962,18 @@ export default function Dashboard() {
 
       const university = new ethers.Contract(univAddress, UNIVERSITY_ABI, signer);
       showMsg('info', 'Issuing certificate... Please confirm in MetaMask.');
+      console.log('[v0] Issuing certificate with:', {
+        student: studentAddress,
+        name: certificateName,
+        course: courseName,
+        grade: grade,
+        paxId: normalisedPaxId,
+        selectedFaculty: selectedFaculty,
+      });
       const tx = await university.issueCertificate(studentAddress, encryptedName, encryptedCourse, encryptedGrade, normalisedPaxId);
+      console.log('[v0] Transaction sent:', tx.hash);
       const receipt = await tx.wait();
+      console.log('[v0] Transaction confirmed:', receipt);
 
       showMsg('success', `Certificate issued to ${certificateName}! PaxID: ${normalisedPaxId}`);
 
@@ -1028,6 +1038,11 @@ export default function Dashboard() {
         }
       }
     } catch (error) {
+      console.error('[v0] Certificate issuance error:', error);
+      if (error instanceof Error) {
+        console.error('[v0] Error message:', error.message);
+        console.error('[v0] Full error:', JSON.stringify(error, null, 2));
+      }
       showMsg('error', parseError(error));
     } finally {
       setIsIssuing(false);

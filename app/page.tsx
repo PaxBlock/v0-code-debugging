@@ -10,6 +10,7 @@ import { logGDPRCompliant } from '@/lib/dataMasking';
 const FACTORY_ADDRESS = '0x85ed98B33160679BFcF12d82F219Ee5cBB8B68a1';
 const SEPOLIA_CHAIN_ID = 11155111;
 const SEPOLIA_HEX = '0xaa36a7';
+const BASE_METADATA_URI = 'https://ipfs.io/ipfs/'; // Base URI for certificate metadata storage
 
 const FACTORY_ABI = [
   'function deployUniversity(string memory universityName, string memory symbol, address universityAdmin, string memory baseMetadataURI) external returns (address)',
@@ -616,10 +617,10 @@ export default function Dashboard() {
     if (!signer) { showMsg('error', 'Please connect your wallet first.'); return; }
     setIsDeploying(true);
     try {
-      console.log('[v0] Deploy params:', { univName: univName.trim(), univSymbol, univAdmin, baseMetadataURI });
+      console.log('[v0] Deploy params:', { univName: univName.trim(), univSymbol, univAdmin });
       showMsg('info', 'Deploying institution contract... Please confirm in MetaMask.');
       const factory = new ethers.Contract(FACTORY_ADDRESS, FACTORY_ABI, signer);
-      const tx = await factory.deployUniversity(univName.trim(), univSymbol, univAdmin, baseMetadataURI);
+      const tx = await factory.deployUniversity(univName.trim(), univSymbol, univAdmin, BASE_METADATA_URI);
       console.log('[v0] Transaction sent:', tx.hash);
       const receipt = await tx.wait();
       console.log('[v0] Receipt:', receipt);

@@ -191,8 +191,11 @@ export default function Dashboard() {
   // Institution config (Register tab - step 2)
   const [configUnivAddress, setConfigUnivAddress] = useState('');
   const [deanName, setDeanName] = useState('');
+  const [deanPosition, setDeanPosition] = useState('');
   const [registrarName, setRegistrarName] = useState('');
+  const [registrarPosition, setRegistrarPosition] = useState('');
   const [vcName, setVcName] = useState('');
+  const [vcPosition, setVcPosition] = useState('');
   const [verificationDomain, setVerificationDomain] = useState('');
   const [logoFile, setLogoFile] = useState<File | null>(null);
   const [logoURL, setLogoURL] = useState('');
@@ -244,10 +247,13 @@ export default function Dashboard() {
     revocationDate: string;
     dean: string;
     deanSignature: string;
+    deanPosition: string;
     registrar: string;
     registrarSignature: string;
+    registrarPosition: string;
     vc: string;
     vcSignature: string;
+    vcPosition: string;
     logoUrl: string;
     domain: string;
   } | null>(null);
@@ -1051,10 +1057,13 @@ export default function Dashboard() {
               contractAddress: univAddress,
               registrar: registrarName,
               registrarSignature,
+              registrarPosition,
               vc: vcName,
               vcSignature,
+              vcPosition,
               dean: deanName,
               deanSignature,
+              deanPosition,
               logoUrl,
               domain: 'verify.example.edu',
             }),
@@ -1377,8 +1386,16 @@ export default function Dashboard() {
 
               {/* Registrar Signature */}
               <div className="space-y-2">
-                <label className={labelClass}>Registrar&apos;s Name</label>
-                <input className={inputClass} placeholder="e.g. Dr. Ngozi Eze" value={registrarName} onChange={(e) => setRegistrarName(e.target.value)} />
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className={labelClass}>Registrar&apos;s Name</label>
+                    <input className={inputClass} placeholder="e.g. Dr. Ngozi Eze" value={registrarName} onChange={(e) => setRegistrarName(e.target.value)} />
+                  </div>
+                  <div>
+                    <label className={labelClass}>Position</label>
+                    <input className={inputClass} placeholder="e.g. Registrar" value={registrarPosition} onChange={(e) => setRegistrarPosition(e.target.value)} />
+                  </div>
+                </div>
                 <label className="text-xs text-slate-300 font-semibold block mt-3">Draw Registrar&apos;s Signature</label>
                 <div className="border border-slate-600 rounded-lg bg-slate-900 p-2">
                   <SignatureCanvas
@@ -1406,8 +1423,16 @@ export default function Dashboard() {
 
               {/* Vice-Chancellor Signature */}
               <div className="space-y-2">
-                <label className={labelClass}>Vice-Chancellor&apos;s Name</label>
-                <input className={inputClass} placeholder="e.g. Prof. Samuel Ajayi" value={vcName} onChange={(e) => setVcName(e.target.value)} />
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className={labelClass}>Vice-Chancellor&apos;s Name</label>
+                    <input className={inputClass} placeholder="e.g. Prof. Samuel Ajayi" value={vcName} onChange={(e) => setVcName(e.target.value)} />
+                  </div>
+                  <div>
+                    <label className={labelClass}>Position</label>
+                    <input className={inputClass} placeholder="e.g. Vice-Chancellor" value={vcPosition} onChange={(e) => setVcPosition(e.target.value)} />
+                  </div>
+                </div>
                 <label className="text-xs text-slate-300 font-semibold block mt-3">Draw Vice-Chancellor&apos;s Signature</label>
                 <div className="border border-slate-600 rounded-lg bg-slate-900 p-2">
                   <SignatureCanvas
@@ -2062,7 +2087,7 @@ export default function Dashboard() {
                       View on Blockchain
                     </a>
                     <a
-                      href={`/api/certificate/image?name=${encodeURIComponent(certResult.candidateName)}&course=${encodeURIComponent(certResult.courseName)}&grade=${encodeURIComponent(certResult.grade)}&paxId=${encodeURIComponent(certResult.paxId)}&university=${encodeURIComponent(certResult.universityName)}&date=${encodeURIComponent(certResult.issuedAt)}&registrar=${encodeURIComponent(certResult.registrar || '')}&registrarSig=${encodeURIComponent(certResult.registrarSignature || '')}&vc=${encodeURIComponent(certResult.vc || '')}&vcSig=${encodeURIComponent(certResult.vcSignature || '')}&dean=${encodeURIComponent(certResult.dean || '')}&deanSig=${encodeURIComponent(certResult.deanSignature || '')}&logo=${encodeURIComponent(certResult.logoUrl || '')}&domain=${encodeURIComponent(certResult.domain || 'v0-paxadmin.vercel.app')}&verifyUrl=${encodeURIComponent(`${process.env.NEXT_PUBLIC_SITE_URL || 'https://v0-paxadmin.vercel.app'}/?tab=verify&paxId=${certResult.paxId}&contract=${certResult.univAddress}`)}&revoked=${certResult.isRevoked ? 'true' : 'false'}&revokeReason=${encodeURIComponent(certResult.revocationReason || '')}`}
+                      href={`/api/certificate/image?name=${encodeURIComponent(certResult.candidateName)}&course=${encodeURIComponent(certResult.courseName)}&grade=${encodeURIComponent(certResult.grade)}&paxId=${encodeURIComponent(certResult.paxId)}&university=${encodeURIComponent(certResult.universityName)}&date=${encodeURIComponent(certResult.issuedAt)}&registrar=${encodeURIComponent(certResult.registrar || '')}&registrarSig=${encodeURIComponent(certResult.registrarSignature || '')}&registrarPos=${encodeURIComponent(certResult.registrarPosition || 'Registrar')}&vc=${encodeURIComponent(certResult.vc || '')}&vcSig=${encodeURIComponent(certResult.vcSignature || '')}&vcPos=${encodeURIComponent(certResult.vcPosition || 'Vice-Chancellor')}&dean=${encodeURIComponent(certResult.dean || '')}&deanSig=${encodeURIComponent(certResult.deanSignature || '')}&deanPos=${encodeURIComponent(certResult.deanPosition || 'Dean')}&logo=${encodeURIComponent(certResult.logoUrl || '')}&domain=${encodeURIComponent(certResult.domain || 'v0-paxadmin.vercel.app')}&verifyUrl=${encodeURIComponent(`${process.env.NEXT_PUBLIC_SITE_URL || 'https://v0-paxadmin.vercel.app'}/?tab=verify&paxId=${certResult.paxId}&contract=${certResult.univAddress}`)}&revoked=${certResult.isRevoked ? 'true' : 'false'}&revokeReason=${encodeURIComponent(certResult.revocationReason || '')}`}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="text-xs text-green-400 hover:text-green-300 underline"

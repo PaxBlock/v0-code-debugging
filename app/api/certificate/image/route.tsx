@@ -12,14 +12,26 @@ export async function GET(req: NextRequest) {
   const issuedDate     = searchParams.get('date')          || '';
   const paxId          = searchParams.get('paxId')         || '';
   const university     = searchParams.get('university')    || 'Institution Name';
-  const dean           = searchParams.get('dean')          || '';
-  const registrar      = searchParams.get('registrar')     || '';
+  const registrarSig   = searchParams.get('registrarSig')  || ''; // Signature image URL
+  const registrarName  = searchParams.get('registrar')     || '';
+  const vcSig          = searchParams.get('vcSig')         || ''; // Signature image URL
   const viceChancellor = searchParams.get('vc')            || '';
+  const deanSig        = searchParams.get('deanSig')       || ''; // Signature image URL
+  const deanName       = searchParams.get('dean')          || '';
   const domain         = searchParams.get('domain')        || 'v0-paxadmin.vercel.app';
   const logoUrl        = searchParams.get('logo')          || '';
   const revoked        = searchParams.get('revoked')       === 'true';
   const revokeReason   = searchParams.get('revokeReason') || '';
   const verifyUrl      = searchParams.get('verifyUrl')     || '';
+
+  console.log('[certificate-image] Received params:', {
+    registrarSig: registrarSig ? 'YES (URL present)' : 'NO',
+    vcSig: vcSig ? 'YES (URL present)' : 'NO',
+    deanSig: deanSig ? 'YES (URL present)' : 'NO',
+    registrarName,
+    viceChancellor,
+    deanName,
+  });
 
   const qrData = verifyUrl || `https://${domain}`;
   const qrImageUrl = `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(qrData)}&bgcolor=fdf6e3&color=1a1a2e&margin=8&qzone=2`;
@@ -231,21 +243,29 @@ export async function GET(req: NextRequest) {
             {/* Signatures */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: '18px', flex: 1, paddingLeft: '36px' }}>
               {([
-                { script: dean || 'Dean', label: 'Dean' },
-                { script: registrar || 'Registrar', label: 'Registrar' },
-                { script: viceChancellor || 'Vice-Chancellor', label: 'Vice-Chancellor' },
-              ] as Array<{script: string; label: string}>).map(({ script, label }) => (
-                <div key={label} style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
-                  <span style={{ fontSize: '21px', fontStyle: 'italic', color: BROWN, fontFamily: 'serif', letterSpacing: '0.5px' }}>
-                    {script}
-                  </span>
-                  <div style={{ display: 'flex', gap: '3px' }}>{dots(30, GOLD)}</div>
-                  <span style={{ fontSize: '12.5px', fontWeight: 'bold', fontStyle: 'italic', color: DARK, fontFamily: 'serif' }}>
-                    {label}:
-                  </span>
+                { imageUrl: registrarSig, label: registrarName || 'Registrar' },
+                { imageUrl: vcSig, label: viceChancellor || 'Vice-Chancellor' },
+                { imageUrl: deanSig, label: deanName || 'Dean' },
+              ] as Array<{imageUrl: string; label: string}>).map(({ imageUrl, label }) => (
+                <div key={label} style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                  {imageUrl ? (
+                    <img
+                      src={imageUrl}
+                      alt={`${label} signature`}
+                      width={180}
+                      height={60}
+                      style={{ maxWidth: '180px', maxHeight: '60px', objectFit: 'contain' }}
+                    />
+                  ) : (
+                    <span style={{ fontSize: '21px', fontStyle: 'italic', color: BROWN, fontFamily: 'serif', letterSpacing: '0.5px', minHeight: '60px' }}>
+                      _____________________
+                    </span>
+                  )}
+                  <span style={{ fontSize: '11px', color: BROWN, fontStyle: 'italic', marginTop: '2px' }}>{label}</span>
                 </div>
               ))}
             </div>
+
           </div>
 
           {/* Gold footer bar + Powered by Pax */}

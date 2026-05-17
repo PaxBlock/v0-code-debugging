@@ -4,10 +4,9 @@
 import { useState, useEffect, useRef } from 'react';
 import { ethers } from 'ethers';
 import SignatureCanvas from 'react-signature-canvas';
-import { put } from '@vercel/blob';
 
 // Factory contract - PaxID, grade, signatory config, logo URL, deactivation support
-const FACTORY_ADDRESS = '0x0616C9EA5aEDf1eE30C5aFdAd1AC34D9aef56167';
+const FACTORY_ADDRESS = '0x85ed98B33160679BFcF12d82F219Ee5cBB8B68a1';
 const SEPOLIA_CHAIN_ID = 11155111;
 const SEPOLIA_HEX = '0xaa36a7';
 
@@ -177,6 +176,9 @@ export default function Dashboard() {
   const [studentAddress, setStudentAddress] = useState('');
   const [certificateName, setCertificateName] = useState('');
   const [courseName, setCourseName] = useState('');
+  const [selectedFaculty, setSelectedFaculty] = useState(''); // Faculty for dean signature
+  const [faculties, setFaculties] = useState<Array<{facultyName: string; deanName: string}>>([]);
+  const [isLoadingFaculties, setIsLoadingFaculties] = useState(false);
   const [grade, setGrade] = useState('');
   const [paxId, setPaxId] = useState('');
   const [studentEmail, setStudentEmail] = useState('');
@@ -200,7 +202,7 @@ export default function Dashboard() {
   const [registrarSignatureURL, setRegistrarSignatureURL] = useState('');
   const [vcSignatureURL, setVcSignatureURL] = useState('');
   const [isUploadingSignature, setIsUploadingSignature] = useState(false);
-  const [faculties, setFaculties] = useState<Array<{ id: string; name: string; deanName: string; signatureURL: string }>>([]);
+  const [configuredFaculties, setConfiguredFaculties] = useState<Array<{ id: string; name: string; deanName: string; signatureURL: string }>>([]);
   const [newFacultyName, setNewFacultyName] = useState('');
   const [newFacultyDean, setNewFacultyDean] = useState('');
   const [isSavingFaculty, setIsSavingFaculty] = useState(false);
@@ -240,8 +242,11 @@ export default function Dashboard() {
     revocationReason: string;
     revocationDate: string;
     dean: string;
+    deanSignature: string;
     registrar: string;
+    registrarSignature: string;
     vc: string;
+    vcSignature: string;
     logoUrl: string;
     domain: string;
   } | null>(null);
@@ -296,8 +301,14 @@ export default function Dashboard() {
           let univName;
           try { univName = await university.name(); } catch (_e) { univName = `Programme (${contractParam.slice(0, 8)}...)`; }
           // Fetch institution config for signatories and logo
-          let config = { deanName: '', registrarName: '', viceChancellorName: '', verificationDomain: '', logoURL: '' };
+          let config = { registrarName: '', registrarSignatureURL: '', viceChancellorName: '', viceChancellorSignatureURL: '', verificationDomain: '', logoURL: '' };
           try { config = await university.institutionConfig(); } catch (_e) { /* silent */ }
+          // Fetch faculty signatories for dean signature
+          let deanName = '', deanSignatureURL = '';
+          try {
+            const facs = await university.getFacultySignatories();
+            if (facs.length > 0) { deanName = facs[0].deanName; deanSignatureURL = facs[0].deanSignatureURL; }
+          } catch (_e) { /* silent */ }
           const [decryptedName, decryptedCourse, decryptedGrade] = await Promise.all([
             decryptField(cert.candidateName, contractParam, resolvedStudent),
             decryptField(cert.courseName, contractParam, resolvedStudent),
@@ -318,11 +329,19 @@ export default function Dashboard() {
             revocationDate: revoked && Number(revDate) > 0
               ? new Date(Number(revDate) * 1000).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })
               : '',
-            dean: config.deanName || '',
+            dean: deanName,
+            deanSignature: deanSignatureURL,
             registrar: config.registrarName || '',
+            registrarSignature: config.registrarSignatureURL || '',
             vc: config.viceChancellorName || '',
+            vcSignature: config.viceChancellorSignatureURL || '',
             logoUrl: config.logoURL || '',
             domain: config.verificationDomain || 'v0-paxadmin.vercel.app',
+          });
+          console.log('[v0] QR verification - certResult set:', {
+            deanSignature: deanSignatureURL ? 'YES' : 'NO',
+            registrarSignature: config.registrarSignatureURL ? 'YES' : 'NO',
+            vcSignature: config.viceChancellorSignatureURL ? 'YES' : 'NO',
           });
           showMsg(revoked ? 'error' : 'success', revoked ? 'This certificate has been revoked.' : 'Certificate verified on the blockchain!');
         } catch (_e) { /* silent — user can manually hit Verify if auto fails */ }
@@ -332,10 +351,17 @@ export default function Dashboard() {
   }, []);
 
   // Load all universities when verify tab opens (public)
-  // Load only wallet's universities when issue tab opens (role-filtered)
+  // Load public universities list on initial mount (before wallet connection)
+  useEffect(() => {
+    if (universities.length === 0 && !isLoadingUnis) {
+      loadUniversities(true);
+    }
+  }, []);
+
+  // Load universities for Verify tab (public — no wallet needed) or Issue tab (wallet-filtered)
   useEffect(() => {
     if (activeTab === 'verify') {
-      loadUniversities(true); // Force refresh to always show latest programmes
+      loadUniversities(true); // Force refresh — publicly accessible, no wallet needed
     }
     if (activeTab === 'issue' && account) {
       loadMyUniversities(account);
@@ -650,21 +676,32 @@ export default function Dashboard() {
     }
   };
 
-  // Upload signature image to Blob storage
+  // Upload signature image to Blob storage via API
   const uploadSignatureToBlob = async (signatureDataURL: string): Promise<string> => {
     try {
       setIsUploadingSignature(true);
-      // Convert data URL to blob
-      const response = await fetch(signatureDataURL);
-      const blob = await response.blob();
+      console.log('[v0] Starting signature upload');
       
-      // Upload to Vercel Blob
-      const filename = `signatures/${Date.now()}-signature.png`;
-      const uploadRes = await put(filename, blob, { access: 'private' });
-      return uploadRes.url;
+      // Call API endpoint to upload (server has BLOB_READ_WRITE_TOKEN)
+      console.log('[v0] Calling /api/upload-signature');
+      const response = await fetch('/api/upload-signature', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ imageData: signatureDataURL }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        console.error('[v0] API error response:', errorData);
+        throw new Error(errorData.error || errorData.details || 'Upload failed');
+      }
+
+      const { url } = await response.json();
+      console.log('[v0] Signature uploaded successfully:', url);
+      return url;
     } catch (error) {
       console.error('[v0] Signature upload failed:', error);
-      throw new Error('Failed to upload signature');
+      throw new Error(`Failed to upload signature: ${error instanceof Error ? error.message : 'Unknown error'}`);
     } finally {
       setIsUploadingSignature(false);
     }
@@ -712,35 +749,47 @@ export default function Dashboard() {
 
   // Save Registrar signature
   const saveRegistrarSignature = async () => {
+    console.log('[v0] saveRegistrarSignature called');
     if (!registrarSignatureRef.current || registrarSignatureRef.current.isEmpty()) {
+      console.log('[v0] Registrar canvas is empty');
       showMsg('error', 'Please draw the registrar\'s signature.');
       return;
     }
     try {
+      console.log('[v0] Getting registrar signature data');
       showMsg('info', 'Uploading registrar signature...');
       const signatureDataURL = registrarSignatureRef.current.toDataURL();
+      console.log('[v0] Got data URL, length:', signatureDataURL.length);
       const url = await uploadSignatureToBlob(signatureDataURL);
+      console.log('[v0] Registrar signature URL:', url);
       setRegistrarSignatureURL(url);
       showMsg('success', 'Registrar signature saved!');
     } catch (error) {
-      showMsg('error', 'Failed to save registrar signature');
+      console.error('[v0] Error saving registrar signature:', error);
+      showMsg('error', `Failed to save registrar signature: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   };
 
   // Save Vice-Chancellor signature
   const saveVCSignature = async () => {
+    console.log('[v0] saveVCSignature called');
     if (!vcSignatureRef.current || vcSignatureRef.current.isEmpty()) {
+      console.log('[v0] VC canvas is empty');
       showMsg('error', 'Please draw the vice-chancellor\'s signature.');
       return;
     }
     try {
+      console.log('[v0] Getting VC signature data');
       showMsg('info', 'Uploading vice-chancellor signature...');
       const signatureDataURL = vcSignatureRef.current.toDataURL();
+      console.log('[v0] Got data URL, length:', signatureDataURL.length);
       const url = await uploadSignatureToBlob(signatureDataURL);
+      console.log('[v0] VC signature URL:', url);
       setVcSignatureURL(url);
       showMsg('success', 'Vice-Chancellor signature saved!');
     } catch (error) {
-      showMsg('error', 'Failed to save vice-chancellor signature');
+      console.error('[v0] Error saving VC signature:', error);
+      showMsg('error', `Failed to save VC signature: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   };
 
@@ -768,7 +817,7 @@ export default function Dashboard() {
       await tx.wait();
 
       // Add to local list
-      setFaculties([...faculties, { id: Date.now().toString(), name: newFacultyName, deanName: newFacultyDean, signatureURL }]);
+      setConfiguredFaculties([...configuredFaculties, { id: Date.now().toString(), name: newFacultyName, deanName: newFacultyDean, signatureURL }]);
       showMsg('success', `${newFacultyName} with Dean ${newFacultyDean} added successfully!`);
       
       // Clear form
@@ -886,10 +935,39 @@ export default function Dashboard() {
     }
   };
 
+  // Fetch faculties when university address is selected in Issue tab
+  const loadFacultiesForIssue = async (address: string) => {
+    if (!address || !ethers.isAddress(address)) {
+      setFaculties([]);
+      setSelectedFaculty('');
+      return;
+    }
+    setIsLoadingFaculties(true);
+    try {
+      const provider = await getReadOnlyProvider();
+      const university = new ethers.Contract(address, UNIVERSITY_ABI, provider);
+      const facultyList = await university.getFacultySignatories();
+      console.log('[v0] Fetched faculties:', facultyList);
+      setFaculties(facultyList);
+      setSelectedFaculty(''); // Reset selection when new university is picked
+    } catch (error) {
+      console.error('[v0] Failed to fetch faculties:', error);
+      setFaculties([]);
+      setSelectedFaculty('');
+    } finally {
+      setIsLoadingFaculties(false);
+    }
+  };
+
+  // Call loadFacultiesForIssue when univAddress changes
+  useEffect(() => {
+    loadFacultiesForIssue(univAddress);
+  }, [univAddress]);
+
   const issueCertificate = async () => {
     if (!signer) { showMsg('error', 'Please connect your wallet first.'); return; }
-    if (!univAddress || !studentAddress || !certificateName || !courseName || !grade || !paxId) {
-      showMsg('error', 'Please fill in all fields including grade and PaxID before issuing a certificate.'); return;
+    if (!univAddress || !studentAddress || !certificateName || !courseName || !selectedFaculty || !grade || !paxId) {
+      showMsg('error', 'Please fill in all fields including faculty, grade, and PaxID before issuing a certificate.'); return;
     }
     if (!ethers.isAddress(univAddress)) { showMsg('error', 'The university contract address is not valid.'); return; }
     if (!ethers.isAddress(studentAddress)) { showMsg('error', 'The student wallet address is not valid.'); return; }
@@ -908,8 +986,18 @@ export default function Dashboard() {
 
       const university = new ethers.Contract(univAddress, UNIVERSITY_ABI, signer);
       showMsg('info', 'Issuing certificate... Please confirm in MetaMask.');
+      console.log('[v0] Issuing certificate with:', {
+        student: studentAddress,
+        name: certificateName,
+        course: courseName,
+        grade: grade,
+        paxId: normalisedPaxId,
+        selectedFaculty: selectedFaculty,
+      });
       const tx = await university.issueCertificate(studentAddress, encryptedName, encryptedCourse, encryptedGrade, normalisedPaxId);
+      console.log('[v0] Transaction sent:', tx.hash);
       const receipt = await tx.wait();
+      console.log('[v0] Transaction confirmed:', receipt);
 
       showMsg('success', `Certificate issued to ${certificateName}! PaxID: ${normalisedPaxId}`);
 
@@ -920,15 +1008,28 @@ export default function Dashboard() {
           const univName = myUniversities.find(u => u.address.toLowerCase() === univAddress.toLowerCase())?.name || 'Your Institution';
           
           // Fetch institution config to get signatories and logo for email certificate
-          let deanName = '', registrarName = '', vcName = '', logoUrl = '';
+          let registrarSignature = '', vcSignature = '', deanSignature = '', logoUrl = '', registrarName = '', vcName = '', deanName = '';
           try {
             const provider = await getReadOnlyProvider();
-            const university = new ethers.Contract(univAddress, UNIVERSITY_ABI, provider);
-            const config = await university.institutionConfig();
-            deanName = config.deanName || '';
+            const universityContract = new ethers.Contract(univAddress, UNIVERSITY_ABI, provider);
+            const config = await universityContract.institutionConfig();
             registrarName = config.registrarName || '';
+            registrarSignature = config.registrarSignatureURL || '';
             vcName = config.viceChancellorName || '';
+            vcSignature = config.viceChancellorSignatureURL || '';
             logoUrl = config.logoURL || '';
+            
+            // Get dean signature for selected faculty
+            try {
+              const faculties = await universityContract.getFacultySignatories();
+              const selectedFac = faculties.find((f: any) => f.facultyName.toLowerCase() === selectedFaculty.toLowerCase());
+              if (selectedFac) {
+                deanName = selectedFac.deanName;
+                deanSignature = selectedFac.deanSignatureURL;
+              }
+            } catch (_e) {
+              // Faculty not found, continue with empty dean signature
+            }
           } catch (_e) {
             // Silent — if config fetch fails, email will use defaults (empty signatories)
           }
@@ -945,25 +1046,27 @@ export default function Dashboard() {
               universityName: univName,
               studentAddress,
               contractAddress: univAddress,
-              dean: deanName,
               registrar: registrarName,
+              registrarSignature,
               vc: vcName,
-              logoUrl: logoUrl,
+              vcSignature,
+              dean: deanName,
+              deanSignature,
+              logoUrl,
+              domain: 'verify.example.edu',
             }),
           });
-          showMsg('success', `Certificate email sent to ${studentEmail}`);
         } catch (_e) {
-          showMsg('error', 'Certificate issued successfully but email failed to send. The blockchain record is safe.');
+          console.error('[v0] Email send error (continuing):', _e);
+          // Fail silently — email is optional
         }
       }
-
-      setStudentAddress('');
-      setCertificateName('');
-      setCourseName('');
-      setGrade('');
-      setPaxId('');
-      setStudentEmail('');
     } catch (error) {
+      console.error('[v0] Certificate issuance error:', error);
+      if (error instanceof Error) {
+        console.error('[v0] Error message:', error.message);
+        console.error('[v0] Full error:', JSON.stringify(error, null, 2));
+      }
       showMsg('error', parseError(error));
     } finally {
       setIsIssuing(false);
@@ -1019,10 +1122,17 @@ export default function Dashboard() {
       }
 
       // Fetch institution config for signatories and logo
-      let institutionConfig = { deanName: '', registrarName: '', viceChancellorName: '', verificationDomain: '', logoURL: '' };
+      let institutionConfig = { registrarName: '', registrarSignatureURL: '', viceChancellorName: '', viceChancellorSignatureURL: '', verificationDomain: '', logoURL: '' };
       try {
         institutionConfig = await university.institutionConfig();
       } catch (_e) { /* Silent — institution config may not be set */ }
+
+      // Fetch faculty signatories for dean signature
+      let deanName = '', deanSignatureURL = '';
+      try {
+        const facs = await university.getFacultySignatories();
+        if (facs.length > 0) { deanName = facs[0].deanName; deanSignatureURL = facs[0].deanSignatureURL; }
+      } catch (_e) { /* silent */ }
 
       const [decryptedName, decryptedCourse, decryptedGrade] = await Promise.all([
         decryptField(cert.candidateName, verifyUniv, resolvedStudent),
@@ -1045,11 +1155,19 @@ export default function Dashboard() {
         revocationDate: revoked && Number(revDate) > 0
           ? new Date(Number(revDate) * 1000).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })
           : '',
-        dean: institutionConfig.deanName || '',
+        dean: deanName,
+        deanSignature: deanSignatureURL,
         registrar: institutionConfig.registrarName || '',
+        registrarSignature: institutionConfig.registrarSignatureURL || '',
         vc: institutionConfig.viceChancellorName || '',
+        vcSignature: institutionConfig.viceChancellorSignatureURL || '',
         logoUrl: institutionConfig.logoURL || '',
         domain: institutionConfig.verificationDomain || 'v0-paxadmin.vercel.app',
+      });
+      console.log('[v0] Manual verification - certResult set:', {
+        deanSignature: deanSignatureURL ? 'YES' : 'NO',
+        registrarSignature: institutionConfig.registrarSignatureURL ? 'YES' : 'NO',
+        vcSignature: institutionConfig.viceChancellorSignatureURL ? 'YES' : 'NO',
       });
       showMsg(revoked ? 'error' : 'success', revoked ? 'This certificate has been revoked by the issuing institution.' : 'Certificate verified on the blockchain!');
     } catch (error) {
@@ -1405,10 +1523,10 @@ export default function Dashboard() {
               </div>
 
               {/* Faculties List */}
-              {faculties.length > 0 && (
+              {configuredFaculties.length > 0 && (
                 <div className="mt-4 space-y-2">
-                  <p className="text-xs text-slate-400">Added Faculties ({faculties.length}):</p>
-                  {faculties.map((fac) => (
+                  <p className="text-xs text-slate-400">Added Faculties ({configuredFaculties.length}):</p>
+                  {configuredFaculties.map((fac) => (
                     <div key={fac.id} className="flex items-center justify-between bg-slate-700/30 p-2 rounded text-sm">
                       <div>
                         <p className="text-slate-300 font-semibold">{fac.name}</p>
@@ -1637,6 +1755,25 @@ export default function Dashboard() {
                   onChange={(e) => setCertificateName(e.target.value)}
                   maxLength={120}
                 />
+              </div>
+              <div>
+                <label className={labelClass}>Select Faculty <span className="text-slate-500 font-normal">(for dean signature)</span></label>
+                <select 
+                  className={inputClass}
+                  value={selectedFaculty} 
+                  onChange={(e) => setSelectedFaculty(e.target.value)}
+                  disabled={!univAddress || faculties.length === 0 || isLoadingFaculties}
+                >
+                  <option value="">
+                    {isLoadingFaculties ? '⏳ Loading faculties...' : faculties.length === 0 ? 'Select a programme first' : '-- Select Faculty --'}
+                  </option>
+                  {faculties.map((fac) => (
+                    <option key={fac.facultyName} value={fac.facultyName}>
+                      {fac.facultyName} (Dean: {fac.deanName})
+                    </option>
+                  ))}
+                </select>
+                <p className="text-xs text-slate-500 mt-1">Select the faculty the student belongs to. The dean's signature for this faculty will appear on the certificate.</p>
               </div>
               <div>
                 <label className={labelClass}>Field of Study</label>
@@ -1942,7 +2079,7 @@ export default function Dashboard() {
                       View on Blockchain
                     </a>
                     <a
-                      href={`/api/certificate/image?name=${encodeURIComponent(certResult.candidateName)}&course=${encodeURIComponent(certResult.courseName)}&grade=${encodeURIComponent(certResult.grade)}&paxId=${encodeURIComponent(certResult.paxId)}&university=${encodeURIComponent(certResult.universityName)}&date=${encodeURIComponent(certResult.issuedAt)}&dean=${encodeURIComponent(certResult.dean || '')}&registrar=${encodeURIComponent(certResult.registrar || '')}&vc=${encodeURIComponent(certResult.vc || '')}&logo=${encodeURIComponent(certResult.logoUrl || '')}&domain=${encodeURIComponent(certResult.domain || 'v0-paxadmin.vercel.app')}&verifyUrl=${encodeURIComponent(`${process.env.NEXT_PUBLIC_SITE_URL || 'https://v0-paxadmin.vercel.app'}/?tab=verify&paxId=${certResult.paxId}&contract=${certResult.univAddress}`)}&revoked=${certResult.isRevoked ? 'true' : 'false'}&revokeReason=${encodeURIComponent(certResult.revocationReason || '')}`}
+                      href={`/api/certificate/image?name=${encodeURIComponent(certResult.candidateName)}&course=${encodeURIComponent(certResult.courseName)}&grade=${encodeURIComponent(certResult.grade)}&paxId=${encodeURIComponent(certResult.paxId)}&university=${encodeURIComponent(certResult.universityName)}&date=${encodeURIComponent(certResult.issuedAt)}&registrar=${encodeURIComponent(certResult.registrar || '')}&registrarSig=${encodeURIComponent(certResult.registrarSignature || '')}&vc=${encodeURIComponent(certResult.vc || '')}&vcSig=${encodeURIComponent(certResult.vcSignature || '')}&dean=${encodeURIComponent(certResult.dean || '')}&deanSig=${encodeURIComponent(certResult.deanSignature || '')}&logo=${encodeURIComponent(certResult.logoUrl || '')}&domain=${encodeURIComponent(certResult.domain || 'v0-paxadmin.vercel.app')}&verifyUrl=${encodeURIComponent(`${process.env.NEXT_PUBLIC_SITE_URL || 'https://v0-paxadmin.vercel.app'}/?tab=verify&paxId=${certResult.paxId}&contract=${certResult.univAddress}`)}&revoked=${certResult.isRevoked ? 'true' : 'false'}&revokeReason=${encodeURIComponent(certResult.revocationReason || '')}`}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="text-xs text-green-400 hover:text-green-300 underline"

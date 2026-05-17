@@ -4,6 +4,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { ethers } from 'ethers';
 import SignatureCanvas from 'react-signature-canvas';
+import { logGDPRCompliant } from '@/lib/dataMasking';
 
 // Factory contract - PaxID, grade, signatory config, logo URL, deactivation support
 const FACTORY_ADDRESS = '0x85ed98B33160679BFcF12d82F219Ee5cBB8B68a1';
@@ -165,7 +166,6 @@ export default function Dashboard() {
 
   // Deploy tab
   const [univName, setUnivName] = useState('');
-  const [degreeLevel, setDegreeLevel] = useState('');
   const [univSymbol, setUnivSymbol] = useState('');
   const [univAdmin, setUnivAdmin] = useState('');
   const [isDeploying, setIsDeploying] = useState(false);
@@ -611,22 +611,16 @@ export default function Dashboard() {
   };
 
   const deployUniversity = async () => {
-    if (!signer) { showMsg('error', 'Please connect your wallet first.'); return; }
-    if (!univName || !degreeLevel || !univSymbol || !univAdmin) { showMsg('error', 'Please fill in all fields before deploying.'); return; }
-    if (!ethers.isAddress(univAdmin)) { showMsg('error', 'The admin wallet address is not valid. Please check and try again.'); return; }
+    if (!univName || !univSymbol || !univAdmin) { showMsg('error', 'Please fill in all fields before deploying.'); return; }
+    if (!ethers.isAddress(univAdmin)) { showMsg('error', 'Programme Administrator Wallet is not a valid address.'); return; }
     setIsDeploying(true);
     try {
-      // Combine university name and degree level into one clear contract name
-      const fullName = `${univName.trim()} - ${degreeLevel}`;
-      const baseMetadataURI = window.location.origin;
-      const factory = new ethers.Contract(FACTORY_ADDRESS, FACTORY_ABI, signer);
-      showMsg('info', 'Deploying university contract... Please confirm in MetaMask.');
-      const tx = await factory.deployUniversity(fullName, univSymbol, univAdmin, baseMetadataURI);
+      showMsg('info', 'Deploying institution contract... Please confirm in MetaMask.');
+      const tx = await factory.deployUniversity(univName.trim(), univSymbol, univAdmin, baseMetadataURI);
       const receipt = await tx.wait();
-      const event = receipt.logs.find((l: { topics: string[] }) => l.topics.length > 0);
-      const univAddr = event?.address || receipt.contractAddress || 'Check Etherscan';
+      const univAddr = receipt?.logs[0]?.address || receipt?.to;
       setDeployedUnivAddress(univAddr);
-      showMsg('success', `University deployed successfully!`);
+      showMsg('success', `Institution registered! Contract: ${univAddr}`);
     } catch (error) {
       showMsg('error', parseError(error));
     } finally {
@@ -986,7 +980,8 @@ export default function Dashboard() {
 
       const university = new ethers.Contract(univAddress, UNIVERSITY_ABI, signer);
       showMsg('info', 'Issuing certificate... Please confirm in MetaMask.');
-      console.log('[v0] Issuing certificate with:', {
+      // Log masked data for GDPR compliance - useful for debugging without exposing PII
+      logGDPRCompliant('Certificate issuance', {
         student: studentAddress,
         name: certificateName,
         course: courseName,
@@ -997,7 +992,6 @@ export default function Dashboard() {
       const tx = await university.issueCertificate(studentAddress, encryptedName, encryptedCourse, encryptedGrade, normalisedPaxId);
       console.log('[v0] Transaction sent:', tx.hash);
       const receipt = await tx.wait();
-      console.log('[v0] Transaction confirmed:', receipt);
 
       showMsg('success', `Certificate issued to ${certificateName}! PaxID: ${normalisedPaxId}`);
 
@@ -1314,39 +1308,12 @@ export default function Dashboard() {
             <div>
               <label className={labelClass}>Institution Name</label>
               <input className={inputClass} placeholder="e.g. University of Lagos" value={univName} onChange={(e) => setUnivName(e.target.value)} />
-            </div>
-            <div>
-              <label className={labelClass}>Degree / Programme Level</label>
-              <select
-                className={inputClass}
-                value={degreeLevel}
-                onChange={(e) => setDegreeLevel(e.target.value)}
-              >
-                <option value="">-- Select programme level --</option>
-                <option value="BSc">BSc - Bachelor of Science</option>
-                <option value="BA">BA - Bachelor of Arts</option>
-                <option value="BEng">BEng - Bachelor of Engineering</option>
-                <option value="LLB">LLB - Bachelor of Law</option>
-                <option value="MBBS">MBBS - Medicine and Surgery</option>
-                <option value="MSc">MSc - Master of Science</option>
-                <option value="MA">MA - Master of Arts</option>
-                <option value="MBA">MBA - Master of Business Administration</option>
-                <option value="LLM">LLM - Master of Law</option>
-                <option value="PhD">PhD - Doctor of Philosophy</option>
-                <option value="Diploma">Diploma</option>
-                <option value="HND">HND - Higher National Diploma</option>
-                <option value="Certificate">Certificate of Completion</option>
-              </select>
-              {univName && degreeLevel && (
-                <p className="text-xs text-blue-400 mt-1">
-                  Programme will be registered as: <span className="font-semibold">&quot;{univName} - {degreeLevel}&quot;</span>
-                </p>
-              )}
+              <p className="text-xs text-slate-500 mt-1">Your institution's official name. You&apos;ll add different faculties and degree levels in Step 2 (no need to create separate programmes).</p>
             </div>
             <div>
               <label className={labelClass}>Certificate Identifier</label>
               <input className={inputClass} placeholder="e.g. UNILAG" value={univSymbol} onChange={(e) => setUnivSymbol(e.target.value)} />
-              <p className="text-xs text-slate-500 mt-1">A short unique code for this programme (2-6 characters, e.g. UNILAG, HARV)</p>
+              <p className="text-xs text-slate-500 mt-1">A short unique code for this institution (2-6 characters, e.g. UNILAG, HARV)</p>
             </div>
             <div>
               <label className={labelClass}>Programme Administrator Wallet</label>
@@ -1377,11 +1344,11 @@ export default function Dashboard() {
           <div className="bg-slate-800 rounded-xl p-6 border border-blue-900/40 space-y-6 mt-6">
             <div className="flex items-center gap-2">
               <span className="bg-blue-700 text-white text-xs font-bold px-2 py-0.5 rounded-full">Step 2</span>
-              <h2 className="text-base font-bold">Configure Institution Signatories with Signatures</h2>
+              <h2 className="text-base font-bold">Configure Institution Signatories & Faculties</h2>
               <span className="text-xs text-slate-400 ml-auto">Draw real signatures using your mouse</span>
             </div>
             <p className="text-slate-400 text-sm">
-              Add the Registrar and Vice-Chancellor signatures, then dynamically add faculties. Signatures will appear on all issued certificates.
+              Add institution-wide signatories (Registrar, Vice-Chancellor), then configure faculties. Each faculty can represent a degree level (BSc, LLB, etc.) with its own dean. Signatures will appear on all issued certificates.
             </p>
 
             {/* Programme Address */}
@@ -1490,12 +1457,12 @@ export default function Dashboard() {
 
             {/* FACULTIES SECTION */}
             <div className="border border-slate-700 rounded-lg p-4 space-y-4">
-              <h3 className="text-sm font-semibold text-green-300">Add Faculties</h3>
-              <p className="text-xs text-slate-400">Add faculty deans with their signatures. You can add as many faculties as your institution has.</p>
+              <h3 className="text-sm font-semibold text-green-300">Configure Faculties & Degree Programs</h3>
+              <p className="text-xs text-slate-400">Each faculty can represent a different degree level (e.g., &quot;Faculty of Science&quot; for BSc, &quot;Faculty of Law&quot; for LLB). Add a dean with signature for each faculty. You can add as many as your institution needs.</p>
 
               <div>
-                <label className={labelClass}>Faculty Name</label>
-                <input className={inputClass} placeholder="e.g. Faculty of Science" value={newFacultyName} onChange={(e) => setNewFacultyName(e.target.value)} />
+                <label className={labelClass}>Faculty / Degree Program Name</label>
+                <input className={inputClass} placeholder="e.g. Faculty of Science (BSc) or Faculty of Law (LLB)" value={newFacultyName} onChange={(e) => setNewFacultyName(e.target.value)} />
               </div>
 
               <div>

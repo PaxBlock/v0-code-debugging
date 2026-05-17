@@ -242,8 +242,11 @@ export default function Dashboard() {
     revocationReason: string;
     revocationDate: string;
     dean: string;
+    deanSignature: string;
     registrar: string;
+    registrarSignature: string;
     vc: string;
+    vcSignature: string;
     logoUrl: string;
     domain: string;
   } | null>(null);
@@ -298,8 +301,14 @@ export default function Dashboard() {
           let univName;
           try { univName = await university.name(); } catch (_e) { univName = `Programme (${contractParam.slice(0, 8)}...)`; }
           // Fetch institution config for signatories and logo
-          let config = { deanName: '', registrarName: '', viceChancellorName: '', verificationDomain: '', logoURL: '' };
+          let config = { registrarName: '', registrarSignatureURL: '', viceChancellorName: '', viceChancellorSignatureURL: '', verificationDomain: '', logoURL: '' };
           try { config = await university.institutionConfig(); } catch (_e) { /* silent */ }
+          // Fetch faculty signatories for dean signature
+          let deanName = '', deanSignatureURL = '';
+          try {
+            const facs = await university.getFacultySignatories();
+            if (facs.length > 0) { deanName = facs[0].deanName; deanSignatureURL = facs[0].deanSignatureURL; }
+          } catch (_e) { /* silent */ }
           const [decryptedName, decryptedCourse, decryptedGrade] = await Promise.all([
             decryptField(cert.candidateName, contractParam, resolvedStudent),
             decryptField(cert.courseName, contractParam, resolvedStudent),
@@ -320,9 +329,12 @@ export default function Dashboard() {
             revocationDate: revoked && Number(revDate) > 0
               ? new Date(Number(revDate) * 1000).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })
               : '',
-            dean: config.deanName || '',
+            dean: deanName,
+            deanSignature: deanSignatureURL,
             registrar: config.registrarName || '',
+            registrarSignature: config.registrarSignatureURL || '',
             vc: config.viceChancellorName || '',
+            vcSignature: config.viceChancellorSignatureURL || '',
             logoUrl: config.logoURL || '',
             domain: config.verificationDomain || 'v0-paxadmin.vercel.app',
           });
@@ -1098,10 +1110,17 @@ export default function Dashboard() {
       }
 
       // Fetch institution config for signatories and logo
-      let institutionConfig = { deanName: '', registrarName: '', viceChancellorName: '', verificationDomain: '', logoURL: '' };
+      let institutionConfig = { registrarName: '', registrarSignatureURL: '', viceChancellorName: '', viceChancellorSignatureURL: '', verificationDomain: '', logoURL: '' };
       try {
         institutionConfig = await university.institutionConfig();
       } catch (_e) { /* Silent — institution config may not be set */ }
+
+      // Fetch faculty signatories for dean signature
+      let deanName = '', deanSignatureURL = '';
+      try {
+        const facs = await university.getFacultySignatories();
+        if (facs.length > 0) { deanName = facs[0].deanName; deanSignatureURL = facs[0].deanSignatureURL; }
+      } catch (_e) { /* silent */ }
 
       const [decryptedName, decryptedCourse, decryptedGrade] = await Promise.all([
         decryptField(cert.candidateName, verifyUniv, resolvedStudent),
@@ -1124,9 +1143,12 @@ export default function Dashboard() {
         revocationDate: revoked && Number(revDate) > 0
           ? new Date(Number(revDate) * 1000).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })
           : '',
-        dean: institutionConfig.deanName || '',
+        dean: deanName,
+        deanSignature: deanSignatureURL,
         registrar: institutionConfig.registrarName || '',
+        registrarSignature: institutionConfig.registrarSignatureURL || '',
         vc: institutionConfig.viceChancellorName || '',
+        vcSignature: institutionConfig.viceChancellorSignatureURL || '',
         logoUrl: institutionConfig.logoURL || '',
         domain: institutionConfig.verificationDomain || 'v0-paxadmin.vercel.app',
       });

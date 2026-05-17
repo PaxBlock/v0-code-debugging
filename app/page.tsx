@@ -338,6 +338,11 @@ export default function Dashboard() {
             logoUrl: config.logoURL || '',
             domain: config.verificationDomain || 'v0-paxadmin.vercel.app',
           });
+          console.log('[v0] QR verification - certResult set:', {
+            deanSignature: deanSignatureURL ? 'YES' : 'NO',
+            registrarSignature: config.registrarSignatureURL ? 'YES' : 'NO',
+            vcSignature: config.viceChancellorSignatureURL ? 'YES' : 'NO',
+          });
           showMsg(revoked ? 'error' : 'success', revoked ? 'This certificate has been revoked.' : 'Certificate verified on the blockchain!');
         } catch (_e) { /* silent — user can manually hit Verify if auto fails */ }
         finally { setIsVerifying(false); }
@@ -1151,6 +1156,11 @@ export default function Dashboard() {
         vcSignature: institutionConfig.viceChancellorSignatureURL || '',
         logoUrl: institutionConfig.logoURL || '',
         domain: institutionConfig.verificationDomain || 'v0-paxadmin.vercel.app',
+      });
+      console.log('[v0] Manual verification - certResult set:', {
+        deanSignature: deanSignatureURL ? 'YES' : 'NO',
+        registrarSignature: institutionConfig.registrarSignatureURL ? 'YES' : 'NO',
+        vcSignature: institutionConfig.viceChancellorSignatureURL ? 'YES' : 'NO',
       });
       showMsg(revoked ? 'error' : 'success', revoked ? 'This certificate has been revoked by the issuing institution.' : 'Certificate verified on the blockchain!');
     } catch (error) {

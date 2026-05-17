@@ -24,6 +24,15 @@ export async function GET(req: NextRequest) {
   const revokeReason   = searchParams.get('revokeReason') || '';
   const verifyUrl      = searchParams.get('verifyUrl')     || '';
 
+  console.log('[certificate-image] Received params:', {
+    registrarSig: registrarSig ? 'YES (URL present)' : 'NO',
+    vcSig: vcSig ? 'YES (URL present)' : 'NO',
+    deanSig: deanSig ? 'YES (URL present)' : 'NO',
+    registrarName,
+    viceChancellor,
+    deanName,
+  });
+
   const qrData = verifyUrl || `https://${domain}`;
   const qrImageUrl = `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(qrData)}&bgcolor=fdf6e3&color=1a1a2e&margin=8&qzone=2`;
 

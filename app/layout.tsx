@@ -15,6 +15,9 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "Academic Certificate dApp | Deploy & Manage Soulbound NFTs",
   description: "Manage your university's soulbound NFT academic certificates on Sepolia testnet",
+  icons: {
+    icon: "https://hebbkx1anhila5yf.public.blob.vercel-storage.com/Pax-7YjXsywyiRC99UEehcQt9aj3Nw1hQP.jpg",
+  },
   viewport: {
     width: "device-width",
     initialScale: 1,

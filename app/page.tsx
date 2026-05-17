@@ -4,6 +4,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { ethers } from 'ethers';
 import SignatureCanvas from 'react-signature-canvas';
+import { logGDPRCompliant } from '@/lib/dataMasking';
 
 // Factory contract - PaxID, grade, signatory config, logo URL, deactivation support
 const FACTORY_ADDRESS = '0x85ed98B33160679BFcF12d82F219Ee5cBB8B68a1';
@@ -986,6 +987,15 @@ export default function Dashboard() {
 
       const university = new ethers.Contract(univAddress, UNIVERSITY_ABI, signer);
       showMsg('info', 'Issuing certificate... Please confirm in MetaMask.');
+      // Log masked data for GDPR compliance - useful for debugging without exposing PII
+      logGDPRCompliant('Certificate issuance', {
+        student: studentAddress,
+        name: certificateName,
+        course: courseName,
+        grade: grade,
+        paxId: normalisedPaxId,
+        selectedFaculty: selectedFaculty,
+      });
       const tx = await university.issueCertificate(studentAddress, encryptedName, encryptedCourse, encryptedGrade, normalisedPaxId);
       console.log('[v0] Transaction sent:', tx.hash);
       const receipt = await tx.wait();

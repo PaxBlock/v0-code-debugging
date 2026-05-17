@@ -613,15 +613,23 @@ export default function Dashboard() {
   const deployUniversity = async () => {
     if (!univName || !univSymbol || !univAdmin) { showMsg('error', 'Please fill in all fields before deploying.'); return; }
     if (!ethers.isAddress(univAdmin)) { showMsg('error', 'Programme Administrator Wallet is not a valid address.'); return; }
+    if (!signer) { showMsg('error', 'Please connect your wallet first.'); return; }
     setIsDeploying(true);
     try {
+      console.log('[v0] Deploy params:', { univName: univName.trim(), univSymbol, univAdmin, baseMetadataURI });
       showMsg('info', 'Deploying institution contract... Please confirm in MetaMask.');
+      const factory = new ethers.Contract(FACTORY_ADDRESS, FACTORY_ABI, signer);
       const tx = await factory.deployUniversity(univName.trim(), univSymbol, univAdmin, baseMetadataURI);
+      console.log('[v0] Transaction sent:', tx.hash);
       const receipt = await tx.wait();
+      console.log('[v0] Receipt:', receipt);
       const univAddr = receipt?.logs[0]?.address || receipt?.to;
+      console.log('[v0] Deployed address:', univAddr);
       setDeployedUnivAddress(univAddr);
       showMsg('success', `Institution registered! Contract: ${univAddr}`);
     } catch (error) {
+      console.error('[v0] Deploy error:', error);
+      console.error('[v0] Error type:', error instanceof Error ? error.message : JSON.stringify(error));
       showMsg('error', parseError(error));
     } finally {
       setIsDeploying(false);

@@ -351,10 +351,17 @@ export default function Dashboard() {
   }, []);
 
   // Load all universities when verify tab opens (public)
-  // Load only wallet's universities when issue tab opens (role-filtered)
+  // Load public universities list on initial mount (before wallet connection)
+  useEffect(() => {
+    if (universities.length === 0 && !isLoadingUnis) {
+      loadUniversities(true);
+    }
+  }, []);
+
+  // Load universities for Verify tab (public — no wallet needed) or Issue tab (wallet-filtered)
   useEffect(() => {
     if (activeTab === 'verify') {
-      loadUniversities(true); // Force refresh to always show latest programmes
+      loadUniversities(true); // Force refresh — publicly accessible, no wallet needed
     }
     if (activeTab === 'issue' && account) {
       loadMyUniversities(account);

@@ -986,18 +986,9 @@ export default function Dashboard() {
 
       const university = new ethers.Contract(univAddress, UNIVERSITY_ABI, signer);
       showMsg('info', 'Issuing certificate... Please confirm in MetaMask.');
-      console.log('[v0] Issuing certificate with:', {
-        student: studentAddress,
-        name: certificateName,
-        course: courseName,
-        grade: grade,
-        paxId: normalisedPaxId,
-        selectedFaculty: selectedFaculty,
-      });
       const tx = await university.issueCertificate(studentAddress, encryptedName, encryptedCourse, encryptedGrade, normalisedPaxId);
       console.log('[v0] Transaction sent:', tx.hash);
       const receipt = await tx.wait();
-      console.log('[v0] Transaction confirmed:', receipt);
 
       showMsg('success', `Certificate issued to ${certificateName}! PaxID: ${normalisedPaxId}`);
 

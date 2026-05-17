@@ -1055,10 +1055,17 @@ export default function Dashboard() {
               logoUrl,
               domain: 'verify.example.edu',
             }),
+          }).then(res => {
+            if (res.ok) {
+              showMsg('success', `Certificate email sent to ${studentEmail}!`);
+            } else {
+              console.error('[v0] Email send failed with status:', res.status);
+              showMsg('warning', 'Certificate issued but email failed to send. The blockchain record is safe.');
+            }
           });
         } catch (_e) {
           console.error('[v0] Email send error (continuing):', _e);
-          // Fail silently — email is optional
+          showMsg('warning', 'Certificate issued but email failed to send. The blockchain record is safe.');
         }
       }
     } catch (error) {

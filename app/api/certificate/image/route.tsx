@@ -247,21 +247,26 @@ export async function GET(req: NextRequest) {
                 { imageUrl: vcSig, label: viceChancellor || 'Vice-Chancellor' },
                 { imageUrl: deanSig, label: deanName || 'Dean' },
               ] as Array<{imageUrl: string; label: string}>).map(({ imageUrl, label }) => (
-                <div key={label} style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                <div key={label} style={{ display: 'flex', flexDirection: 'column', gap: '6px', alignItems: 'center', minWidth: '140px' }}>
                   {imageUrl ? (
                     <img
                       src={imageUrl}
                       alt={`${label} signature`}
-                      width={180}
-                      height={60}
-                      style={{ maxWidth: '180px', maxHeight: '60px', objectFit: 'contain' }}
+                      width={140}
+                      height={50}
+                      style={{ 
+                        maxWidth: '140px', 
+                        maxHeight: '50px', 
+                        objectFit: 'contain',
+                        filter: 'brightness(0) saturate(100%)', // Makes signature black
+                      }}
                     />
                   ) : (
-                    <span style={{ fontSize: '21px', fontStyle: 'italic', color: BROWN, fontFamily: 'serif', letterSpacing: '0.5px', minHeight: '60px' }}>
-                      _____________________
+                    <span style={{ fontSize: '16px', fontStyle: 'italic', color: BROWN, fontFamily: 'serif', letterSpacing: '0.5px', minHeight: '50px', display: 'flex', alignItems: 'flex-end' }}>
+                      _______________
                     </span>
                   )}
-                  <span style={{ fontSize: '11px', color: BROWN, fontStyle: 'italic', marginTop: '2px' }}>{label}</span>
+                  <span style={{ fontSize: '10px', color: BROWN, fontStyle: 'italic', fontWeight: 'bold', textAlign: 'center', minHeight: '18px' }}>{label}</span>
                 </div>
               ))}
             </div>

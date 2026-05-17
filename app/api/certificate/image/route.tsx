@@ -269,9 +269,14 @@ export async function GET(req: NextRequest) {
                       _______________
                     </span>
                   )}
-                  <span style={{ fontSize: '9px', color: BROWN, fontStyle: 'italic', fontWeight: 'bold', textAlign: 'center', minHeight: '18px', lineHeight: '1.2' }}>
-                    {name}<br/><span style={{ fontStyle: 'normal', fontSize: '8px' }}>{position}</span>
-                  </span>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '3px', alignItems: 'center' }}>
+                    <span style={{ fontSize: '9px', color: BROWN, fontStyle: 'italic', fontWeight: 'bold', textAlign: 'center', lineHeight: '1.1' }}>
+                      {name}
+                    </span>
+                    <span style={{ fontSize: '8px', color: BROWN, fontStyle: 'normal', textAlign: 'center', lineHeight: '1.1' }}>
+                      {position}
+                    </span>
+                  </div>
                 </div>
               ))}
             </div>

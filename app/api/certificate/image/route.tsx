@@ -6,23 +6,26 @@ export const runtime = 'edge';
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
 
-  const studentName    = searchParams.get('name')         || 'Graduate Name';
-  const course         = searchParams.get('course')        || 'Field of Study';
-  const grade          = searchParams.get('grade')         || '';
-  const issuedDate     = searchParams.get('date')          || '';
-  const paxId          = searchParams.get('paxId')         || '';
-  const university     = searchParams.get('university')    || 'Institution Name';
-  const registrarSig   = searchParams.get('registrarSig')  || ''; // Signature image URL
-  const registrarName  = searchParams.get('registrar')     || '';
-  const vcSig          = searchParams.get('vcSig')         || ''; // Signature image URL
-  const viceChancellor = searchParams.get('vc')            || '';
-  const deanSig        = searchParams.get('deanSig')       || ''; // Signature image URL
-  const deanName       = searchParams.get('dean')          || '';
-  const domain         = searchParams.get('domain')        || 'v0-paxadmin.vercel.app';
-  const logoUrl        = searchParams.get('logo')          || '';
-  const revoked        = searchParams.get('revoked')       === 'true';
-  const revokeReason   = searchParams.get('revokeReason') || '';
-  const verifyUrl      = searchParams.get('verifyUrl')     || '';
+  const studentName    = searchParams.get('name')           || 'Graduate Name';
+  const course         = searchParams.get('course')          || 'Field of Study';
+  const grade          = searchParams.get('grade')           || '';
+  const issuedDate     = searchParams.get('date')            || '';
+  const paxId          = searchParams.get('paxId')           || '';
+  const university     = searchParams.get('university')      || 'Institution Name';
+  const registrarSig   = searchParams.get('registrarSig')    || ''; // Signature image URL
+  const registrarName  = searchParams.get('registrar')       || '';
+  const registrarPos   = searchParams.get('registrarPos')    || 'Registrar';
+  const vcSig          = searchParams.get('vcSig')           || ''; // Signature image URL
+  const viceChancellor = searchParams.get('vc')              || '';
+  const vcPos          = searchParams.get('vcPos')           || 'Vice-Chancellor';
+  const deanSig        = searchParams.get('deanSig')         || ''; // Signature image URL
+  const deanName       = searchParams.get('dean')            || '';
+  const deanPos        = searchParams.get('deanPos')         || 'Dean';
+  const domain         = searchParams.get('domain')          || 'v0-paxadmin.vercel.app';
+  const logoUrl        = searchParams.get('logo')            || '';
+  const revoked        = searchParams.get('revoked')         === 'true';
+  const revokeReason   = searchParams.get('revokeReason')   || '';
+  const verifyUrl      = searchParams.get('verifyUrl')       || '';
 
   console.log('[certificate-image] Received params:', {
     registrarSig: registrarSig ? 'YES (URL present)' : 'NO',
@@ -243,15 +246,15 @@ export async function GET(req: NextRequest) {
             {/* Signatures */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: '18px', flex: 1, paddingLeft: '36px' }}>
               {([
-                { imageUrl: registrarSig, label: registrarName || 'Registrar' },
-                { imageUrl: vcSig, label: viceChancellor || 'Vice-Chancellor' },
-                { imageUrl: deanSig, label: deanName || 'Dean' },
-              ] as Array<{imageUrl: string; label: string}>).map(({ imageUrl, label }) => (
-                <div key={label} style={{ display: 'flex', flexDirection: 'column', gap: '6px', alignItems: 'center', minWidth: '140px' }}>
+                { imageUrl: registrarSig, name: registrarName || 'Registrar', position: registrarPos },
+                { imageUrl: vcSig, name: viceChancellor || 'Vice-Chancellor', position: vcPos },
+                { imageUrl: deanSig, name: deanName || 'Dean', position: deanPos },
+              ] as Array<{imageUrl: string; name: string; position: string}>).map(({ imageUrl, name, position }) => (
+                <div key={name} style={{ display: 'flex', flexDirection: 'column', gap: '6px', alignItems: 'center', minWidth: '140px' }}>
                   {imageUrl ? (
                     <img
                       src={imageUrl}
-                      alt={`${label} signature`}
+                      alt={`${name} signature`}
                       width={140}
                       height={50}
                       style={{ 
@@ -266,7 +269,9 @@ export async function GET(req: NextRequest) {
                       _______________
                     </span>
                   )}
-                  <span style={{ fontSize: '10px', color: BROWN, fontStyle: 'italic', fontWeight: 'bold', textAlign: 'center', minHeight: '18px' }}>{label}</span>
+                  <span style={{ fontSize: '9px', color: BROWN, fontStyle: 'italic', fontWeight: 'bold', textAlign: 'center', minHeight: '18px', lineHeight: '1.2' }}>
+                    {name}<br/><span style={{ fontStyle: 'normal', fontSize: '8px' }}>{position}</span>
+                  </span>
                 </div>
               ))}
             </div>

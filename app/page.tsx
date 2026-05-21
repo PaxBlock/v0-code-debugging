@@ -625,7 +625,10 @@ export default function Dashboard() {
     try {
       showMsg('info', 'Deploying institution contract... Please confirm in MetaMask.');
       const factory = new ethers.Contract(FACTORY_ADDRESS, FACTORY_ABI, signer);
-      const tx = await factory.deployUniversity(univName.trim(), univSymbol, univAdmin, BASE_METADATA_URI);
+      // Checksum the admin address to ensure correct format
+      const checksummedAdmin = ethers.getAddress(univAdmin);
+      console.log('[v0] Deploying with checksummed admin:', checksummedAdmin);
+      const tx = await factory.deployUniversity(univName.trim(), univSymbol, checksummedAdmin, BASE_METADATA_URI);
       console.log('[v0] Transaction sent:', tx.hash);
       const receipt = await tx.wait();
       const univAddr = receipt?.logs[0]?.address || receipt?.to;

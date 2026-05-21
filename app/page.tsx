@@ -7,7 +7,7 @@ import SignatureCanvas from 'react-signature-canvas';
 import { logGDPRCompliant } from '@/lib/dataMasking';
 
 // Factory contract - PaxID, grade, signatory config, logo URL, deactivation support
-const FACTORY_ADDRESS = '0x85ed98B33160679BFcF12d82F219Ee5cBB8B68a1';
+const FACTORY_ADDRESS = '0xB0Ec1fF6C7850565595d69C07dE8cFBA15BF6361';
 const SEPOLIA_CHAIN_ID = 11155111;
 const SEPOLIA_HEX = '0xaa36a7';
 const BASE_METADATA_URI = 'https://ipfs.io/ipfs/'; // Base URI for certificate metadata storage

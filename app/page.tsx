@@ -623,27 +623,24 @@ export default function Dashboard() {
     if (!signer) { showMsg('error', 'Please connect your wallet first.'); return; }
     setIsDeploying(true);
     try {
-      console.log('[v0] Deploying with params:', { 
-        univName: univName.trim(), 
-        univSymbol, 
-        univAdmin,
-        yourWallet: account,
-        isAdmin: univAdmin.toLowerCase() === account?.toLowerCase()
-      });
       showMsg('info', 'Deploying institution contract... Please confirm in MetaMask.');
       const factory = new ethers.Contract(FACTORY_ADDRESS, FACTORY_ABI, signer);
       const tx = await factory.deployUniversity(univName.trim(), univSymbol, univAdmin, BASE_METADATA_URI);
       console.log('[v0] Transaction sent:', tx.hash);
       const receipt = await tx.wait();
-      console.log('[v0] Receipt:', receipt);
       const univAddr = receipt?.logs[0]?.address || receipt?.to;
-      console.log('[v0] Deployed address:', univAddr);
       setDeployedUnivAddress(univAddr);
       showMsg('success', `Institution registered! Contract: ${univAddr}`);
     } catch (error) {
       console.error('[v0] Deploy error:', error);
-      console.error('[v0] Error type:', error instanceof Error ? error.message : JSON.stringify(error));
-      showMsg('error', parseError(error));
+      const errorMsg = error instanceof Error ? error.message : String(error);
+      
+      // Check if it's a permission error - FACTORY_ADMIN_ROLE required
+      if (errorMsg.includes('execution reverted') && errorMsg.includes('e2517d3f')) {
+        showMsg('error', 'Your wallet does not have FACTORY_ADMIN_ROLE permission. Contact the wallet that deployed this Factory contract to grant you this role, or use that wallet to deploy institutions.');
+      } else {
+        showMsg('error', parseError(error));
+      }
     } finally {
       setIsDeploying(false);
     }

@@ -58,10 +58,21 @@ contract UniversityFactory is AccessControl {
     }
 
     /**
-     * @dev Deploys a new AcademicCertificate contract for a specific university.
-     * @param universityName The name of the university (e.g., "University of Lagos - BSc").
-     * @param symbol The token symbol (e.g., "UNILAG").
-     * @param universityAdmin The wallet address of the University Chief Admin.
+     * @dev Deploys a new AcademicCertificate contract for a specific university/institution.
+     * 
+     * CRITICAL: ANY EVM-compatible wallet address can be set as the university admin.
+     * There are NO restrictions on which address can be the institution admin.
+     * 
+     * @param universityName The name of the institution (e.g., "University of Lagos").
+     * @param symbol The certificate identifier symbol (e.g., "UNILAG").
+     * @param universityAdmin ANY valid EVM wallet address - can be:
+     *                         - An externally-owned account (EOA)
+     *                         - A multi-signature wallet
+     *                         - A different institution's wallet
+     *                         - Any address the institution controls
+     *                         There are NO restrictions or whitelist checks.
+     * @param baseMetadataURI Base URI for certificate metadata storage (e.g., IPFS gateway).
+     * @return The address of the newly deployed university contract.
      */
     function deployUniversity(
         string memory universityName,
@@ -69,6 +80,11 @@ contract UniversityFactory is AccessControl {
         address universityAdmin,
         string memory baseMetadataURI
     ) external onlyRole(FACTORY_ADMIN_ROLE) returns (address) {
+        // Validate inputs - ONLY checks are: non-zero address and non-empty strings
+        // NO whitelist, NO restrictions on WHO can be admin
+        require(universityAdmin != address(0), "University admin cannot be zero address");
+        require(bytes(universityName).length > 0, "University name cannot be empty");
+        require(bytes(symbol).length > 0, "University symbol cannot be empty");
 
         // Deploy a new instance of the Academic Certificate contract
         AcademicCertificate newUniversity = new AcademicCertificate(

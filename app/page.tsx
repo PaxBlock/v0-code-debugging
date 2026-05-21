@@ -623,7 +623,13 @@ export default function Dashboard() {
     if (!signer) { showMsg('error', 'Please connect your wallet first.'); return; }
     setIsDeploying(true);
     try {
-      console.log('[v0] Deploy params:', { univName: univName.trim(), univSymbol, univAdmin });
+      console.log('[v0] Deploying with params:', { 
+        univName: univName.trim(), 
+        univSymbol, 
+        univAdmin,
+        yourWallet: account,
+        isAdmin: univAdmin.toLowerCase() === account?.toLowerCase()
+      });
       showMsg('info', 'Deploying institution contract... Please confirm in MetaMask.');
       const factory = new ethers.Contract(FACTORY_ADDRESS, FACTORY_ABI, signer);
       const tx = await factory.deployUniversity(univName.trim(), univSymbol, univAdmin, BASE_METADATA_URI);

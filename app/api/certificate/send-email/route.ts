@@ -236,7 +236,7 @@ export async function POST(req: NextRequest) {
       html: string;
       attachments?: { filename: string; content: string }[];
     } = {
-      from: 'PaxBlockchain Certificates <certificates@resend.dev>',
+      from: 'PaxBlockchain Certificates <certificates@paxblockchain.com>',
       to: [to],
       subject: `Your Academic Certificate — ${universityName}`,
       html,

@@ -28,6 +28,7 @@ const FACTORY_ABI = [
   'function reactivateUniversity(address universityContract) external',
   'function hasRole(bytes32 role, address account) external view returns (bool)',
   'function DEFAULT_ADMIN_ROLE() external view returns (bytes32)',
+  'function FACTORY_ADMIN_ROLE() external view returns (bytes32)',
 ];
 
 const UNIVERSITY_ABI = [
@@ -623,11 +624,23 @@ export default function Dashboard() {
     if (!signer) { showMsg('error', 'Please connect your wallet first.'); return; }
     setIsDeploying(true);
     try {
-      showMsg('info', 'Deploying institution contract... Please confirm in MetaMask.');
       const factory = new ethers.Contract(FACTORY_ADDRESS, FACTORY_ABI, signer);
+      
+      // Check if connected wallet has FACTORY_ADMIN_ROLE
+      const factoryAdminRole = await factory.FACTORY_ADMIN_ROLE();
+      const hasFactoryAdminRole = await factory.hasRole(factoryAdminRole, account);
+      console.log('[v0] FACTORY_ADMIN_ROLE check:', { role: factoryAdminRole, account, hasRole: hasFactoryAdminRole });
+      
+      if (!hasFactoryAdminRole) {
+        showMsg('error', 'Your connected wallet does not have FACTORY_ADMIN_ROLE. Only the Pax owner who deployed the Factory can register programmes.');
+        setIsDeploying(false);
+        return;
+      }
+      
+      showMsg('info', 'Deploying institution contract... Please confirm in MetaMask.');
       // Checksum the admin address to ensure correct format
       const checksummedAdmin = ethers.getAddress(univAdmin);
-      console.log('[v0] Deploying with checksummed admin:', checksummedAdmin);
+      console.log('[v0] Deploying with:', { univName: univName.trim(), univSymbol, checksummedAdmin, yourWallet: account });
       const tx = await factory.deployUniversity(univName.trim(), univSymbol, checksummedAdmin, BASE_METADATA_URI);
       console.log('[v0] Transaction sent:', tx.hash);
       const receipt = await tx.wait();
@@ -638,9 +651,9 @@ export default function Dashboard() {
       console.error('[v0] Deploy error:', error);
       const errorMsg = error instanceof Error ? error.message : String(error);
       
-      // Check if it's a permission error - FACTORY_ADMIN_ROLE required
-      if (errorMsg.includes('execution reverted') && errorMsg.includes('e2517d3f')) {
-        showMsg('error', 'Your wallet does not have FACTORY_ADMIN_ROLE permission. Contact the wallet that deployed this Factory contract to grant you this role, or use that wallet to deploy institutions.');
+      // Check if it's a permission error
+      if (errorMsg.includes('execution reverted')) {
+        showMsg('error', 'Contract execution failed. Please verify: 1) Your wallet has FACTORY_ADMIN_ROLE, 2) The institution admin address is valid.');
       } else {
         showMsg('error', parseError(error));
       }
@@ -1233,6 +1246,21 @@ export default function Dashboard() {
             >
               {isConnecting ? 'Connecting...' : account ? `${account.slice(0, 6)}...${account.slice(-4)}` : 'Connect Wallet'}
             </button>
+            {account && (
+              <button
+                onClick={() => {
+                  navigator.clipboard.writeText(account);
+                  showMsg('success', 'Wallet address copied to clipboard!');
+                }}
+                className="p-2 rounded-lg bg-slate-700 hover:bg-slate-600 transition-all text-slate-300 hover:text-white"
+                title="Copy wallet address"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+                  <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+                </svg>
+              </button>
+            )}
           </div>
         </div>
       </header>

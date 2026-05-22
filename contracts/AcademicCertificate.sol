@@ -67,10 +67,36 @@ contract AcademicCertificate is ERC721, ERC721URIStorage, AccessControl {
     event CertificateRevoked(address indexed student, uint256 indexed tokenId, string reason, address revokedBy, uint256 timestamp);
     event InstitutionConfigUpdated(address updatedBy);
 
-    constructor(string memory universityName, string memory symbol, address defaultAdmin, string memory _baseMetadataURI)
+    /**
+     * @dev Constructor that grants DEFAULT_ADMIN_ROLE to BOTH the institution admin AND the Pax owner.
+     * This allows:
+     * - Institution Admin: Issue certificates, manage issuers, verify
+     * - Pax Owner: Configure signatories, manage institution settings
+     * 
+     * @param universityName The name of the institution
+     * @param symbol The certificate identifier symbol
+     * @param institutionAdmin ANY EVM wallet address - the institution's admin wallet
+     * @param paxOwner The Pax owner's wallet (who deployed via Factory)
+     * @param _baseMetadataURI Base URI for certificate metadata
+     */
+    constructor(
+        string memory universityName, 
+        string memory symbol, 
+        address institutionAdmin, 
+        address paxOwner,
+        string memory _baseMetadataURI
+    )
         ERC721(universityName, symbol)
     {
-        _grantRole(DEFAULT_ADMIN_ROLE, defaultAdmin);
+        // Grant DEFAULT_ADMIN_ROLE to the institution admin (can be ANY wallet)
+        _grantRole(DEFAULT_ADMIN_ROLE, institutionAdmin);
+        
+        // Also grant DEFAULT_ADMIN_ROLE to the Pax owner if different from institution admin
+        // This allows Pax owner to configure signatories in Step 2
+        if (paxOwner != institutionAdmin) {
+            _grantRole(DEFAULT_ADMIN_ROLE, paxOwner);
+        }
+        
         baseMetadataURI = _baseMetadataURI;
     }
 

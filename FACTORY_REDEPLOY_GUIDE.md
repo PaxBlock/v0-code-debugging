@@ -1,145 +1,132 @@
-# Factory Contract Redeploy Guide - Remix
+# Factory Contract Redeploy Guide - Remix (v2)
 
-This guide will help you redeploy the updated Factory contract on Sepolia Testnet using Remix.
+This guide helps you redeploy the UPDATED Factory and AcademicCertificate contracts on Sepolia Testnet.
 
-## Why Redeploy?
+## What Was Fixed?
 
-Your current Factory contract on Sepolia has restrictions that only allow your wallet to be set as the institution admin. The updated version removes ALL restrictions and allows ANY EVM-compatible wallet address to be an institution admin.
+**The Problem:** When setting a DIFFERENT wallet as institution admin, the Factory tried to grant roles AFTER deployment, but it didn't have permission to do so.
+
+**The Fix:** The AcademicCertificate constructor now accepts BOTH addresses and grants `DEFAULT_ADMIN_ROLE` to both in the constructor itself - no post-deployment role granting needed.
 
 **Updated behavior:**
-- ✅ ANY wallet address can be set as institution admin
-- ✅ No whitelist or restrictions
-- ✅ Supports multi-sig wallets, different addresses, any EVM account
-- ✅ Better validation and clearer documentation
+- Pax owner deploys institution with ANY wallet as admin
+- BOTH Pax owner AND institution admin get DEFAULT_ADMIN_ROLE
+- No external role granting needed
+- No permission errors
+
+## Files Changed
+
+You need to deploy BOTH updated contracts:
+1. `contracts/AcademicCertificate.sol` - Updated constructor accepts paxOwner parameter
+2. `contracts/Factory.sol` - Passes msg.sender as paxOwner to constructor
 
 ## Step-by-Step Redeploy Instructions
 
-### 1. Prepare Your Updated Factory Contract
-
-The updated `Factory.sol` is available in your project at:
-```
-/vercel/share/v0-project/contracts/Factory.sol
-```
-
-This version includes:
-- Input validation (non-zero address, non-empty strings)
-- NO restrictions on admin address
-- Clear documentation stating ANY EVM address can be admin
-
-### 2. Open Remix IDE
+### 1. Open Remix IDE
 
 1. Go to https://remix.ethereum.org/
-2. Create a new file: Click the "+" icon in the left sidebar
-3. Name it: `Factory.sol`
+2. Create a new workspace or use existing
 
-### 3. Copy the Updated Contract Code
+### 2. Copy BOTH Contract Files
 
-1. Copy the entire `Factory.sol` from your project
-2. Paste it into Remix
-3. Also ensure you have `AcademicCertificate.sol` available in Remix (it's imported)
+**File 1: AcademicCertificate.sol**
+- Copy entire contents from `/vercel/share/v0-project/contracts/AcademicCertificate.sol`
+- Create file in Remix: `AcademicCertificate.sol`
+- Paste the code
 
-### 4. Compile the Contract
+**File 2: Factory.sol**
+- Copy entire contents from `/vercel/share/v0-project/contracts/Factory.sol`
+- Create file in Remix: `Factory.sol`
+- Paste the code
 
-1. In the left sidebar, click **Solidity Compiler** (looks like a checkmark icon)
-2. Compiler version should be: `0.8.25` or compatible
-3. Click **Compile Factory.sol**
-4. You should see a green checkmark - no errors
+### 3. Install OpenZeppelin Dependencies in Remix
+
+In the Remix file explorer:
+1. Right-click and create folder: `@openzeppelin`
+2. Or use the Remix plugin to import OpenZeppelin contracts
+3. Alternatively, change imports to use URLs:
+   ```solidity
+   import "https://github.com/OpenZeppelin/openzeppelin-contracts/blob/v5.0.0/contracts/token/ERC721/ERC721.sol";
+   ```
+
+### 4. Compile the Contracts
+
+1. Click **Solidity Compiler** (checkmark icon)
+2. Compiler version: `0.8.25` or compatible
+3. First compile: `AcademicCertificate.sol`
+4. Then compile: `Factory.sol`
+5. Both should show green checkmarks
 
 ### 5. Deploy on Sepolia Testnet
 
 **Prerequisites:**
-- MetaMask installed and connected to Sepolia Testnet
-- Your Pax owner wallet connected (the one that created the original Factory)
-- Some SepoliaETH for gas fees
+- MetaMask connected to Sepolia Testnet
+- Your Pax owner wallet connected
+- Some SepoliaETH for gas
 
-**Deployment steps:**
-
-1. In the left sidebar, click **Deploy & Run Transactions** (rocket icon)
-2. Environment dropdown: Select **Injected Provider - MetaMask**
-3. MetaMask should show Sepolia Testnet is connected
-4. Contract dropdown: Make sure **Factory** is selected (not AcademicCertificate)
-5. Click **Deploy**
-6. MetaMask will pop up - confirm the transaction
-7. Wait for confirmation (~30 seconds)
+**Deploy the Factory:**
+1. Click **Deploy & Run Transactions** (rocket icon)
+2. Environment: **Injected Provider - MetaMask**
+3. Contract dropdown: Select **Factory**
+4. Click **Deploy**
+5. Confirm in MetaMask
+6. Wait for confirmation
 
 ### 6. Get Your New Factory Address
 
-After deployment completes:
-1. In the **Deployed Contracts** section, you'll see the new Factory address
-2. Copy this address (starts with 0x)
-3. Example: `0x1234...5678`
+1. In **Deployed Contracts**, copy the new Factory address
+2. Example: `0xABC123...`
 
 ### 7. Update Your Frontend
 
-1. Open your v0 project
-2. Find: `/vercel/share/v0-project/app/page.tsx`
-3. Locate the line:
-   ```typescript
-   const FACTORY_ADDRESS = '0x85ed98B33160679BFcF12d82F219Ee5cBB8B68a1';
-   ```
-4. Replace with your new Factory address:
-   ```typescript
-   const FACTORY_ADDRESS = '0xYOUR_NEW_ADDRESS_HERE';
-   ```
-5. Save the file
+Edit `/vercel/share/v0-project/app/page.tsx`:
 
-### 8. Update Your ABI (if needed)
+Find:
+```typescript
+const FACTORY_ADDRESS = '0xB0Ec1fF6C7850565595d69C07dE8cFBA15BF6361';
+```
 
-The ABI should remain the same since we didn't change the function signatures, only added validation and documentation. But if you need to update it:
+Replace with your new address:
+```typescript
+const FACTORY_ADDRESS = '0xYOUR_NEW_FACTORY_ADDRESS';
+```
 
-1. In Remix, with Factory.sol selected
-2. Click the **ABI copy button** 
-3. Update your FACTORY_ABI in your codebase if it differs
+### 8. Test It!
 
-### 9. Test the New Deployment
+1. Restart dev server
+2. Go to Register Programme tab
+3. Deploy institution with a DIFFERENT wallet as admin
+4. It should now work!
 
-1. Restart your dev server: `npm run dev`
-2. Go to the Register Programme tab (Deploy)
-3. Try deploying a new institution with:
-   - Institution Name: "Test Institution"
-   - Symbol: "TEST"
-   - **Admin Wallet: Use a DIFFERENT wallet address** (not your Pax owner wallet)
-4. It should now work without errors!
+## Role Structure After Fix
 
-## Verification on Etherscan
+| Role | Pax Owner | Institution Admin |
+|------|-----------|-------------------|
+| DEFAULT_ADMIN_ROLE | Yes | Yes |
+| Can configure signatories | Yes | Yes |
+| Can issue certificates | Yes | Yes |
+| Can manage issuers | Yes | Yes |
 
-1. Go to https://sepolia.etherscan.io/
-2. Search for your new Factory address
-3. Click **Contract** tab
-4. You should see the source code with the updated validation and documentation
+Both wallets have full admin capabilities. The Pax owner can configure signatories in Step 2, and the institution admin can issue certificates in the Issue tab.
 
 ## Troubleshooting
 
-### "execution reverted" error
-- Make sure you're using the NEW Factory address in your frontend
-- Verify the address was updated in `app/page.tsx`
+### Still getting permission error?
+- Make sure you copied BOTH updated contract files
+- Verify AcademicCertificate constructor has 5 parameters (including paxOwner)
+- Check Factory is passing msg.sender as paxOwner
 
-### Gas estimation issues
-- You have enough SepoliaETH (~0.1-0.5 should be plenty)
-- Try adjusting gas limit manually in MetaMask if needed
+### Compilation errors?
+- Ensure OpenZeppelin imports are resolved
+- Use Remix's import resolver or URL imports
 
-### Contract not showing after deploy
-- Refresh Remix page
-- Make sure you're still connected to the same wallet
-- Check MetaMask is showing Sepolia Testnet
-
-### Can't deploy - "FACTORY_ADMIN_ROLE not found"
-- Make sure `AcademicCertificate.sol` is in your Remix workspace
-- The Factory imports it, so Remix needs both files
-
-## After Successful Redeploy
-
-Once the new Factory is deployed and working:
-
-1. Your institutions will now be created with the new Factory
-2. Old institutions remain on the blockchain and are still verifiable
-3. Issuers can now use ANY wallet address as the institution admin
-4. You can migrate institutions by redeploying with different admins if needed
+### Gas issues?
+- Factory deployment costs more gas (deploys child contracts)
+- Ensure you have 0.5+ SepoliaETH
 
 ---
 
-**Need help?** Check that:
-- ✅ You're connected to Sepolia Testnet
-- ✅ You have enough SepoliaETH for gas
-- ✅ The new Factory address is updated in your frontend
-- ✅ You're using the correct wallet (Pax owner) to deploy
+**Summary of changes:**
+- AcademicCertificate constructor: `(name, symbol, institutionAdmin, paxOwner, baseURI)`
+- Factory passes `msg.sender` as paxOwner when deploying
+- No more post-deployment role granting needed

@@ -87,20 +87,19 @@ contract UniversityFactory is AccessControl {
         require(bytes(symbol).length > 0, "University symbol cannot be empty");
 
         // Deploy a new instance of the Academic Certificate contract
+        // Pass BOTH the institution admin AND the Pax owner (msg.sender)
+        // The constructor grants DEFAULT_ADMIN_ROLE to both addresses
         AcademicCertificate newUniversity = new AcademicCertificate(
             universityName,
             symbol,
-            universityAdmin,
+            universityAdmin,    // Institution admin (can be ANY wallet)
+            msg.sender,         // Pax owner (for configuring signatories)
             baseMetadataURI
         );
 
         address universityAddress = address(newUniversity);
 
-        // Grant DEFAULT_ADMIN_ROLE to the Pax Owner (deployer/msg.sender)
-        // This allows Pax Owner to configure signatories in Step 2
-        if (msg.sender != universityAdmin) {
-            newUniversity.grantRole(newUniversity.DEFAULT_ADMIN_ROLE(), msg.sender);
-        }
+        // No need to grant roles here - the constructor already granted them to both addresses
 
         // Record the deployment globally
         deployedUniversities.push(universityAddress);

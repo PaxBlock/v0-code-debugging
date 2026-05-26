@@ -7,7 +7,7 @@ import SignatureCanvas from 'react-signature-canvas';
 import { logGDPRCompliant } from '@/lib/dataMasking';
 
 // Factory contract - PaxID, grade, signatory config, logo URL, deactivation support
-const FACTORY_ADDRESS = '0x227Eb7f2ec466b358b48079402082eDFd47347A9';
+const FACTORY_ADDRESS = '0xA66f40f188dBC8718207210b76EB39F72b85CE05';
 const SEPOLIA_CHAIN_ID = 11155111;
 const SEPOLIA_HEX = '0xaa36a7';
 const BASE_METADATA_URI = 'https://ipfs.io/ipfs/'; // Base URI for certificate metadata storage
@@ -46,7 +46,7 @@ const UNIVERSITY_ABI = [
   'function revocationReason(address student) external view returns (string)',
   'function revocationDate(address student) external view returns (uint256)',
   'function resolvePaxId(string memory paxId) external view returns (address)',
-  'function setInstitutionConfig(string memory registrarName, string memory registrarSignatureURL, string memory viceChancellorName, string memory viceChancellorSignatureURL, string memory verificationDomain, string memory logoURL) external',
+  'function setInstitutionConfig(string memory registrarName, string memory registrarSignatureURL, string memory viceChancellorName, string memory viceChancellorSignatureURL, string memory deanName, string memory deanSignatureURL, string memory verificationDomain, string memory logoURL) external',
   'function setFacultySignatory(string memory facultyName, string memory deanName, string memory deanSignatureURL) external',
   'function getFacultySignatories() external view returns (tuple(string facultyName, string deanName, string deanSignatureURL)[])',
   'function getFacultyCount() external view returns (uint256)',
@@ -744,11 +744,11 @@ export default function Dashboard() {
     return url;
   };
 
-  // Save core signatories (Registrar + Vice-Chancellor)
+  // Save core signatories (Registrar + Vice-Chancellor + Dean)
   const saveInstitutionConfig = async () => {
     if (!signer) { showMsg('error', 'Please connect your wallet first.'); return; }
     if (!configUnivAddress || !ethers.isAddress(configUnivAddress)) { showMsg('error', 'Please enter a valid programme contract address.'); return; }
-    if (!registrarName || !registrarSignatureURL || !vcName || !vcSignatureURL) { showMsg('error', 'Please fill in all signatory names and draw their signatures.'); return; }
+    if (!registrarName || !registrarSignatureURL || !vcName || !vcSignatureURL || !deanName || !deanSignatureURL) { showMsg('error', 'Please fill in all signatory names and draw their signatures.'); return; }
     setIsSettingConfig(true);
     let finalLogoURL = logoURL;
     try {
@@ -763,10 +763,10 @@ export default function Dashboard() {
 
       const university = new ethers.Contract(configUnivAddress, UNIVERSITY_ABI, signer);
       showMsg('info', 'Saving institution signatories... Please confirm in MetaMask.');
-      const tx = await university.setInstitutionConfig(registrarName, registrarSignatureURL, vcName, vcSignatureURL, verificationDomain, finalLogoURL);
+      const tx = await university.setInstitutionConfig(registrarName, registrarSignatureURL, vcName, vcSignatureURL, deanName, deanSignatureURL, verificationDomain, finalLogoURL);
       await tx.wait();
       showMsg('success', 'Core signatories saved! Now add faculties below.');
-      setRegistrarName(''); setVcName(''); setRegistrarSignatureURL(''); setVcSignatureURL(''); setVerificationDomain(''); setLogoFile(null); setLogoURL('');
+      setRegistrarName(''); setVcName(''); setDeanName(''); setRegistrarSignatureURL(''); setVcSignatureURL(''); setDeanSignatureURL(''); setVerificationDomain(''); setLogoFile(null); setLogoURL('');
     } catch (error) {
       showMsg('error', parseError(error));
     } finally {
@@ -818,6 +818,29 @@ export default function Dashboard() {
     } catch (error) {
       console.error('[v0] Error saving VC signature:', error);
       showMsg('error', `Failed to save VC signature: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  };
+
+  // Save Dean signature
+  const saveDeanSignature = async () => {
+    console.log('[v0] saveDeanSignature called');
+    if (!deanSignatureRef.current || deanSignatureRef.current.isEmpty()) {
+      console.log('[v0] Dean canvas is empty');
+      showMsg('error', 'Please draw the dean\'s signature.');
+      return;
+    }
+    try {
+      console.log('[v0] Getting dean signature data');
+      showMsg('info', 'Uploading dean signature...');
+      const signatureDataURL = deanSignatureRef.current.toDataURL();
+      console.log('[v0] Got data URL, length:', signatureDataURL.length);
+      const url = await uploadSignatureToBlob(signatureDataURL);
+      console.log('[v0] Dean signature URL:', url);
+      setDeanSignatureURL(url);
+      showMsg('success', 'Dean signature saved!');
+    } catch (error) {
+      console.error('[v0] Error saving dean signature:', error);
+      showMsg('error', `Failed to save dean signature: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   };
 

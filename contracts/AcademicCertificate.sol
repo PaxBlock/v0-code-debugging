@@ -37,6 +37,8 @@ contract AcademicCertificate is ERC721, ERC721URIStorage, AccessControl {
         string registrarSignatureURL; // Registrar's signature image
         string viceChancellorName;
         string viceChancellorSignatureURL; // Vice-Chancellor's signature image
+        string deanName;
+        string deanSignatureURL; // Dean's signature image
         
         // Verification & branding
         string verificationDomain; // e.g. "verify.oauife.edu.ng"
@@ -109,6 +111,8 @@ contract AcademicCertificate is ERC721, ERC721URIStorage, AccessControl {
         string memory registrarSignatureURL,
         string memory viceChancellorName,
         string memory viceChancellorSignatureURL,
+        string memory deanName,
+        string memory deanSignatureURL,
         string memory verificationDomain,
         string memory logoURL
     ) external onlyRole(DEFAULT_ADMIN_ROLE) {
@@ -117,6 +121,8 @@ contract AcademicCertificate is ERC721, ERC721URIStorage, AccessControl {
             registrarSignatureURL,
             viceChancellorName,
             viceChancellorSignatureURL,
+            deanName,
+            deanSignatureURL,
             verificationDomain,
             logoURL
         );

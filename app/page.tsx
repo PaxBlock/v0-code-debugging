@@ -46,7 +46,7 @@ const UNIVERSITY_ABI = [
   'function revocationReason(address student) external view returns (string)',
   'function revocationDate(address student) external view returns (uint256)',
   'function resolvePaxId(string memory paxId) external view returns (address)',
-  'function setInstitutionConfig(string memory registrarName, string memory registrarSignatureURL, string memory viceChancellorName, string memory viceChancellorSignatureURL, string memory deanName, string memory deanSignatureURL, string memory verificationDomain, string memory logoURL) external',
+  'function setInstitutionConfig(string memory registrarName, string memory registrarSignatureURL, string memory viceChancellorName, string memory viceChancellorSignatureURL, string memory verificationDomain, string memory logoURL) external',
   'function setFacultySignatory(string memory facultyName, string memory deanName, string memory deanSignatureURL) external',
   'function getFacultySignatories() external view returns (tuple(string facultyName, string deanName, string deanSignatureURL)[])',
   'function getFacultyCount() external view returns (uint256)',
@@ -206,7 +206,6 @@ export default function Dashboard() {
   // Signature system (Register tab - Step 2 redesigned)
   const [registrarSignatureURL, setRegistrarSignatureURL] = useState('');
   const [vcSignatureURL, setVcSignatureURL] = useState('');
-  const [deanSignatureURL, setDeanSignatureURL] = useState('');
   const [isUploadingSignature, setIsUploadingSignature] = useState(false);
   const [configuredFaculties, setConfiguredFaculties] = useState<Array<{ id: string; name: string; deanName: string; signatureURL: string }>>([]);
   const [newFacultyName, setNewFacultyName] = useState('');
@@ -214,7 +213,6 @@ export default function Dashboard() {
   const [isSavingFaculty, setIsSavingFaculty] = useState(false);
   const registrarSignatureRef = useRef<any>(null);
   const vcSignatureRef = useRef<any>(null);
-  const deanSignatureRef = useRef<any>(null);
   const currentFacultySignatureRef = useRef<any>(null);
 
   // Deactivation (owner only)
@@ -790,11 +788,9 @@ export default function Dashboard() {
       registrarSignatureURL: registrarSignatureURL ? '✓' : '✗ EMPTY',
       vcName: vcName ? '✓' : '✗ EMPTY',
       vcSignatureURL: vcSignatureURL ? '✓' : '✗ EMPTY',
-      deanName: deanName ? '✓' : '✗ EMPTY',
-      deanSignatureURL: deanSignatureURL ? '✓' : '✗ EMPTY',
     });
     
-    if (!registrarName || !registrarSignatureURL || !vcName || !vcSignatureURL || !deanName || !deanSignatureURL) { 
+    if (!registrarName || !registrarSignatureURL || !vcName || !vcSignatureURL) { 
       showMsg('error', 'Please fill in all signatory names and draw their signatures.'); 
       return; 
     }
@@ -820,7 +816,7 @@ export default function Dashboard() {
 
       const university = new ethers.Contract(configUnivAddress, UNIVERSITY_ABI, signer);
       showMsg('info', 'Saving institution signatories... Please confirm in MetaMask.');
-      const tx = await university.setInstitutionConfig(registrarName, registrarSignatureURL, vcName, vcSignatureURL, deanName, deanSignatureURL, verificationDomain, finalLogoURL);
+      const tx = await university.setInstitutionConfig(registrarName, registrarSignatureURL, vcName, vcSignatureURL, verificationDomain, finalLogoURL);
       await tx.wait();
       showMsg('success', 'Core signatories saved! Now add faculties below.');
       setRegistrarName(''); setVcName(''); setDeanName(''); setRegistrarSignatureURL(''); setVcSignatureURL(''); setDeanSignatureURL(''); setVerificationDomain(''); setLogoFile(null); setLogoURL('');
@@ -875,29 +871,6 @@ export default function Dashboard() {
     } catch (error) {
       console.error('[v0] Error saving VC signature:', error);
       showMsg('error', `Failed to save VC signature: ${error instanceof Error ? error.message : 'Unknown error'}`);
-    }
-  };
-
-  // Save Dean signature
-  const saveDeanSignature = async () => {
-    console.log('[v0] saveDeanSignature called');
-    if (!deanSignatureRef.current || deanSignatureRef.current.isEmpty()) {
-      console.log('[v0] Dean canvas is empty');
-      showMsg('error', 'Please draw the dean\'s signature.');
-      return;
-    }
-    try {
-      console.log('[v0] Getting dean signature data');
-      showMsg('info', 'Uploading dean signature...');
-      const signatureDataURL = deanSignatureRef.current.toDataURL();
-      console.log('[v0] Got data URL, length:', signatureDataURL.length);
-      const url = await uploadSignatureToBlob(signatureDataURL);
-      console.log('[v0] Dean signature URL:', url);
-      setDeanSignatureURL(url);
-      showMsg('success', 'Dean signature saved!');
-    } catch (error) {
-      console.error('[v0] Error saving dean signature:', error);
-      showMsg('error', `Failed to save dean signature: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   };
 
@@ -1568,43 +1541,6 @@ export default function Dashboard() {
                     className={`text-xs px-3 py-1 ${vcSignatureURL ? 'bg-green-700' : 'bg-blue-600 hover:bg-blue-700'} text-white rounded`}
                   >
                     {vcSignatureURL ? '✓ Saved' : isUploadingSignature ? 'Uploading...' : 'Save Signature'}
-                  </button>
-                </div>
-              </div>
-
-              {/* Dean Signature */}
-              <div className="border border-slate-700 rounded-lg p-4">
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className={labelClass}>Dean&apos;s Name</label>
-                    <input className={inputClass} placeholder="e.g. Prof. Adebayo Ojo" value={deanName} onChange={(e) => setDeanName(e.target.value)} />
-                  </div>
-                  <div>
-                    <label className={labelClass}>Dean&apos;s Position</label>
-                    <input className={inputClass} placeholder="e.g. Dean of Faculty" value={deanPosition} onChange={(e) => setDeanPosition(e.target.value)} />
-                  </div>
-                </div>
-                <label className="text-xs text-slate-300 font-semibold block mt-3">Draw Dean&apos;s Signature</label>
-                <div className="bg-white rounded-lg mt-1 overflow-hidden border border-slate-600">
-                  <SignatureCanvas
-                    ref={deanSignatureRef}
-                    penColor="black"
-                    canvasProps={{ width: 500, height: 150, className: 'w-full cursor-crosshair' }}
-                  />
-                </div>
-                <div className="flex gap-2">
-                  <button
-                    onClick={() => deanSignatureRef.current?.clear()}
-                    className="text-xs px-3 py-1 bg-slate-700 hover:bg-slate-600 rounded text-slate-300"
-                  >
-                    Clear
-                  </button>
-                  <button
-                    onClick={saveDeanSignature}
-                    disabled={isUploadingSignature}
-                    className={`text-xs px-3 py-1 ${deanSignatureURL ? 'bg-green-700' : 'bg-blue-600 hover:bg-blue-700'} text-white rounded`}
-                  >
-                    {deanSignatureURL ? '✓ Saved' : isUploadingSignature ? 'Uploading...' : 'Save Signature'}
                   </button>
                 </div>
               </div>

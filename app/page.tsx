@@ -737,19 +737,27 @@ export default function Dashboard() {
 
   const uploadLogo = async (file: File): Promise<string> => {
     try {
-      const formData = new FormData();
-      formData.append('file', file);
-      console.log('[v0] uploadLogo - FormData keys:', Array.from(formData.keys()));
-      console.log('[v0] uploadLogo - File size:', file.size, 'Type:', file.type, 'Name:', file.name);
+      console.log('[v0] uploadLogo - Starting, file:', file.name, 'size:', file.size, 'type:', file.type);
       
-      // Use absolute URL to avoid domain issues
-      const uploadUrl = typeof window !== 'undefined' ? `${window.location.origin}/api/upload-logo` : '/api/upload-logo';
-      console.log('[v0] uploadLogo - URL:', uploadUrl);
+      // Convert file to base64
+      const reader = new FileReader();
+      const base64Promise = new Promise<string>((resolve, reject) => {
+        reader.onload = () => {
+          const result = reader.result as string;
+          console.log('[v0] uploadLogo - Base64 length:', result.length);
+          resolve(result);
+        };
+        reader.onerror = () => reject(new Error('Failed to read file'));
+      });
       
-      const res = await fetch(uploadUrl, { 
-        method: 'POST', 
-        body: formData,
-        // Don't set Content-Type header - browser will set it with boundary for FormData
+      reader.readAsDataURL(file);
+      const imageData = await base64Promise;
+      
+      console.log('[v0] uploadLogo - Calling /api/upload-logo with base64 data');
+      const res = await fetch('/api/upload-logo', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ imageData }),
       });
       
       console.log('[v0] uploadLogo - Response status:', res.status);
@@ -759,7 +767,9 @@ export default function Dashboard() {
         console.error('[v0] uploadLogo - Server error:', res.status, errorData);
         throw new Error(`Logo upload failed: ${errorData.error || res.statusText}`);
       }
+      
       const { url } = await res.json();
+      console.log('[v0] uploadLogo - Success:', url);
       return url;
     } catch (error) {
       console.error('[v0] uploadLogo - Error:', error);

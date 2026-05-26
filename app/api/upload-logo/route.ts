@@ -3,33 +3,41 @@ import { NextRequest, NextResponse } from 'next/server';
 
 export async function POST(req: NextRequest) {
   try {
-    const formData = await req.formData();
-    const file = formData.get('file') as File;
+    const body = await req.json();
+    const { imageData } = body;
 
-    if (!file) {
-      return NextResponse.json({ error: 'No file provided' }, { status: 400 });
+    if (!imageData) {
+      return NextResponse.json({ error: 'No image data provided' }, { status: 400 });
     }
 
-    // Validate file type and size
-    const validTypes = ['image/png', 'image/jpeg', 'image/svg+xml'];
-    if (!validTypes.includes(file.type)) {
-      return NextResponse.json({ error: 'Only PNG, JPG, and SVG images allowed' }, { status: 400 });
+    // Remove data URL prefix if present (e.g., "data:image/png;base64,")
+    let base64Data = imageData;
+    if (imageData.includes('base64,')) {
+      base64Data = imageData.split('base64,')[1];
     }
 
-    if (file.size > 2 * 1024 * 1024) {
-      return NextResponse.json({ error: 'File size must be under 2MB' }, { status: 400 });
+    const buffer = Buffer.from(base64Data, 'base64');
+
+    // Validate file size
+    if (buffer.length > 5 * 1024 * 1024) {
+      return NextResponse.json({ error: 'File size must be under 5MB' }, { status: 400 });
     }
 
-    // Upload to Vercel Blob with a timestamp-based name
+    // Upload to Vercel Blob
     const timestamp = Date.now();
-    const ext = file.name.split('.').pop();
-    const blobName = `logos/${timestamp}-${Math.random().toString(36).slice(2)}.${ext}`;
+    const blobName = `logos/${timestamp}-${Math.random().toString(36).slice(2)}.png`;
 
-    const blob = await put(blobName, file, { access: 'public' });
+    console.log('[upload-logo] Uploading to Blob:', blobName, 'size:', buffer.length);
+    const blob = await put(blobName, buffer, { access: 'public', contentType: 'image/png' });
+    console.log('[upload-logo] Upload successful:', blob.url);
 
     return NextResponse.json({ url: blob.url });
   } catch (error) {
-    console.error('[upload-logo]', error);
-    return NextResponse.json({ error: 'Failed to upload logo' }, { status: 500 });
+    console.error('[upload-logo] Error:', error instanceof Error ? error.message : String(error));
+    console.error('[upload-logo] Full error:', error);
+    return NextResponse.json({ 
+      error: error instanceof Error ? error.message : 'Failed to upload logo',
+      details: process.env.NODE_ENV === 'development' ? String(error) : undefined
+    }, { status: 500 });
   }
 }

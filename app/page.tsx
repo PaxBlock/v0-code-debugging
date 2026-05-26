@@ -736,12 +736,45 @@ export default function Dashboard() {
   };
 
   const uploadLogo = async (file: File): Promise<string> => {
-    const formData = new FormData();
-    formData.append('file', file);
-    const res = await fetch('/api/upload-logo', { method: 'POST', body: formData });
-    if (!res.ok) throw new Error('Logo upload failed');
-    const { url } = await res.json();
-    return url;
+    try {
+      console.log('[v0] uploadLogo - Starting, file:', file.name, 'size:', file.size, 'type:', file.type);
+      
+      // Convert file to base64
+      const reader = new FileReader();
+      const base64Promise = new Promise<string>((resolve, reject) => {
+        reader.onload = () => {
+          const result = reader.result as string;
+          console.log('[v0] uploadLogo - Base64 length:', result.length);
+          resolve(result);
+        };
+        reader.onerror = () => reject(new Error('Failed to read file'));
+      });
+      
+      reader.readAsDataURL(file);
+      const imageData = await base64Promise;
+      
+      console.log('[v0] uploadLogo - Calling /api/upload-logo with base64 data');
+      const res = await fetch('/api/upload-logo', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ imageData }),
+      });
+      
+      console.log('[v0] uploadLogo - Response status:', res.status);
+      
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => ({}));
+        console.error('[v0] uploadLogo - Server error:', res.status, errorData);
+        throw new Error(`Logo upload failed: ${errorData.error || res.statusText}`);
+      }
+      
+      const { url } = await res.json();
+      console.log('[v0] uploadLogo - Success:', url);
+      return url;
+    } catch (error) {
+      console.error('[v0] uploadLogo - Error:', error);
+      throw error;
+    }
   };
 
   // Save core signatories (Registrar + Vice-Chancellor + Dean)
@@ -752,13 +785,21 @@ export default function Dashboard() {
     setIsSettingConfig(true);
     let finalLogoURL = logoURL;
     try {
-      // Upload logo if provided
+      // Upload logo if provided - but don't block if it fails
       if (logoFile) {
         setLogoUploading(true);
         showMsg('info', 'Uploading institution logo...');
-        finalLogoURL = await uploadLogo(logoFile);
-        setLogoURL(finalLogoURL);
-        setLogoUploading(false);
+        try {
+          finalLogoURL = await uploadLogo(logoFile);
+          setLogoURL(finalLogoURL);
+          console.log('[v0] Logo uploaded successfully:', finalLogoURL);
+        } catch (logoError) {
+          console.warn('[v0] Logo upload failed, continuing without logo:', logoError);
+          showMsg('warning', `Logo upload failed, saving signatories without logo: ${logoError instanceof Error ? logoError.message : 'Unknown error'}`);
+          finalLogoURL = ''; // Continue with empty logo URL
+        } finally {
+          setLogoUploading(false);
+        }
       }
 
       const university = new ethers.Contract(configUnivAddress, UNIVERSITY_ABI, signer);

@@ -1572,6 +1572,43 @@ export default function Dashboard() {
                 </div>
               </div>
 
+              {/* Dean Signature */}
+              <div className="border border-slate-700 rounded-lg p-4">
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className={labelClass}>Dean&apos;s Name</label>
+                    <input className={inputClass} placeholder="e.g. Prof. Adebayo Ojo" value={deanName} onChange={(e) => setDeanName(e.target.value)} />
+                  </div>
+                  <div>
+                    <label className={labelClass}>Dean&apos;s Position</label>
+                    <input className={inputClass} placeholder="e.g. Dean of Faculty" value={deanPosition} onChange={(e) => setDeanPosition(e.target.value)} />
+                  </div>
+                </div>
+                <label className="text-xs text-slate-300 font-semibold block mt-3">Draw Dean&apos;s Signature</label>
+                <div className="bg-white rounded-lg mt-1 overflow-hidden border border-slate-600">
+                  <SignatureCanvas
+                    ref={deanSignatureRef}
+                    penColor="black"
+                    canvasProps={{ width: 500, height: 150, className: 'w-full cursor-crosshair' }}
+                  />
+                </div>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => deanSignatureRef.current?.clear()}
+                    className="text-xs px-3 py-1 bg-slate-700 hover:bg-slate-600 rounded text-slate-300"
+                  >
+                    Clear
+                  </button>
+                  <button
+                    onClick={saveDeanSignature}
+                    disabled={isUploadingSignature}
+                    className={`text-xs px-3 py-1 ${deanSignatureURL ? 'bg-green-700' : 'bg-blue-600 hover:bg-blue-700'} text-white rounded`}
+                  >
+                    {deanSignatureURL ? '✓ Saved' : isUploadingSignature ? 'Uploading...' : 'Save Signature'}
+                  </button>
+                </div>
+              </div>
+
               {/* Verification Domain & Logo */}
               <div>
                 <label className={labelClass}>Verification Domain (optional)</label>

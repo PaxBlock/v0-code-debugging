@@ -781,7 +781,21 @@ export default function Dashboard() {
   const saveInstitutionConfig = async () => {
     if (!signer) { showMsg('error', 'Please connect your wallet first.'); return; }
     if (!configUnivAddress || !ethers.isAddress(configUnivAddress)) { showMsg('error', 'Please enter a valid programme contract address.'); return; }
-    if (!registrarName || !registrarSignatureURL || !vcName || !vcSignatureURL || !deanName || !deanSignatureURL) { showMsg('error', 'Please fill in all signatory names and draw their signatures.'); return; }
+    
+    // Debug which fields are empty
+    console.log('[v0] Validation check:', {
+      registrarName: registrarName ? '✓' : '✗ EMPTY',
+      registrarSignatureURL: registrarSignatureURL ? '✓' : '✗ EMPTY',
+      vcName: vcName ? '✓' : '✗ EMPTY',
+      vcSignatureURL: vcSignatureURL ? '✓' : '✗ EMPTY',
+      deanName: deanName ? '✓' : '✗ EMPTY',
+      deanSignatureURL: deanSignatureURL ? '✓' : '✗ EMPTY',
+    });
+    
+    if (!registrarName || !registrarSignatureURL || !vcName || !vcSignatureURL || !deanName || !deanSignatureURL) { 
+      showMsg('error', 'Please fill in all signatory names and draw their signatures.'); 
+      return; 
+    }
     setIsSettingConfig(true);
     let finalLogoURL = logoURL;
     try {

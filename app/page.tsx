@@ -206,6 +206,7 @@ export default function Dashboard() {
   // Signature system (Register tab - Step 2 redesigned)
   const [registrarSignatureURL, setRegistrarSignatureURL] = useState('');
   const [vcSignatureURL, setVcSignatureURL] = useState('');
+  const [deanSignatureURL, setDeanSignatureURL] = useState('');
   const [isUploadingSignature, setIsUploadingSignature] = useState(false);
   const [configuredFaculties, setConfiguredFaculties] = useState<Array<{ id: string; name: string; deanName: string; signatureURL: string }>>([]);
   const [newFacultyName, setNewFacultyName] = useState('');
@@ -213,6 +214,7 @@ export default function Dashboard() {
   const [isSavingFaculty, setIsSavingFaculty] = useState(false);
   const registrarSignatureRef = useRef<any>(null);
   const vcSignatureRef = useRef<any>(null);
+  const deanSignatureRef = useRef<any>(null);
   const currentFacultySignatureRef = useRef<any>(null);
 
   // Deactivation (owner only)

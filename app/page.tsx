@@ -820,11 +820,25 @@ export default function Dashboard() {
 
       const university = new ethers.Contract(configUnivAddress, UNIVERSITY_ABI, signer);
       showMsg('info', 'Saving institution signatories... Please confirm in MetaMask.');
+      console.log('[v0] Calling setInstitutionConfig with:', {
+        registrarName,
+        registrarSignatureURL: registrarSignatureURL.slice(0, 50) + '...',
+        vcName,
+        vcSignatureURL: vcSignatureURL.slice(0, 50) + '...',
+        verificationDomain,
+        finalLogoURL: finalLogoURL.slice(0, 50) + '...',
+      });
       const tx = await university.setInstitutionConfig(registrarName, registrarSignatureURL, vcName, vcSignatureURL, verificationDomain, finalLogoURL);
-      await tx.wait();
+      console.log('[v0] Transaction sent:', tx.hash);
+      const receipt = await tx.wait();
+      console.log('[v0] Transaction receipt:', receipt);
       showMsg('success', 'Core signatories saved! Now add faculties below.');
       setRegistrarName(''); setVcName(''); setRegistrarSignatureURL(''); setVcSignatureURL(''); setVerificationDomain(''); setLogoFile(null); setLogoURL('');
     } catch (error) {
+      console.error('[v0] Full error object:', error);
+      console.error('[v0] Error message:', error instanceof Error ? error.message : String(error));
+      console.error('[v0] Error data:', (error as any)?.data);
+      console.error('[v0] Error reason:', (error as any)?.reason);
       showMsg('error', parseError(error));
     } finally {
       setIsSettingConfig(false);

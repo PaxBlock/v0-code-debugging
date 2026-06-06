@@ -777,7 +777,7 @@ export default function Dashboard() {
     }
   };
 
-  // Save core signatories (Registrar + Vice-Chancellor + Dean)
+  // Save core signatories (Registrar + Vice-Chancellor)
   const saveInstitutionConfig = async () => {
     if (!signer) { showMsg('error', 'Please connect your wallet first.'); return; }
     if (!configUnivAddress || !ethers.isAddress(configUnivAddress)) { showMsg('error', 'Please enter a valid programme contract address.'); return; }
@@ -788,6 +788,10 @@ export default function Dashboard() {
       registrarSignatureURL: registrarSignatureURL ? '✓' : '✗ EMPTY',
       vcName: vcName ? '✓' : '✗ EMPTY',
       vcSignatureURL: vcSignatureURL ? '✓' : '✗ EMPTY',
+      registrarNameValue: registrarName,
+      vcNameValue: vcName,
+      registrarURLValue: registrarSignatureURL,
+      vcURLValue: vcSignatureURL,
     });
     
     if (!registrarName || !registrarSignatureURL || !vcName || !vcSignatureURL) { 
@@ -819,7 +823,7 @@ export default function Dashboard() {
       const tx = await university.setInstitutionConfig(registrarName, registrarSignatureURL, vcName, vcSignatureURL, verificationDomain, finalLogoURL);
       await tx.wait();
       showMsg('success', 'Core signatories saved! Now add faculties below.');
-      setRegistrarName(''); setVcName(''); setDeanName(''); setRegistrarSignatureURL(''); setVcSignatureURL(''); setDeanSignatureURL(''); setVerificationDomain(''); setLogoFile(null); setLogoURL('');
+      setRegistrarName(''); setVcName(''); setRegistrarSignatureURL(''); setVcSignatureURL(''); setVerificationDomain(''); setLogoFile(null); setLogoURL('');
     } catch (error) {
       showMsg('error', parseError(error));
     } finally {

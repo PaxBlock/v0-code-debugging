@@ -18,6 +18,7 @@ const FACTORY_ABI = [
   'function deployedUniversities(uint256 index) external view returns (address)',
   'function getActiveUniversities() external view returns (address[])',
   'function getAllUniversities() external view returns (address[])',
+  'function getDeployedUniversities() external view returns (address[])',
   'function getWalletUniversities(address wallet) external view returns (address[])',
   'function registerIssuer(address universityContract, address wallet) external',
   'function isUniversityContract(address) external view returns (bool)',
@@ -207,6 +208,7 @@ export default function Dashboard() {
   const [registrarSignatureURL, setRegistrarSignatureURL] = useState('');
   const [vcSignatureURL, setVcSignatureURL] = useState('');
   const [isUploadingSignature, setIsUploadingSignature] = useState(false);
+  const [uploadingSignatory, setUploadingSignatory] = useState<'registrar' | 'vc' | null>(null);
   const [configuredFaculties, setConfiguredFaculties] = useState<Array<{ id: string; name: string; deanName: string; signatureURL: string }>>([]);
   const [newFacultyName, setNewFacultyName] = useState('');
   const [newFacultyDean, setNewFacultyDean] = useState('');
@@ -450,33 +452,32 @@ export default function Dashboard() {
           addresses = await factory.getActiveUniversities();
         }
       } catch (_e) {
-        // Fallback for older factory deployments that lack these methods
+        // Fallback for simpler factory deployments that lack getAllUniversities/getActiveUniversities
         try {
-          const count = await factory.getUniversityCount();
-          const addressPromises = Array.from({ length: Number(count) }, (_, i) =>
-            factory.deployedUniversities(i)
-          );
-          addresses = await Promise.all(addressPromises);
+          addresses = await factory.getDeployedUniversities();
         } catch (_e2) {
-          // Factory unreachable or wrong network — silently return empty list
-          addresses = [];
+          try {
+            const count = await factory.getUniversityCount();
+            const addressPromises = Array.from({ length: Number(count) }, (_, i) =>
+              factory.deployedUniversities(i)
+            );
+            addresses = await Promise.all(addressPromises);
+          } catch (_e3) {
+            // Factory unreachable or wrong network — silently return empty list
+            addresses = [];
+          }
         }
       }
 
-      // Fetch names + deactivation status in parallel
+      // Fetch names + deactivation status INDEPENDENTLY so a missing isDeactivated()
+      // on a simpler factory never breaks the institution name lookup
       const unis = await Promise.all(
         addresses.map(async (addr) => {
-          try {
-            const univContract = new ethers.Contract(addr, UNIVERSITY_ABI, provider);
-            const [name, deactivated, reason] = await Promise.all([
-              univContract.name(),
-              factory.isDeactivated(addr),
-              factory.deactivationReason(addr).catch(() => ''),
-            ]);
-            return { address: addr, name, deactivated: deactivated as boolean, deactivationReason: reason as string };
-          } catch (_e) {
-            return { address: addr, name: `University (${addr.slice(0, 6)}...)`, deactivated: false, deactivationReason: '' };
-          }
+          const univContract = new ethers.Contract(addr, UNIVERSITY_ABI, provider);
+          const name = await univContract.name().catch(() => `University (${addr.slice(0, 6)}...)`);
+          const deactivated = await factory.isDeactivated(addr).catch(() => false);
+          const reason = deactivated ? await factory.deactivationReason(addr).catch(() => '') : '';
+          return { address: addr, name: name as string, deactivated: deactivated as boolean, deactivationReason: reason as string };
         })
       );
       setUniversities(unis);
@@ -503,20 +504,14 @@ export default function Dashboard() {
         return;
       }
 
-      // Fetch name AND deactivation status in parallel for every university
-      // Filter out deactivated ones — issuers should never see or use them
+      // Fetch name AND deactivation status INDEPENDENTLY for every university.
+      // isDeactivated may not exist on a simpler factory — never let it break name lookup.
       const results = await Promise.all(
         addresses.map(async (addr) => {
-          try {
-            const univContract = new ethers.Contract(addr, UNIVERSITY_ABI, provider);
-            const [name, deactivated] = await Promise.all([
-              univContract.name(),
-              factory.isDeactivated(addr),
-            ]);
-            return { address: addr, name, deactivated: deactivated as boolean, deactivationReason: '' };
-          } catch (_e) {
-            return { address: addr, name: `University (${addr.slice(0, 6)}...)`, deactivated: false, deactivationReason: '' };
-          }
+          const univContract = new ethers.Contract(addr, UNIVERSITY_ABI, provider);
+          const name = await univContract.name().catch(() => `University (${addr.slice(0, 6)}...)`);
+          const deactivated = await factory.isDeactivated(addr).catch(() => false);
+          return { address: addr, name: name as string, deactivated: deactivated as boolean, deactivationReason: '' };
         })
       );
 
@@ -705,9 +700,10 @@ export default function Dashboard() {
   };
 
   // Upload signature image to Blob storage via API
-  const uploadSignatureToBlob = async (signatureDataURL: string): Promise<string> => {
+  const uploadSignatureToBlob = async (signatureDataURL: string, signatory?: 'registrar' | 'vc'): Promise<string> => {
     try {
       setIsUploadingSignature(true);
+      if (signatory) setUploadingSignatory(signatory);
       console.log('[v0] Starting signature upload');
       
       // Call API endpoint to upload (server has BLOB_READ_WRITE_TOKEN)
@@ -732,6 +728,7 @@ export default function Dashboard() {
       throw new Error(`Failed to upload signature: ${error instanceof Error ? error.message : 'Unknown error'}`);
     } finally {
       setIsUploadingSignature(false);
+      setUploadingSignatory(null);
     }
   };
 
@@ -859,7 +856,7 @@ export default function Dashboard() {
       showMsg('info', 'Uploading registrar signature...');
       const signatureDataURL = registrarSignatureRef.current.toDataURL();
       console.log('[v0] Got data URL, length:', signatureDataURL.length);
-      const url = await uploadSignatureToBlob(signatureDataURL);
+      const url = await uploadSignatureToBlob(signatureDataURL, 'registrar');
       console.log('[v0] Registrar signature URL:', url);
       setRegistrarSignatureURL(url);
       showMsg('success', 'Registrar signature saved!');
@@ -882,7 +879,7 @@ export default function Dashboard() {
       showMsg('info', 'Uploading vice-chancellor signature...');
       const signatureDataURL = vcSignatureRef.current.toDataURL();
       console.log('[v0] Got data URL, length:', signatureDataURL.length);
-      const url = await uploadSignatureToBlob(signatureDataURL);
+      const url = await uploadSignatureToBlob(signatureDataURL, 'vc');
       console.log('[v0] VC signature URL:', url);
       setVcSignatureURL(url);
       showMsg('success', 'Vice-Chancellor signature saved!');
@@ -1518,10 +1515,10 @@ export default function Dashboard() {
                   </button>
                   <button
                     onClick={saveRegistrarSignature}
-                    disabled={isUploadingSignature}
+                    disabled={uploadingSignatory === 'registrar'}
                     className={`text-xs px-3 py-1 ${registrarSignatureURL ? 'bg-green-700' : 'bg-blue-600 hover:bg-blue-700'} text-white rounded`}
                   >
-                    {registrarSignatureURL ? '✓ Saved' : isUploadingSignature ? 'Uploading...' : 'Save Signature'}
+                    {registrarSignatureURL ? '✓ Saved' : uploadingSignatory === 'registrar' ? 'Uploading...' : 'Save Signature'}
                   </button>
                 </div>
               </div>
@@ -1555,10 +1552,10 @@ export default function Dashboard() {
                   </button>
                   <button
                     onClick={saveVCSignature}
-                    disabled={isUploadingSignature}
+                    disabled={uploadingSignatory === 'vc'}
                     className={`text-xs px-3 py-1 ${vcSignatureURL ? 'bg-green-700' : 'bg-blue-600 hover:bg-blue-700'} text-white rounded`}
                   >
-                    {vcSignatureURL ? '✓ Saved' : isUploadingSignature ? 'Uploading...' : 'Save Signature'}
+                    {vcSignatureURL ? '✓ Saved' : uploadingSignatory === 'vc' ? 'Uploading...' : 'Save Signature'}
                   </button>
                 </div>
               </div>

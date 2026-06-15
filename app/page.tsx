@@ -65,6 +65,10 @@ const UNIVERSITY_ABI = [
 // This MUST be set in environment variables, NEVER hardcoded in source
 const SERVER_MASTER_SECRET = process.env.NEXT_PUBLIC_ENCRYPTION_SECRET || '';
 
+if (typeof window !== 'undefined') {
+  console.log('[v0] Encryption initialized:', SERVER_MASTER_SECRET ? '✓ Secret loaded' : '✗ WARNING: No encryption secret configured');
+}
+
 function _toBase64(bytes: Uint8Array): string {
   let binary = '';
   for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]);

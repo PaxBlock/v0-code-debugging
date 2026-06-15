@@ -61,7 +61,9 @@ const UNIVERSITY_ABI = [
 // The key is deterministically derived from the university + student address
 // so no key storage is needed — any client can re-derive it to verify.
 // ---------------------------------------------------------------------------
-const APP_SALT = 'pax-academic-certificate-system-v1';
+// Server-side master secret for HMAC-based key derivation
+// This MUST be set in environment variables, NEVER hardcoded in source
+const SERVER_MASTER_SECRET = process.env.NEXT_PUBLIC_ENCRYPTION_SECRET || '';
 
 function _toBase64(bytes: Uint8Array): string {
   let binary = '';
@@ -87,10 +89,25 @@ function _randBytes(n: number): Uint8Array {
 }
 
 async function _deriveKey(universityAddress: string, studentAddress: string) {
-  const raw = `${APP_SALT}:${universityAddress.toLowerCase()}:${studentAddress.toLowerCase()}`;
-  const encoded = new TextEncoder().encode(raw);
-  const hash = await _subtle().digest('SHA-256', encoded);
-  return _subtle().importKey('raw', hash, { name: 'AES-GCM', length: 256 }, false, ['encrypt', 'decrypt']);
+  // Use HMAC-SHA256 with server-side master secret
+  // key = HMAC-SHA256(SERVER_MASTER_SECRET, universityAddress:studentAddress)
+  if (!SERVER_MASTER_SECRET) {
+    throw new Error('NEXT_PUBLIC_ENCRYPTION_SECRET is not configured. Encryption/decryption will not work.');
+  }
+
+  const message = `${universityAddress.toLowerCase()}:${studentAddress.toLowerCase()}`;
+  const secretKey = await _subtle().importKey(
+    'raw',
+    new TextEncoder().encode(SERVER_MASTER_SECRET),
+    { name: 'HMAC', hash: 'SHA-256' },
+    false,
+    ['sign']
+  );
+
+  const hmacResult = await _subtle().sign('HMAC', secretKey, new TextEncoder().encode(message));
+  
+  // Use the HMAC result as the AES-GCM key
+  return _subtle().importKey('raw', hmacResult, { name: 'AES-GCM', length: 256 }, false, ['encrypt', 'decrypt']);
 }
 
 async function encryptField(plain: string, univAddr: string, studentAddr: string): Promise<string> {

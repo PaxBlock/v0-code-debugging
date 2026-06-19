@@ -219,6 +219,81 @@ contract AcademicCertificate is ERC721, ERC721URIStorage, AccessControl {
     }
 
     /**
+     * @dev ISSUER ONLY: Issue multiple certificates in a single batch transaction.
+     * More gas efficient than calling issueCertificate multiple times.
+     * Returns arrays of success status and token IDs for each certificate.
+     */
+    function issueCertificatesBatch(
+        address[] calldata students,
+        string[] calldata names,
+        string[] calldata courses,
+        string[] calldata grades,
+        string[] calldata paxIds
+    ) external onlyRole(ISSUER_ROLE) returns (uint256[] memory tokenIds, bool[] memory successes) {
+        require(
+            students.length == names.length &&
+            names.length == courses.length &&
+            courses.length == grades.length &&
+            grades.length == paxIds.length,
+            "Array lengths must match"
+        );
+        require(students.length > 0, "Cannot issue zero certificates");
+        require(students.length <= 500, "Batch size too large (max 500)");
+
+        uint256[] memory _tokenIds = new uint256[](students.length);
+        bool[] memory _successes = new bool[](students.length);
+
+        for (uint256 i = 0; i < students.length; i++) {
+            // Try to issue each certificate
+            if (hasCertificate[students[i]]) {
+                _successes[i] = false;
+                continue;
+            }
+            if (bytes(paxIds[i]).length == 0) {
+                _successes[i] = false;
+                continue;
+            }
+            if (paxIdToWallet[paxIds[i]] != address(0)) {
+                _successes[i] = false;
+                continue;
+            }
+
+            uint256 tokenId = _nextTokenId++;
+            _safeMint(students[i], tokenId);
+
+            string memory uri = string(abi.encodePacked(
+                baseMetadataURI,
+                "/api/certificate/",
+                _addressToString(students[i]),
+                "?contract=",
+                _addressToString(address(this))
+            ));
+            _setTokenURI(tokenId, uri);
+
+            certificates[tokenId] = CertificateData({
+                candidateName: names[i],
+                courseName: courses[i],
+                grade: grades[i],
+                paxId: paxIds[i],
+                issuanceDate: block.timestamp,
+                issuer: msg.sender
+            });
+
+            hasCertificate[students[i]] = true;
+            studentToTokenId[students[i]] = tokenId;
+            paxIdToWallet[paxIds[i]] = students[i];
+            walletToPaxId[students[i]] = paxIds[i];
+
+            _tokenIds[i] = tokenId;
+            _successes[i] = true;
+
+            emit CertificateIssued(tokenId, students[i], paxIds[i], block.timestamp);
+        }
+
+        return (_tokenIds, _successes);
+    }
+
+    /**
      * @dev ADMIN ONLY: Revokes a certificate with a recorded on-chain reason.
      */
     function revokeCertificate(

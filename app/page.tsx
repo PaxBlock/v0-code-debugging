@@ -4,6 +4,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { ethers } from 'ethers';
 import SignatureCanvas from 'react-signature-canvas';
+import Papa from 'papaparse';
 import { logGDPRCompliant } from '@/lib/dataMasking';
 
 // Factory contract - PaxID, grade, signatory config, logo URL, deactivation support
@@ -35,6 +36,7 @@ const FACTORY_ABI = [
 const UNIVERSITY_ABI = [
   'function name() external view returns (string)',
   'function issueCertificate(address student, string memory _candidateName, string memory _courseName, string memory _grade, string memory _paxId) external returns (uint256)',
+  'function issueCertificatesBatch(address[] calldata students, string[] calldata names, string[] calldata courses, string[] calldata grades, string[] calldata paxIds) external returns (uint256[] memory tokenIds, bool[] memory successes)',
   'function hasCertificate(address student) external view returns (bool)',
   'function certificates(uint256 tokenId) external view returns (string candidateName, string courseName, string grade, string paxId, uint256 issuanceDate, address issuer)',
   'function studentToTokenId(address student) external view returns (uint256)',
@@ -210,6 +212,25 @@ export default function Dashboard() {
   const [grantAddress, setGrantAddress] = useState('');
   const [isGranting, setIsGranting] = useState(false);
   const [hasIssuerRole, setHasIssuerRole] = useState<boolean | null>(null);
+
+  // Bulk issuance
+  const [bulkCSVData, setBulkCSVData] = useState<Array<{
+    StudentName: string;
+    StudentEmail: string;
+    WalletAddress: string;
+    CourseName: string;
+    Grade: string;
+    PaxID: string;
+    FacultyName: string;
+    error?: string;
+  }>>([]);
+  const [bulkValidationResults, setBulkValidationResults] = useState<Array<{
+    row: number;
+    valid: boolean;
+    error?: string;
+  }>>([]);
+  const [isBulkIssuing, setIsBulkIssuing] = useState(false);
+  const [bulkProgress, setBulkProgress] = useState(0);
 
   // Institution config (Register tab - step 2)
   const [configUnivAddress, setConfigUnivAddress] = useState('');
@@ -1200,6 +1221,138 @@ export default function Dashboard() {
     }
   };
 
+  // CSV parsing and validation
+  const handleCSVUpload = (file: File) => {
+    console.log('[v0] Parsing CSV file:', file.name);
+    Papa.parse(file, {
+      header: true,
+      skipEmptyLines: true,
+      complete: (results: any) => {
+        console.log('[v0] CSV parsed, rows:', results.data.length);
+        const rows = results.data as typeof bulkCSVData;
+        setBulkCSVData(rows);
+        validateBulkData(rows);
+      },
+      error: (error: any) => {
+        console.error('[v0] CSV parse error:', error);
+        showMsg('error', `CSV parsing failed: ${error.message}`);
+      }
+    });
+  };
+
+  const validateBulkData = (rows: typeof bulkCSVData) => {
+    const validations = rows.map((row, idx) => {
+      const errors: string[] = [];
+
+      if (!row.StudentName || !row.StudentName.trim()) errors.push('Missing Student Name');
+      if (!row.WalletAddress || !row.WalletAddress.trim()) errors.push('Missing Wallet Address');
+      if (!ethers.isAddress(row.WalletAddress)) errors.push('Invalid wallet address');
+      if (!row.CourseName || !row.CourseName.trim()) errors.push('Missing Course Name');
+      if (!row.Grade || !row.Grade.trim()) errors.push('Missing Grade');
+      if (!row.PaxID || !row.PaxID.trim()) errors.push('Missing PaxID');
+      if (!row.FacultyName || !row.FacultyName.trim()) errors.push('Missing Faculty Name');
+
+      return {
+        row: idx + 1,
+        valid: errors.length === 0,
+        error: errors.length > 0 ? errors.join('; ') : undefined
+      };
+    });
+
+    // Check for duplicate PaxIDs
+    const paxIds = new Set<string>();
+    validations.forEach((val, idx) => {
+      const paxId = rows[idx].PaxID?.toUpperCase();
+      if (paxId && paxIds.has(paxId)) {
+        val.error = 'Duplicate PaxID in batch';
+        val.valid = false;
+      }
+      if (paxId) paxIds.add(paxId);
+    });
+
+    setBulkValidationResults(validations);
+    const passCount = validations.filter(v => v.valid).length;
+    const failCount = validations.length - passCount;
+    showMsg('info', `CSV Validation: ${passCount} valid, ${failCount} invalid rows`);
+  };
+
+  const issueBulkCertificates = async () => {
+    if (!signer) { showMsg('error', 'Please connect your wallet first.'); return; }
+    if (!univAddress) { showMsg('error', 'Please select a programme.'); return; }
+    if (!ethers.isAddress(univAddress)) { showMsg('error', 'Invalid university contract address.'); return; }
+
+    const validRows = bulkCSVData.filter((_, idx) => bulkValidationResults[idx]?.valid);
+    if (validRows.length === 0) { showMsg('error', 'No valid rows to issue.'); return; }
+
+    console.log('[v0] Bulk issuing', validRows.length, 'certificates');
+    setIsBulkIssuing(true);
+    setBulkProgress(0);
+
+    try {
+      const university = new ethers.Contract(univAddress, UNIVERSITY_ABI, signer);
+
+      // Prepare arrays for batch call
+      const students: string[] = [];
+      const names: string[] = [];
+      const courses: string[] = [];
+      const grades: string[] = [];
+      const paxIds: string[] = [];
+
+      // Encrypt all data first
+      showMsg('info', `Encrypting ${validRows.length} certificates...`);
+      for (let i = 0; i < validRows.length; i++) {
+        const row = validRows[i];
+        const encryptedName = await encryptField(row.StudentName, univAddress, row.WalletAddress);
+        const encryptedCourse = await encryptField(row.CourseName, univAddress, row.WalletAddress);
+        const encryptedGrade = await encryptField(row.Grade, univAddress, row.WalletAddress);
+
+        students.push(row.WalletAddress);
+        names.push(encryptedName);
+        courses.push(encryptedCourse);
+        grades.push(encryptedGrade);
+        paxIds.push(row.PaxID.toUpperCase().trim());
+
+        setBulkProgress(Math.round((i / validRows.length) * 50));
+      }
+
+      // Call batch issuance
+      showMsg('info', `Issuing batch of ${validRows.length} certificates... Please confirm in MetaMask.`);
+      const tx = await university.issueCertificatesBatch(students, names, courses, grades, paxIds);
+      console.log('[v0] Batch transaction sent:', tx.hash);
+
+      setBulkProgress(50);
+      const receipt = await tx.wait();
+      console.log('[v0] Batch transaction receipt:', receipt);
+
+      setBulkProgress(100);
+      showMsg('success', `Successfully issued ${validRows.length} certificates! Tx: ${tx.hash.slice(0, 10)}...`);
+
+      // Reset form
+      setBulkCSVData([]);
+      setBulkValidationResults([]);
+    } catch (error) {
+      console.error('[v0] Bulk issuance error:', error);
+      showMsg('error', parseError(error));
+    } finally {
+      setIsBulkIssuing(false);
+      setBulkProgress(0);
+    }
+  };
+
+  const downloadCSVTemplate = () => {
+    const template = `StudentName,StudentEmail,WalletAddress,CourseName,Grade,PaxID,FacultyName
+John Doe,john@uni.edu,0x742d35Cc6634C0532925a3b844Bc0e1f1748f5cc,Computer Science,First Class Honours,CS/2024/001,Faculty of Science
+Jane Smith,jane@uni.edu,0x8ba1f109551bD432803012645Ac136ddd64DBA72,Physics,Second Class Honours (Upper Division),PHY/2024/001,Faculty of Science`;
+    
+    const blob = new Blob([template], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'bulk-certificate-template.csv';
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
   const verifyCertificate = async () => {
     if (!verifyUniv) { showMsg('error', 'Please select a university.'); return; }
     setIsVerifying(true);
@@ -1958,6 +2111,113 @@ export default function Dashboard() {
               <button onClick={issueCertificate} disabled={isIssuing} className={`${btnClass} bg-green-600 hover:bg-green-700`}>
                 {isIssuing ? 'Issuing Certificate... Please wait' : 'Issue Certificate'}
               </button>
+            </div>
+
+            {/* Bulk Issue Certificates */}
+            <div className="bg-slate-800 rounded-xl p-6 border border-blue-900/40 space-y-4">
+              <div className="flex items-center gap-2">
+                <span className="bg-blue-600 text-white text-xs font-bold px-2 py-0.5 rounded-full">Bulk</span>
+                <h2 className="text-base font-bold">Issue Multiple Certificates (CSV)</h2>
+                <span className="text-xs text-slate-400 ml-auto">Issuer only</span>
+              </div>
+              <p className="text-slate-400 text-sm">Upload a CSV file to issue up to 500 certificates in a single blockchain transaction. All students must have wallet addresses.</p>
+              
+              {/* Step 1: Download Template */}
+              <div>
+                <label className={labelClass}>Step 1: Download CSV Template</label>
+                <button 
+                  onClick={downloadCSVTemplate}
+                  className="text-xs px-4 py-2 bg-slate-700 hover:bg-slate-600 rounded text-white"
+                >
+                  📥 Download Template
+                </button>
+                <p className="text-xs text-slate-500 mt-1">CSV must have columns: StudentName, StudentEmail, WalletAddress, CourseName, Grade, PaxID, FacultyName</p>
+              </div>
+
+              {/* Step 2: Upload CSV */}
+              <div>
+                <label className={labelClass}>Step 2: Upload CSV File</label>
+                <input
+                  type="file"
+                  accept=".csv"
+                  onChange={(e) => {
+                    if (e.target.files?.[0]) {
+                      handleCSVUpload(e.target.files[0]);
+                    }
+                  }}
+                  className={inputClass}
+                />
+                <p className="text-xs text-slate-500 mt-1">Select a CSV file with student data.</p>
+              </div>
+
+              {/* Step 3: Validation Preview */}
+              {bulkCSVData.length > 0 && (
+                <div>
+                  <label className={labelClass}>Step 3: Validation Preview</label>
+                  <div className="bg-slate-900 rounded-lg overflow-x-auto text-xs max-h-60 overflow-y-auto border border-slate-700">
+                    <table className="w-full">
+                      <thead className="sticky top-0 bg-slate-800 border-b border-slate-700">
+                        <tr>
+                          <th className="px-3 py-2 text-left">Row</th>
+                          <th className="px-3 py-2 text-left">Student</th>
+                          <th className="px-3 py-2 text-left">Wallet</th>
+                          <th className="px-3 py-2 text-left">Course</th>
+                          <th className="px-3 py-2 text-left">Grade</th>
+                          <th className="px-3 py-2 text-left">PaxID</th>
+                          <th className="px-3 py-2 text-left">Status</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {bulkCSVData.map((row, idx) => {
+                          const validation = bulkValidationResults[idx];
+                          return (
+                            <tr key={idx} className={validation?.valid ? 'bg-green-900/20' : 'bg-red-900/20'}>
+                              <td className="px-3 py-2">{idx + 1}</td>
+                              <td className="px-3 py-2 truncate max-w-xs">{row.StudentName}</td>
+                              <td className="px-3 py-2 truncate max-w-xs">{row.WalletAddress.slice(0, 10)}...</td>
+                              <td className="px-3 py-2 truncate max-w-xs">{row.CourseName}</td>
+                              <td className="px-3 py-2">{row.Grade}</td>
+                              <td className="px-3 py-2">{row.PaxID}</td>
+                              <td className="px-3 py-2">
+                                {validation?.valid ? (
+                                  <span className="text-green-400">✓</span>
+                                ) : (
+                                  <span className="text-red-400" title={validation?.error}>✗ {validation?.error?.split(';')[0]}</span>
+                                )}
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                  <p className="text-xs text-slate-400 mt-2">
+                    Valid: {bulkValidationResults.filter(v => v.valid).length} / {bulkCSVData.length}
+                  </p>
+                </div>
+              )}
+
+              {/* Step 4: Issue Bulk */}
+              {bulkCSVData.length > 0 && (
+                <div>
+                  <label className={labelClass}>Step 4: Issue Certificates</label>
+                  <button 
+                    onClick={issueBulkCertificates}
+                    disabled={isBulkIssuing || bulkValidationResults.filter(v => v.valid).length === 0}
+                    className={`${btnClass} ${isBulkIssuing || bulkValidationResults.filter(v => v.valid).length === 0 ? 'opacity-50 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700'}`}
+                  >
+                    {isBulkIssuing ? `Issuing... ${bulkProgress}%` : `Issue ${bulkValidationResults.filter(v => v.valid).length} Certificates`}
+                  </button>
+                  {isBulkIssuing && (
+                    <div className="mt-2 w-full bg-slate-700 rounded-full h-2 overflow-hidden">
+                      <div 
+                        className="bg-blue-500 h-full transition-all duration-300"
+                        style={{ width: `${bulkProgress}%` }}
+                      />
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
 
             {/* Step 3: Revoke Certificate */}

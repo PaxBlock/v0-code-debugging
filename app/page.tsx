@@ -582,29 +582,47 @@ export default function Dashboard() {
       }
 
       // Check if this wallet is a University Admin or Issuer on any programme
+      // First check wallet-associated universities (admin/owner)
       const walletUnivs: string[] = await factory.getWalletUniversities(walletAddress);
-      if (walletUnivs.length === 0) {
-        setWalletRole('none');
-        setActiveTab('verify'); // No role — verify only
-        return;
+      
+      // Get role constants from the first available university
+      let defaultAdminRole: string;
+      let issuerRole: string;
+      
+      if (walletUnivs.length > 0) {
+        const tempUniv = new ethers.Contract(walletUnivs[0], UNIVERSITY_ABI, provider);
+        defaultAdminRole = await tempUniv.DEFAULT_ADMIN_ROLE();
+        issuerRole = await tempUniv.ISSUER_ROLE();
+      } else {
+        // If no wallet universities, get role constants from first deployed university
+        const allUnivs = await factory.getDeployedUniversities();
+        if (allUnivs.length === 0) {
+          setWalletRole('none');
+          setActiveTab('verify');
+          return;
+        }
+        const tempUniv = new ethers.Contract(allUnivs[0], UNIVERSITY_ABI, provider);
+        defaultAdminRole = await tempUniv.DEFAULT_ADMIN_ROLE();
+        issuerRole = await tempUniv.ISSUER_ROLE();
       }
 
-      // Check role on ANY associated university to distinguish admin vs issuer
-      const defaultAdminRole = (await new ethers.Contract(walletUnivs[0], UNIVERSITY_ABI, provider).DEFAULT_ADMIN_ROLE());
-      const issuerRole = (await new ethers.Contract(walletUnivs[0], UNIVERSITY_ABI, provider).ISSUER_ROLE());
+      // Check all universities (not just wallet-associated ones)
+      // This is critical for finding issuer roles granted to this wallet
+      const allUniversities = await factory.getDeployedUniversities();
       
       let isAdmin = false;
       let isIssuer = false;
       
       // Check all universities to see if wallet has admin or issuer role on ANY of them
-      for (const univAddr of walletUnivs) {
+      for (const univAddr of allUniversities) {
         const univContract = new ethers.Contract(univAddr, UNIVERSITY_ABI, provider);
         if (!isAdmin && await univContract.hasRole(defaultAdminRole, walletAddress)) {
           isAdmin = true;
-          break;
+          break; // Found admin role, no need to check further
         }
         if (!isIssuer && await univContract.hasRole(issuerRole, walletAddress)) {
           isIssuer = true;
+          // Continue checking in case there's an admin role
         }
       }
       
@@ -620,7 +638,7 @@ export default function Dashboard() {
         return;
       }
 
-      // Has universities but no admin/issuer role - verifier only
+      // No admin or issuer role found - verifier only
       setWalletRole('none');
       setActiveTab('verify');
     } catch (_e) {

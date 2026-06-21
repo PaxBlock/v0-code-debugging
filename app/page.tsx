@@ -589,19 +589,40 @@ export default function Dashboard() {
         return;
       }
 
-      // Check role on first associated university to distinguish admin vs issuer
-      const univContract = new ethers.Contract(walletUnivs[0], UNIVERSITY_ABI, provider);
-      const defaultAdminRole = await univContract.DEFAULT_ADMIN_ROLE();
-      const isAdmin = await univContract.hasRole(defaultAdminRole, walletAddress);
+      // Check role on ANY associated university to distinguish admin vs issuer
+      const defaultAdminRole = (await new ethers.Contract(walletUnivs[0], UNIVERSITY_ABI, provider).DEFAULT_ADMIN_ROLE());
+      const issuerRole = (await new ethers.Contract(walletUnivs[0], UNIVERSITY_ABI, provider).ISSUER_ROLE());
+      
+      let isAdmin = false;
+      let isIssuer = false;
+      
+      // Check all universities to see if wallet has admin or issuer role on ANY of them
+      for (const univAddr of walletUnivs) {
+        const univContract = new ethers.Contract(univAddr, UNIVERSITY_ABI, provider);
+        if (!isAdmin && await univContract.hasRole(defaultAdminRole, walletAddress)) {
+          isAdmin = true;
+          break;
+        }
+        if (!isIssuer && await univContract.hasRole(issuerRole, walletAddress)) {
+          isIssuer = true;
+        }
+      }
+      
       if (isAdmin) {
         setWalletRole('admin');
         setActiveTab('issue'); // Admin lands on Issue tab
         return;
       }
 
-      // Must be an issuer
-      setWalletRole('issuer');
-      setActiveTab('issue'); // Issuer lands on Issue tab
+      if (isIssuer) {
+        setWalletRole('issuer');
+        setActiveTab('issue'); // Issuer lands on Issue tab
+        return;
+      }
+
+      // Has universities but no admin/issuer role - verifier only
+      setWalletRole('none');
+      setActiveTab('verify');
     } catch (_e) {
       setWalletRole('none');
       setActiveTab('verify');
@@ -1167,6 +1188,9 @@ export default function Dashboard() {
             // Silent — if config fetch fails, email will use defaults (empty signatories)
           }
 
+          // Use the institution's configured verification domain, or fall back to current origin
+          const verificationDomain = institutionConfig?.verificationDomain || window.location.hostname;
+          
           await fetch('/api/certificate/send-email', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -1189,7 +1213,7 @@ export default function Dashboard() {
               deanSignature,
               deanPosition,
               logoUrl,
-              domain: 'verify.example.edu',
+              domain: verificationDomain,
             }),
           }).then(res => {
             if (res.ok) {

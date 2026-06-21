@@ -14,13 +14,26 @@ const UNIVERSITY_ABI = [
   'function institutionConfig() external view returns (string deanName, string registrarName, string viceChancellorName, string verificationDomain, string logoURL)',
 ];
 
-const APP_SALT = 'pax-academic-certificate-system-v1';
+// Server-side master secret for HMAC-based key derivation (matches frontend)
+const SERVER_MASTER_SECRET = process.env.NEXT_PUBLIC_ENCRYPTION_SECRET || '';
 
 async function deriveKey(univAddr: string, studentAddr: string): Promise<CryptoKey> {
-  const raw = `${APP_SALT}:${univAddr.toLowerCase()}:${studentAddr.toLowerCase()}`;
-  const encoded = new TextEncoder().encode(raw);
-  const hash = await crypto.subtle.digest('SHA-256', encoded);
-  return crypto.subtle.importKey('raw', hash, { name: 'AES-GCM', length: 256 }, false, ['decrypt']);
+  // Use HMAC-SHA256 with server-side master secret (matches frontend)
+  if (!SERVER_MASTER_SECRET) {
+    throw new Error('NEXT_PUBLIC_ENCRYPTION_SECRET not configured');
+  }
+
+  const message = `${univAddr.toLowerCase()}:${studentAddr.toLowerCase()}`;
+  const secretKey = await crypto.subtle.importKey(
+    'raw',
+    new TextEncoder().encode(SERVER_MASTER_SECRET),
+    { name: 'HMAC', hash: 'SHA-256' },
+    false,
+    ['sign']
+  );
+
+  const hmacResult = await crypto.subtle.sign('HMAC', secretKey, new TextEncoder().encode(message));
+  return crypto.subtle.importKey('raw', hmacResult, { name: 'AES-GCM', length: 256 }, false, ['decrypt']);
 }
 
 async function decryptField(value: string, univAddr: string, studentAddr: string): Promise<string> {

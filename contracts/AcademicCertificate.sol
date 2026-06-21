@@ -221,7 +221,6 @@ contract AcademicCertificate is ERC721, ERC721URIStorage, AccessControl {
     /**
      * @dev ISSUER ONLY: Issue multiple certificates in a single batch transaction.
      * More gas efficient than calling issueCertificate multiple times.
-     * Returns arrays of success status and token IDs for each certificate.
      */
     function issueCertificatesBatch(
         address[] calldata students,
@@ -229,7 +228,7 @@ contract AcademicCertificate is ERC721, ERC721URIStorage, AccessControl {
         string[] calldata courses,
         string[] calldata grades,
         string[] calldata paxIds
-    ) external onlyRole(ISSUER_ROLE) returns (uint256[] memory tokenIds, bool[] memory successes) {
+    ) external onlyRole(ISSUER_ROLE) {
         require(
             students.length == names.length &&
             names.length == courses.length &&
@@ -238,59 +237,43 @@ contract AcademicCertificate is ERC721, ERC721URIStorage, AccessControl {
             "Array lengths must match"
         );
         require(students.length > 0, "Cannot issue zero certificates");
-        require(students.length <= 500, "Batch size too large (max 500)");
-
-        uint256[] memory _tokenIds = new uint256[](students.length);
-        bool[] memory _successes = new bool[](students.length);
+        require(students.length <= 150, "Batch size too large (max 150)");
 
         for (uint256 i = 0; i < students.length; i++) {
-            // Try to issue each certificate
-            if (hasCertificate[students[i]]) {
-                _successes[i] = false;
-                continue;
-            }
-            if (bytes(paxIds[i]).length == 0) {
-                _successes[i] = false;
-                continue;
-            }
-            if (paxIdToWallet[paxIds[i]] != address(0)) {
-                _successes[i] = false;
-                continue;
-            }
+            address student = students[i];
+            string calldata paxId = paxIds[i];
+
+            if (hasCertificate[student]) continue;
+            if (bytes(paxId).length == 0) continue;
+            if (paxIdToWallet[paxId] != address(0)) continue;
 
             uint256 tokenId = _nextTokenId++;
-            _safeMint(students[i], tokenId);
+            _safeMint(student, tokenId);
 
-            string memory uri = string(abi.encodePacked(
+            _setTokenURI(tokenId, string(abi.encodePacked(
                 baseMetadataURI,
                 "/api/certificate/",
-                _addressToString(students[i]),
+                _addressToString(student),
                 "?contract=",
                 _addressToString(address(this))
-            ));
-            _setTokenURI(tokenId, uri);
+            )));
 
-            certificates[tokenId] = CertificateData({
-                candidateName: names[i],
-                courseName: courses[i],
-                grade: grades[i],
-                paxId: paxIds[i],
-                issuanceDate: block.timestamp,
-                issuer: msg.sender
-            });
+            certificates[tokenId] = CertificateData(
+                names[i],
+                courses[i],
+                grades[i],
+                paxId,
+                block.timestamp,
+                msg.sender
+            );
 
-            hasCertificate[students[i]] = true;
-            studentToTokenId[students[i]] = tokenId;
-            paxIdToWallet[paxIds[i]] = students[i];
-            walletToPaxId[students[i]] = paxIds[i];
+            hasCertificate[student] = true;
+            studentToTokenId[student] = tokenId;
+            paxIdToWallet[paxId] = student;
+            walletToPaxId[student] = paxId;
 
-            _tokenIds[i] = tokenId;
-            _successes[i] = true;
-
-            emit CertificateIssued(tokenId, students[i], paxIds[i], block.timestamp);
+            emit CertificateIssued(tokenId, student, paxId, block.timestamp);
         }
-
-        return (_tokenIds, _successes);
     }
 
     /**

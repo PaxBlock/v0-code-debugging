@@ -219,6 +219,64 @@ contract AcademicCertificate is ERC721, ERC721URIStorage, AccessControl {
     }
 
     /**
+     * @dev ISSUER ONLY: Issue multiple certificates in a single batch transaction.
+     * More gas efficient than calling issueCertificate multiple times.
+     */
+    function issueCertificatesBatch(
+        address[] calldata students,
+        string[] calldata names,
+        string[] calldata courses,
+        string[] calldata grades,
+        string[] calldata paxIds
+    ) external onlyRole(ISSUER_ROLE) {
+        require(
+            students.length == names.length &&
+            names.length == courses.length &&
+            courses.length == grades.length &&
+            grades.length == paxIds.length,
+            "Array lengths must match"
+        );
+        require(students.length > 0, "Cannot issue zero certificates");
+        require(students.length <= 150, "Batch size too large (max 150)");
+
+        for (uint256 i = 0; i < students.length; i++) {
+            address student = students[i];
+            string calldata paxId = paxIds[i];
+
+            if (hasCertificate[student]) continue;
+            if (bytes(paxId).length == 0) continue;
+            if (paxIdToWallet[paxId] != address(0)) continue;
+
+            uint256 tokenId = _nextTokenId++;
+            _safeMint(student, tokenId);
+
+            _setTokenURI(tokenId, string(abi.encodePacked(
+                baseMetadataURI,
+                "/api/certificate/",
+                _addressToString(student),
+                "?contract=",
+                _addressToString(address(this))
+            )));
+
+            certificates[tokenId] = CertificateData(
+                names[i],
+                courses[i],
+                grades[i],
+                paxId,
+                block.timestamp,
+                msg.sender
+            );
+
+            hasCertificate[student] = true;
+            studentToTokenId[student] = tokenId;
+            paxIdToWallet[paxId] = student;
+            walletToPaxId[student] = paxId;
+
+            emit CertificateIssued(tokenId, student, paxId, block.timestamp);
+        }
+    }
+
+    /**
      * @dev ADMIN ONLY: Revokes a certificate with a recorded on-chain reason.
      */
     function revokeCertificate(

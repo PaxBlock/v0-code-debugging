@@ -36,7 +36,10 @@ export async function GET(req: NextRequest) {
     deanName,
   });
 
-  const qrData = verifyUrl || `https://${domain}`;
+  // Use the verifyUrl which contains the full verification link with the correct domain
+  // If verifyUrl is empty, fall back to the domain parameter
+  const qrData = verifyUrl || `https://${domain || 'v0-paxadmin.vercel.app'}`;
+  console.log('[certificate-image] QR Code data:', qrData);
   const qrImageUrl = `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(qrData)}&bgcolor=fdf6e3&color=1a1a2e&margin=8&qzone=2`;
 
   // Dot row helper

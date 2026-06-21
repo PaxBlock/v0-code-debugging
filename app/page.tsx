@@ -721,14 +721,9 @@ export default function Dashboard() {
       const issuerRole = await university.ISSUER_ROLE();
       showMsg('info', 'Granting Issuer Role... Please confirm in MetaMask.');
       const tx = await university.grantRole(issuerRole, grantAddress);
+      console.log('[v0] Grant Role transaction sent:', tx.hash);
       await tx.wait();
-
-      // Register the issuer in the Factory so their wallet appears in the Issue tab dropdown.
-      // This is the key step that makes getWalletUniversities() work for the new issuer.
-      showMsg('info', 'Registering issuer in Factory... Please confirm in MetaMask.');
-      const factory = new ethers.Contract(FACTORY_ADDRESS, FACTORY_ABI, signer);
-      const registerTx = await factory.registerIssuer(univAddress, grantAddress);
-      await registerTx.wait();
+      console.log('[v0] Grant Role transaction confirmed');
 
       setHasIssuerRole(grantAddress.toLowerCase() === account.toLowerCase() ? true : hasIssuerRole);
       showMsg('success', `Issuer Role granted to ${grantAddress.slice(0, 6)}...${grantAddress.slice(-4)}. They can now issue certificates on this programme.`);

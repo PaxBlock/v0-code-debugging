@@ -1364,6 +1364,66 @@ export default function Dashboard() {
       setBulkProgress(100);
       showMsg('success', `Successfully issued ${validRows.length} certificates! Tx: ${tx.hash.slice(0, 10)}...`);
 
+      // Send emails for certificates with student email addresses
+      const emailRows = validRows.filter(r => r.StudentEmail && r.StudentEmail.trim());
+      if (emailRows.length > 0) {
+        showMsg('info', `Sending ${emailRows.length} certificates to student emails...`);
+        
+        try {
+          const provider = await getReadOnlyProvider();
+          const universityContract = new ethers.Contract(univAddress, UNIVERSITY_ABI, provider);
+          const config = await universityContract.institutionConfig();
+          const faculties = await universityContract.getFacultySignatories();
+          
+          const univName = myUniversities.find(u => u.address.toLowerCase() === univAddress.toLowerCase())?.name || 'Your Institution';
+          const verificationDomain = config?.verificationDomain || window.location.hostname;
+          
+          // Send emails in parallel (limit to 5 at a time to avoid rate limiting)
+          for (let i = 0; i < emailRows.length; i += 5) {
+            const batch = emailRows.slice(i, i + 5);
+            await Promise.all(batch.map(async (row) => {
+              try {
+                // Find faculty signatory for this row
+                const selectedFac = faculties.find((f: any) => f.facultyName.toLowerCase() === row.FacultyName.toLowerCase());
+                
+                await fetch('/api/certificate/send-email', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({
+                    to: row.StudentEmail,
+                    studentName: row.StudentName,
+                    course: row.CourseName,
+                    grade: row.Grade,
+                    paxId: row.PaxID.toUpperCase().trim(),
+                    universityName: univName,
+                    studentAddress: row.WalletAddress,
+                    contractAddress: univAddress,
+                    registrar: config?.registrarName || '',
+                    registrarSignature: config?.registrarSignatureURL || '',
+                    registrarPosition: 'Registrar',
+                    vc: config?.viceChancellorName || '',
+                    vcSignature: config?.viceChancellorSignatureURL || '',
+                    vcPosition: 'Vice Chancellor',
+                    dean: selectedFac?.deanName || '',
+                    deanSignature: selectedFac?.deanSignatureURL || '',
+                    deanPosition: `Dean of ${row.FacultyName}`,
+                    logoUrl: config?.logoURL || '',
+                    domain: verificationDomain,
+                  }),
+                });
+              } catch (emailError) {
+                console.error('[v0] Failed to send email to', row.StudentEmail, emailError);
+              }
+            }));
+          }
+          
+          showMsg('success', `Emails sent to ${emailRows.length} students!`);
+        } catch (emailError) {
+          console.error('[v0] Bulk email error:', emailError);
+          showMsg('info', `Certificates issued but email sending encountered an issue. Students can still access via blockchain.`);
+        }
+      }
+
       // Reset form
       setBulkCSVData([]);
       setBulkValidationResults([]);

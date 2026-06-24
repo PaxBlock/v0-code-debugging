@@ -1314,19 +1314,41 @@ export default function Dashboard() {
   };
 
   const issueBulkCertificates = async () => {
-    if (!signer) { showMsg('error', 'Please connect your wallet first.'); return; }
-    if (!univAddress) { showMsg('error', 'Please select a programme.'); return; }
-    if (!ethers.isAddress(univAddress)) { showMsg('error', 'Invalid university contract address.'); return; }
+    console.log('[v0] Starting bulk issuance');
+    
+    if (!signer) { 
+      console.error('[v0] No signer connected');
+      showMsg('error', 'Please connect your wallet first.'); 
+      return; 
+    }
+    if (!univAddress) { 
+      console.error('[v0] No university address selected');
+      showMsg('error', 'Please select a programme.'); 
+      return; 
+    }
+    if (!ethers.isAddress(univAddress)) { 
+      console.error('[v0] Invalid university address:', univAddress);
+      showMsg('error', 'Invalid university contract address.'); 
+      return; 
+    }
 
     const validRows = bulkCSVData.filter((_, idx) => bulkValidationResults[idx]?.valid);
-    if (validRows.length === 0) { showMsg('error', 'No valid rows to issue.'); return; }
+    if (validRows.length === 0) { 
+      console.error('[v0] No valid rows in CSV');
+      showMsg('error', 'No valid rows to issue.'); 
+      return; 
+    }
 
     console.log('[v0] Bulk issuing', validRows.length, 'certificates');
+    console.log('[v0] University address:', univAddress);
+    console.log('[v0] Signer address:', await signer.getAddress());
+    
     setIsBulkIssuing(true);
     setBulkProgress(0);
 
     try {
       const university = new ethers.Contract(univAddress, UNIVERSITY_ABI, signer);
+      console.log('[v0] University contract created');
 
       // Prepare arrays for batch call
       const students: string[] = [];
@@ -1337,32 +1359,116 @@ export default function Dashboard() {
 
       // Encrypt all data first
       showMsg('info', `Encrypting ${validRows.length} certificates...`);
+      console.log('[v0] Starting encryption');
+      
       for (let i = 0; i < validRows.length; i++) {
         const row = validRows[i];
-        const encryptedName = await encryptField(row.StudentName, univAddress, row.WalletAddress);
-        const encryptedCourse = await encryptField(row.CourseName, univAddress, row.WalletAddress);
-        const encryptedGrade = await encryptField(row.Grade, univAddress, row.WalletAddress);
+        console.log(`[v0] Encrypting certificate ${i + 1}/${validRows.length}: ${row.StudentName}`);
+        
+        try {
+          const encryptedName = await encryptField(row.StudentName, univAddress, row.WalletAddress);
+          const encryptedCourse = await encryptField(row.CourseName, univAddress, row.WalletAddress);
+          const encryptedGrade = await encryptField(row.Grade, univAddress, row.WalletAddress);
 
-        students.push(row.WalletAddress);
-        names.push(encryptedName);
-        courses.push(encryptedCourse);
-        grades.push(encryptedGrade);
-        paxIds.push(row.PaxID.toUpperCase().trim());
+          students.push(row.WalletAddress);
+          names.push(encryptedName);
+          courses.push(encryptedCourse);
+          grades.push(encryptedGrade);
+          paxIds.push(row.PaxID.toUpperCase().trim());
 
-        setBulkProgress(Math.round((i / validRows.length) * 50));
+          console.log(`[v0] Certificate ${i + 1} encrypted successfully`);
+          setBulkProgress(Math.round((i / validRows.length) * 50));
+        } catch (encryptError) {
+          console.error(`[v0] Encryption failed for certificate ${i + 1}:`, encryptError);
+          throw new Error(`Failed to encrypt certificate for ${row.StudentName}: ${encryptError}`);
+        }
       }
+
+      console.log('[v0] All encryption complete. Preparing blockchain call');
+      console.log('[v0] Arrays prepared:', {
+        studentCount: students.length,
+        namesCount: names.length,
+        coursesCount: courses.length,
+        gradesCount: grades.length,
+        paxIdsCount: paxIds.length
+      });
 
       // Call batch issuance
       showMsg('info', `Issuing batch of ${validRows.length} certificates... Please confirm in MetaMask.`);
+      console.log('[v0] Calling issueCertificatesBatch on blockchain');
+      
       const tx = await university.issueCertificatesBatch(students, names, courses, grades, paxIds);
       console.log('[v0] Batch transaction sent:', tx.hash);
 
       setBulkProgress(50);
+      console.log('[v0] Waiting for transaction confirmation');
+      
       const receipt = await tx.wait();
       console.log('[v0] Batch transaction receipt:', receipt);
+      console.log('[v0] Transaction confirmed successfully');
 
       setBulkProgress(100);
       showMsg('success', `Successfully issued ${validRows.length} certificates! Tx: ${tx.hash.slice(0, 10)}...`);
+
+      // Send emails for certificates with student email addresses
+      const emailRows = validRows.filter(r => r.StudentEmail && r.StudentEmail.trim());
+      if (emailRows.length > 0) {
+        showMsg('info', `Sending ${emailRows.length} certificates to student emails...`);
+        
+        try {
+          const provider = await getReadOnlyProvider();
+          const universityContract = new ethers.Contract(univAddress, UNIVERSITY_ABI, provider);
+          const config = await universityContract.institutionConfig();
+          const faculties = await universityContract.getFacultySignatories();
+          
+          const univName = myUniversities.find(u => u.address.toLowerCase() === univAddress.toLowerCase())?.name || 'Your Institution';
+          const verificationDomain = config?.verificationDomain || window.location.hostname;
+          
+          // Send emails in parallel (limit to 5 at a time to avoid rate limiting)
+          for (let i = 0; i < emailRows.length; i += 5) {
+            const batch = emailRows.slice(i, i + 5);
+            await Promise.all(batch.map(async (row) => {
+              try {
+                // Find faculty signatory for this row
+                const selectedFac = faculties.find((f: any) => f.facultyName.toLowerCase() === row.FacultyName.toLowerCase());
+                
+                await fetch('/api/certificate/send-email', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({
+                    to: row.StudentEmail,
+                    studentName: row.StudentName,
+                    course: row.CourseName,
+                    grade: row.Grade,
+                    paxId: row.PaxID.toUpperCase().trim(),
+                    universityName: univName,
+                    studentAddress: row.WalletAddress,
+                    contractAddress: univAddress,
+                    registrar: config?.registrarName || '',
+                    registrarSignature: config?.registrarSignatureURL || '',
+                    registrarPosition: 'Registrar',
+                    vc: config?.viceChancellorName || '',
+                    vcSignature: config?.viceChancellorSignatureURL || '',
+                    vcPosition: 'Vice Chancellor',
+                    dean: selectedFac?.deanName || '',
+                    deanSignature: selectedFac?.deanSignatureURL || '',
+                    deanPosition: `Dean of ${row.FacultyName}`,
+                    logoUrl: config?.logoURL || '',
+                    domain: verificationDomain,
+                  }),
+                });
+              } catch (emailError) {
+                console.error('[v0] Failed to send email to', row.StudentEmail, emailError);
+              }
+            }));
+          }
+          
+          showMsg('success', `Emails sent to ${emailRows.length} students!`);
+        } catch (emailError) {
+          console.error('[v0] Bulk email error:', emailError);
+          showMsg('info', `Certificates issued but email sending encountered an issue. Students can still access via blockchain.`);
+        }
+      }
 
       // Reset form
       setBulkCSVData([]);

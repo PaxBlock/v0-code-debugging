@@ -1173,7 +1173,7 @@ export default function Dashboard() {
 
       showMsg('success', `Certificate issued to ${certificateName}! PaxID: ${normalisedPaxId}`);
 
-      // Send email softcopy if email was provided — fire and forget, never store it
+      // Send email softcopy if email was provided ��� fire and forget, never store it
       if (studentEmail) {
         showMsg('info', 'Sending certificate to student email...');
         try {
@@ -1366,11 +1366,14 @@ export default function Dashboard() {
         console.log(`[v0] Encrypting certificate ${i + 1}/${validRows.length}: ${row.StudentName}`);
         
         try {
-          const encryptedName = await encryptField(row.StudentName, univAddress, row.WalletAddress);
-          const encryptedCourse = await encryptField(row.CourseName, univAddress, row.WalletAddress);
-          const encryptedGrade = await encryptField(row.Grade, univAddress, row.WalletAddress);
+          // Normalize wallet address to lowercase
+          const normalizedWallet = row.WalletAddress.toLowerCase();
+          
+          const encryptedName = await encryptField(row.StudentName, univAddress, normalizedWallet);
+          const encryptedCourse = await encryptField(row.CourseName, univAddress, normalizedWallet);
+          const encryptedGrade = await encryptField(row.Grade, univAddress, normalizedWallet);
 
-          students.push(row.WalletAddress);
+          students.push(normalizedWallet);
           names.push(encryptedName);
           courses.push(encryptedCourse);
           grades.push(encryptedGrade);
@@ -1421,7 +1424,14 @@ export default function Dashboard() {
           const config = await universityContract.institutionConfig();
           const faculties = await universityContract.getFacultySignatories();
           
-          const univName = myUniversities.find(u => u.address.toLowerCase() === univAddress.toLowerCase())?.name || 'Your Institution';
+          // Get university name from contract or use address
+          let univName = 'Your Institution';
+          try {
+            univName = await universityContract.name();
+          } catch (_e) {
+            // Fall back to default name if contract.name() fails
+          }
+          
           const verificationDomain = config?.verificationDomain || window.location.hostname;
           
           // Send emails in parallel (limit to 5 at a time to avoid rate limiting)
@@ -1442,7 +1452,7 @@ export default function Dashboard() {
                     grade: row.Grade,
                     paxId: row.PaxID.toUpperCase().trim(),
                     universityName: univName,
-                    studentAddress: row.WalletAddress,
+                    studentAddress: row.WalletAddress.toLowerCase(),
                     contractAddress: univAddress,
                     registrar: config?.registrarName || '',
                     registrarSignature: config?.registrarSignatureURL || '',

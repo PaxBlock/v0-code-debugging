@@ -1314,19 +1314,41 @@ export default function Dashboard() {
   };
 
   const issueBulkCertificates = async () => {
-    if (!signer) { showMsg('error', 'Please connect your wallet first.'); return; }
-    if (!univAddress) { showMsg('error', 'Please select a programme.'); return; }
-    if (!ethers.isAddress(univAddress)) { showMsg('error', 'Invalid university contract address.'); return; }
+    console.log('[v0] Starting bulk issuance');
+    
+    if (!signer) { 
+      console.error('[v0] No signer connected');
+      showMsg('error', 'Please connect your wallet first.'); 
+      return; 
+    }
+    if (!univAddress) { 
+      console.error('[v0] No university address selected');
+      showMsg('error', 'Please select a programme.'); 
+      return; 
+    }
+    if (!ethers.isAddress(univAddress)) { 
+      console.error('[v0] Invalid university address:', univAddress);
+      showMsg('error', 'Invalid university contract address.'); 
+      return; 
+    }
 
     const validRows = bulkCSVData.filter((_, idx) => bulkValidationResults[idx]?.valid);
-    if (validRows.length === 0) { showMsg('error', 'No valid rows to issue.'); return; }
+    if (validRows.length === 0) { 
+      console.error('[v0] No valid rows in CSV');
+      showMsg('error', 'No valid rows to issue.'); 
+      return; 
+    }
 
     console.log('[v0] Bulk issuing', validRows.length, 'certificates');
+    console.log('[v0] University address:', univAddress);
+    console.log('[v0] Signer address:', await signer.getAddress());
+    
     setIsBulkIssuing(true);
     setBulkProgress(0);
 
     try {
       const university = new ethers.Contract(univAddress, UNIVERSITY_ABI, signer);
+      console.log('[v0] University contract created');
 
       // Prepare arrays for batch call
       const students: string[] = [];
@@ -1337,29 +1359,53 @@ export default function Dashboard() {
 
       // Encrypt all data first
       showMsg('info', `Encrypting ${validRows.length} certificates...`);
+      console.log('[v0] Starting encryption');
+      
       for (let i = 0; i < validRows.length; i++) {
         const row = validRows[i];
-        const encryptedName = await encryptField(row.StudentName, univAddress, row.WalletAddress);
-        const encryptedCourse = await encryptField(row.CourseName, univAddress, row.WalletAddress);
-        const encryptedGrade = await encryptField(row.Grade, univAddress, row.WalletAddress);
+        console.log(`[v0] Encrypting certificate ${i + 1}/${validRows.length}: ${row.StudentName}`);
+        
+        try {
+          const encryptedName = await encryptField(row.StudentName, univAddress, row.WalletAddress);
+          const encryptedCourse = await encryptField(row.CourseName, univAddress, row.WalletAddress);
+          const encryptedGrade = await encryptField(row.Grade, univAddress, row.WalletAddress);
 
-        students.push(row.WalletAddress);
-        names.push(encryptedName);
-        courses.push(encryptedCourse);
-        grades.push(encryptedGrade);
-        paxIds.push(row.PaxID.toUpperCase().trim());
+          students.push(row.WalletAddress);
+          names.push(encryptedName);
+          courses.push(encryptedCourse);
+          grades.push(encryptedGrade);
+          paxIds.push(row.PaxID.toUpperCase().trim());
 
-        setBulkProgress(Math.round((i / validRows.length) * 50));
+          console.log(`[v0] Certificate ${i + 1} encrypted successfully`);
+          setBulkProgress(Math.round((i / validRows.length) * 50));
+        } catch (encryptError) {
+          console.error(`[v0] Encryption failed for certificate ${i + 1}:`, encryptError);
+          throw new Error(`Failed to encrypt certificate for ${row.StudentName}: ${encryptError}`);
+        }
       }
+
+      console.log('[v0] All encryption complete. Preparing blockchain call');
+      console.log('[v0] Arrays prepared:', {
+        studentCount: students.length,
+        namesCount: names.length,
+        coursesCount: courses.length,
+        gradesCount: grades.length,
+        paxIdsCount: paxIds.length
+      });
 
       // Call batch issuance
       showMsg('info', `Issuing batch of ${validRows.length} certificates... Please confirm in MetaMask.`);
+      console.log('[v0] Calling issueCertificatesBatch on blockchain');
+      
       const tx = await university.issueCertificatesBatch(students, names, courses, grades, paxIds);
       console.log('[v0] Batch transaction sent:', tx.hash);
 
       setBulkProgress(50);
+      console.log('[v0] Waiting for transaction confirmation');
+      
       const receipt = await tx.wait();
       console.log('[v0] Batch transaction receipt:', receipt);
+      console.log('[v0] Transaction confirmed successfully');
 
       setBulkProgress(100);
       showMsg('success', `Successfully issued ${validRows.length} certificates! Tx: ${tx.hash.slice(0, 10)}...`);

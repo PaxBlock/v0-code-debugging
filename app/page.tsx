@@ -661,8 +661,32 @@ export default function Dashboard() {
       }
       
       console.log('[v0] MetaMask detected, requesting accounts...');
-      const accounts = (await win.ethereum.request({ method: 'eth_requestAccounts' })) as string[];
-      console.log('[v0] Accounts received:', accounts[0]);
+      
+      // Retry logic for account request (sometimes MetaMask needs a moment)
+      let accounts: string[] = [];
+      let retries = 0;
+      const maxRetries = 3;
+      
+      while (retries < maxRetries) {
+        try {
+          accounts = (await win.ethereum.request({ method: 'eth_requestAccounts' })) as string[];
+          console.log('[v0] Accounts received:', accounts[0]);
+          break; // Success, exit retry loop
+        } catch (requestError) {
+          retries++;
+          console.warn(`[v0] Account request failed (attempt ${retries}/${maxRetries}):`, requestError);
+          if (retries < maxRetries) {
+            console.log('[v0] Retrying in 1 second...');
+            await new Promise(resolve => setTimeout(resolve, 1000)); // Wait 1 second before retrying
+          } else {
+            throw requestError; // All retries exhausted
+          }
+        }
+      }
+      
+      if (accounts.length === 0) {
+        throw new Error('No accounts found. Please unlock MetaMask and try again.');
+      }
       
       const chainIdHex = (await win.ethereum.request({ method: 'eth_chainId' })) as string;
       const chainIdNum = parseInt(chainIdHex, 16);
@@ -708,7 +732,18 @@ export default function Dashboard() {
       console.log('[v0] Wallet connection complete');
     } catch (error) {
       console.error('[v0] Wallet connection error:', error);
-      showMsg('error', parseError(error));
+      
+      // Provide more helpful error messages
+      let errorMsg = parseError(error);
+      if (errorMsg.includes('User rejected') || errorMsg.includes('user rejected')) {
+        errorMsg = 'You rejected the connection request. Please try again and approve.';
+      } else if (errorMsg.includes('MetaMask')) {
+        errorMsg = 'MetaMask issue: ' + errorMsg;
+      } else if (errorMsg.includes('Unexpected error')) {
+        errorMsg = 'MetaMask encountered an unexpected error. Try refreshing the page and unlocking MetaMask again.';
+      }
+      
+      showMsg('error', errorMsg);
     } finally {
       setIsConnecting(false);
     }

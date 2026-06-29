@@ -648,22 +648,34 @@ export default function Dashboard() {
   };
 
   const connectWallet = async () => {
+    console.log('[v0] Starting wallet connection...');
     setIsConnecting(true);
     try {
       const win = window as unknown as {
         ethereum?: { request: (a: { method: string; params?: unknown[] }) => Promise<unknown> };
       };
-      if (!win.ethereum) throw new Error('MetaMask not found');
-
+      
+      if (!win.ethereum) {
+        console.error('[v0] MetaMask not detected');
+        throw new Error('MetaMask not found. Please install MetaMask extension.');
+      }
+      
+      console.log('[v0] MetaMask detected, requesting accounts...');
       const accounts = (await win.ethereum.request({ method: 'eth_requestAccounts' })) as string[];
+      console.log('[v0] Accounts received:', accounts[0]);
+      
       const chainIdHex = (await win.ethereum.request({ method: 'eth_chainId' })) as string;
       const chainIdNum = parseInt(chainIdHex, 16);
+      console.log('[v0] Current chain ID:', chainIdNum, 'Expected:', SEPOLIA_CHAIN_ID);
 
       if (chainIdNum !== SEPOLIA_CHAIN_ID) {
+        console.log('[v0] Wrong network, switching to Sepolia...');
         showMsg('info', 'Switching to Sepolia network...');
         try {
           await win.ethereum.request({ method: 'wallet_switchEthereumChain', params: [{ chainId: SEPOLIA_HEX }] });
-        } catch (_e) {
+          console.log('[v0] Switched to Sepolia');
+        } catch (switchError) {
+          console.log('[v0] Switch failed, adding Sepolia network...');
           await win.ethereum.request({
             method: 'wallet_addEthereumChain',
             params: [{
@@ -674,20 +686,28 @@ export default function Dashboard() {
               blockExplorerUrls: ['https://sepolia.etherscan.io'],
             }],
           });
+          console.log('[v0] Added Sepolia network');
         }
       }
 
+      console.log('[v0] Creating provider and signer...');
       const provider = new ethers.BrowserProvider(win.ethereum as ethers.Eip1193Provider);
       const s = await provider.getSigner();
       setSigner(s);
       setAccount(accounts[0]);
+      console.log('[v0] Signer created, account set:', accounts[0]);
+      
       showMsg('success', 'Wallet connected to Sepolia!');
+      
+      console.log('[v0] Detecting role and loading universities...');
       // Detect role and load universities in parallel — detectRole sets the active tab
       await Promise.all([
         detectRole(accounts[0]),
         loadMyUniversities(accounts[0]),
       ]);
+      console.log('[v0] Wallet connection complete');
     } catch (error) {
+      console.error('[v0] Wallet connection error:', error);
       showMsg('error', parseError(error));
     } finally {
       setIsConnecting(false);

@@ -1442,7 +1442,7 @@ export default function Dashboard() {
         }
       }
 
-      console.log('[v0] All encryption complete. Preparing blockchain call');
+      console.log('[v0] All encryption complete. Preparing blockchain calls');
       console.log('[v0] Arrays prepared:', {
         studentCount: students.length,
         namesCount: names.length,
@@ -1451,26 +1451,49 @@ export default function Dashboard() {
         paxIdsCount: paxIds.length
       });
 
-      // Call batch issuance
-      showMsg('info', `Issuing batch of ${validRows.length} certificates... Please confirm in MetaMask.`);
-      console.log('[v0] Calling issueCertificatesBatch on blockchain');
+      // Split into smaller batches to avoid gas limit (batch size of 30 per transaction)
+      const BATCH_SIZE = 30;
+      const totalBatches = Math.ceil(students.length / BATCH_SIZE);
+      const txHashes: string[] = [];
       
-      const tx = await university.issueCertificatesBatch(students, names, courses, grades, paxIds);
-      console.log('[v0] Batch transaction sent:', tx.hash);
-
-      setBulkProgress(50);
-      console.log('[v0] Waiting for transaction confirmation');
-      
-      const receipt = await tx.wait();
-      console.log('[v0] Batch transaction receipt:', receipt);
-      console.log('[v0] Transaction confirmed successfully');
+      for (let batchIdx = 0; batchIdx < totalBatches; batchIdx++) {
+        const start = batchIdx * BATCH_SIZE;
+        const end = Math.min(start + BATCH_SIZE, students.length);
+        const batchStudents = students.slice(start, end);
+        const batchNames = names.slice(start, end);
+        const batchCourses = courses.slice(start, end);
+        const batchGrades = grades.slice(start, end);
+        const batchPaxIds = paxIds.slice(start, end);
+        
+        console.log(`[v0] Issuing batch ${batchIdx + 1}/${totalBatches} (certificates ${start + 1}-${end})`);
+        showMsg('info', `Issuing batch ${batchIdx + 1}/${totalBatches} (${batchStudents.length} certificates)... Please confirm in MetaMask.`);
+        
+        try {
+          const tx = await university.issueCertificatesBatch(batchStudents, batchNames, batchCourses, batchGrades, batchPaxIds);
+          console.log(`[v0] Batch ${batchIdx + 1} transaction sent:`, tx.hash);
+          txHashes.push(tx.hash);
+          
+          // Wait for confirmation
+          console.log(`[v0] Waiting for batch ${batchIdx + 1} confirmation...`);
+          const receipt = await tx.wait();
+          console.log(`[v0] Batch ${batchIdx + 1} confirmed:`, receipt?.transactionHash);
+          
+          // Update progress
+          const progressPercent = Math.round((((batchIdx + 1) / totalBatches) * 100));
+          setBulkProgress(progressPercent);
+          showMsg('success', `Batch ${batchIdx + 1}/${totalBatches} confirmed!`);
+        } catch (batchError) {
+          console.error(`[v0] Batch ${batchIdx + 1} failed:`, batchError);
+          throw new Error(`Batch ${batchIdx + 1} failed: ${batchError}`);
+        }
+      }
 
       setBulkProgress(100);
-      showMsg('success', `Successfully issued ${validRows.length} certificates! Tx: ${tx.hash.slice(0, 10)}...`);
+      showMsg('success', `Successfully issued all ${validRows.length} certificates in ${totalBatches} transactions!`);
 
       // Send emails for certificates with student email addresses
       const emailRows = validRows.filter(r => r.StudentEmail && r.StudentEmail.trim());
-      if (emailRows.length > 0) {
+      if (emailRows.length > 0 && txHashes.length > 0) {
         showMsg('info', `Sending ${emailRows.length} certificates to student emails...`);
         
         try {

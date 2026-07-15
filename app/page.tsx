@@ -1451,8 +1451,13 @@ export default function Dashboard() {
         paxIdsCount: paxIds.length
       });
 
-      // Split into smaller batches to avoid gas limit (batch size of 30 per transaction)
-      const BATCH_SIZE = 30;
+      // Split into smaller batches to stay well under the block gas limit.
+      // Each certificate costs ~300k-450k gas (NFT mint + tokenURI + encrypted strings),
+      // so a batch of 15 keeps us at roughly 5-7M gas per transaction — safe and reliable.
+      const BATCH_SIZE = 15;
+      const PER_CERT_GAS = 500000; // conservative per-certificate gas estimate
+      const BASE_GAS = 150000;     // base transaction overhead
+      const BLOCK_GAS_CAP = 28000000; // stay under Sepolia's ~30M block limit
       const totalBatches = Math.ceil(students.length / BATCH_SIZE);
       const txHashes: string[] = [];
       
@@ -1469,7 +1474,27 @@ export default function Dashboard() {
         showMsg('info', `Issuing batch ${batchIdx + 1}/${totalBatches} (${batchStudents.length} certificates)... Please confirm in MetaMask.`);
         
         try {
-          const tx = await university.issueCertificatesBatch(batchStudents, batchNames, batchCourses, batchGrades, batchPaxIds);
+          // Determine an explicit gas limit. Try the network estimator first;
+          // if it fails (node caps estimateGas), fall back to a computed limit.
+          let gasLimit: bigint;
+          try {
+            const estimated = await university.issueCertificatesBatch.estimateGas(
+              batchStudents, batchNames, batchCourses, batchGrades, batchPaxIds
+            );
+            // Add a 25% buffer over the estimate
+            gasLimit = (estimated * 125n) / 100n;
+            console.log(`[v0] Batch ${batchIdx + 1} estimated gas:`, estimated.toString(), '-> with buffer:', gasLimit.toString());
+          } catch (estimateErr) {
+            // Estimator failed (likely the 2^24 cap). Use our own computed limit.
+            const computed = BigInt(BASE_GAS + PER_CERT_GAS * batchStudents.length);
+            gasLimit = computed > BigInt(BLOCK_GAS_CAP) ? BigInt(BLOCK_GAS_CAP) : computed;
+            console.warn(`[v0] Batch ${batchIdx + 1} gas estimation failed, using computed limit:`, gasLimit.toString(), estimateErr);
+          }
+
+          const tx = await university.issueCertificatesBatch(
+            batchStudents, batchNames, batchCourses, batchGrades, batchPaxIds,
+            { gasLimit }
+          );
           console.log(`[v0] Batch ${batchIdx + 1} transaction sent:`, tx.hash);
           txHashes.push(tx.hash);
           

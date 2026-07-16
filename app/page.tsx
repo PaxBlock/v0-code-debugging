@@ -2001,11 +2001,11 @@ Jane Smith,jane@uni.edu,0x8ba1f109551bD432803012645Ac136ddd64DBA72,Physics,Secon
                 <label className={labelClass}>Institution Logo (optional)</label>
                 <input
                   type="file"
-                  accept="image/*"
+                  accept="image/png,image/jpeg"
                   onChange={(e) => setLogoFile(e.target.files?.[0] || null)}
                   className={inputClass}
                 />
-                <p className="text-xs text-slate-500 mt-1">Upload a logo (PNG, JPG, SVG — max 2MB). Will appear on certificates. Leave blank to use default PAX branding.</p>
+                <p className="text-xs text-slate-500 mt-1">Upload a logo (PNG or JPG — max 2MB). Will appear on certificates. Leave blank to use default PAX branding.</p>
                 {logoFile && (
                   <div className="mt-2 flex items-center gap-2">
                     <span className="text-sm text-green-400">✓ {logoFile.name} selected</span>

@@ -11,7 +11,7 @@ const UNIVERSITY_ABI = [
   'function hasCertificate(address student) external view returns (bool)',
   'function isRevoked(address student) external view returns (bool)',
   'function revocationReason(address student) external view returns (string)',
-  'function institutionConfig() external view returns (string deanName, string registrarName, string viceChancellorName, string verificationDomain, string logoURL)',
+  'function institutionConfig() external view returns (string registrarName, string registrarSignatureURL, string viceChancellorName, string viceChancellorSignatureURL, string verificationDomain, string logoURL)',
 ];
 
 // Server-side master secret for HMAC-based key derivation (matches frontend)

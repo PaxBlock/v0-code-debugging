@@ -3,6 +3,56 @@ import { NextRequest } from 'next/server';
 
 export const runtime = 'edge';
 
+// Convert an ArrayBuffer to a base64 string (Buffer is not available in the edge runtime).
+function arrayBufferToBase64(buf: ArrayBuffer): string {
+  let binary = '';
+  const bytes = new Uint8Array(buf);
+  const chunk = 0x8000; // avoid call-stack limits on String.fromCharCode
+  for (let i = 0; i < bytes.length; i += chunk) {
+    binary += String.fromCharCode.apply(null, Array.from(bytes.subarray(i, i + chunk)) as unknown as number[]);
+  }
+  return btoa(binary);
+}
+
+// next/og (Satori) silently drops any remote image whose stored content-type doesn't match
+// its real bytes — the exact cause of the institution logo not appearing on issued certificates.
+// To make rendering independent of how the blob was stored, we fetch the logo here, detect the
+// TRUE format from its magic bytes, and inline it as a data URI. This also repairs logos that
+// were saved on-chain BEFORE the upload fix (no re-upload required). Returns '' if the image is
+// missing or in a format Satori cannot decode (only PNG/JPEG are reliable).
+async function resolveLogoDataUri(logoUrl: string): Promise<string> {
+  if (!logoUrl) return '';
+  // If it's already a data URI, trust it as-is.
+  if (logoUrl.startsWith('data:')) return logoUrl;
+  try {
+    const res = await fetch(logoUrl);
+    if (!res.ok) {
+      console.log('[certificate-image] Logo fetch failed:', res.status, logoUrl);
+      return '';
+    }
+    const buf = await res.arrayBuffer();
+    const bytes = new Uint8Array(buf);
+
+    // Detect format from magic bytes (ignore the possibly-wrong content-type header).
+    let mime = '';
+    if (bytes.length >= 4 && bytes[0] === 0x89 && bytes[1] === 0x50 && bytes[2] === 0x4e && bytes[3] === 0x47) {
+      mime = 'image/png';
+    } else if (bytes.length >= 3 && bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff) {
+      mime = 'image/jpeg';
+    } else {
+      console.log('[certificate-image] Logo is not PNG/JPEG (unsupported by Satori), skipping.');
+      return '';
+    }
+
+    const base64 = arrayBufferToBase64(buf);
+    console.log('[certificate-image] Logo resolved as', mime, 'bytes:', bytes.length);
+    return `data:${mime};base64,${base64}`;
+  } catch (err) {
+    console.log('[certificate-image] Logo resolve error:', err instanceof Error ? err.message : String(err));
+    return '';
+  }
+}
+
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
 
@@ -22,7 +72,7 @@ export async function GET(req: NextRequest) {
   const deanName       = searchParams.get('dean')            || '';
   const deanPos        = searchParams.get('deanPos')         || 'Dean';
   const domain         = searchParams.get('domain')          || 'v0-paxadmin.vercel.app';
-  const logoUrl        = searchParams.get('logo')            || '';
+  const logoUrlRaw     = searchParams.get('logo')            || '';
   const revoked        = searchParams.get('revoked')         === 'true';
   const revokeReason   = searchParams.get('revokeReason')   || '';
   const verifyUrl      = searchParams.get('verifyUrl')       || '';
@@ -31,10 +81,15 @@ export async function GET(req: NextRequest) {
     registrarSig: registrarSig ? 'YES (URL present)' : 'NO',
     vcSig: vcSig ? 'YES (URL present)' : 'NO',
     deanSig: deanSig ? 'YES (URL present)' : 'NO',
+    logo: logoUrlRaw ? 'YES (URL present)' : 'NO',
     registrarName,
     viceChancellor,
     deanName,
   });
+
+  // Resolve the logo to an inlined data URI so rendering is independent of the stored
+  // blob content-type (fixes logos that never appeared on the emailed certificate).
+  const logoUrl = await resolveLogoDataUri(logoUrlRaw);
 
   // Use the verifyUrl which contains the full verification link with the correct domain
   // If verifyUrl is empty, fall back to the domain parameter

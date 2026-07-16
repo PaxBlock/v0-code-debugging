@@ -312,7 +312,7 @@ export default function Dashboard() {
     'Degree requirements not fully met',
     'Administrative correction required',
   ];
-  const [revokeAddress, setRevokeAddress] = useState('');
+  const [revokePaxId, setRevokePaxId] = useState('');
   const [revokeReason, setRevokeReason] = useState('');
   const [customReason, setCustomReason] = useState('');
   const [revokeEmail, setRevokeEmail] = useState('');
@@ -1135,7 +1135,8 @@ export default function Dashboard() {
   const handleRevoke = async () => {
     if (!signer) { showMsg('error', 'Please connect your wallet first.'); return; }
     if (!univAddress) { showMsg('error', 'Please select a programme first.'); return; }
-    if (!ethers.isAddress(revokeAddress)) { showMsg('error', 'Please enter a valid student wallet address.'); return; }
+    const paxIdInput = revokePaxId.trim().toUpperCase();
+    if (!paxIdInput) { showMsg('error', 'Please enter the student PaxID (e.g. PHY/2022/054).'); return; }
     const finalReason = revokeReason === 'custom' ? customReason.trim() : revokeReason;
     if (!finalReason) { showMsg('error', 'Please select or enter a revocation reason.'); return; }
     if (revokeEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(revokeEmail)) {
@@ -1144,25 +1145,34 @@ export default function Dashboard() {
     setIsRevoking(true);
     try {
       const university = new ethers.Contract(univAddress, UNIVERSITY_ABI, signer);
-      const has = await university.hasCertificate(revokeAddress);
-      if (!has) { showMsg('error', 'This wallet does not have a certificate on the selected programme.'); return; }
-      const alreadyRevoked = await university.isRevoked(revokeAddress);
+
+      // Resolve the PaxID to the student's wallet address on-chain.
+      showMsg('info', `Looking up certificate for ${paxIdInput}...`);
+      const resolvedStudent = await university.resolvePaxId(paxIdInput);
+      if (!resolvedStudent || resolvedStudent === ethers.ZeroAddress) {
+        showMsg('error', `No certificate found for PaxID "${paxIdInput}" on the selected programme.`);
+        return;
+      }
+
+      const has = await university.hasCertificate(resolvedStudent);
+      if (!has) { showMsg('error', `No certificate found for PaxID "${paxIdInput}" on the selected programme.`); return; }
+      const alreadyRevoked = await university.isRevoked(resolvedStudent);
       if (alreadyRevoked) { showMsg('error', 'This certificate has already been revoked.'); return; }
       showMsg('info', 'Revoking certificate... Please confirm in MetaMask.');
-      const tx = await university.revokeCertificate(revokeAddress, finalReason);
+      const tx = await university.revokeCertificate(resolvedStudent, finalReason);
       await tx.wait();
-      showMsg('success', `Certificate revoked. Reason recorded permanently on blockchain: "${finalReason}"`);
+      showMsg('success', `Certificate for ${paxIdInput} revoked. Reason recorded permanently on blockchain: "${finalReason}"`);
 
       // Send revocation email if provided
       if (revokeEmail) {
         showMsg('info', 'Sending revocation notification email...');
         try {
           // Fetch certificate details for the email
-          const tokenId = await university.studentToTokenId(revokeAddress);
+          const tokenId = await university.studentToTokenId(resolvedStudent);
           const cert = await university.certificates(tokenId);
           const univName = myUniversities.find(u => u.address.toLowerCase() === univAddress.toLowerCase())?.name || 'Your Institution';
-          const decryptedName = await decryptField(cert.candidateName, univAddress, revokeAddress);
-          const decryptedCourse = await decryptField(cert.courseName, univAddress, revokeAddress);
+          const decryptedName = await decryptField(cert.candidateName, univAddress, resolvedStudent);
+          const decryptedCourse = await decryptField(cert.courseName, univAddress, resolvedStudent);
 
           await fetch('/api/certificate/send-revocation-email', {
             method: 'POST',
@@ -1183,7 +1193,7 @@ export default function Dashboard() {
         }
       }
 
-      setRevokeAddress('');
+      setRevokePaxId('');
       setRevokeReason('');
       setCustomReason('');
       setRevokeEmail('');
@@ -2536,13 +2546,14 @@ Jane Smith,jane@uni.edu,0x8ba1f109551bD432803012645Ac136ddd64DBA72,Physics,Secon
                 )}
               </div>
               <div>
-                <label className={labelClass}>Student Wallet Address</label>
+                <label className={labelClass}>Student PaxID</label>
                 <input
                   className={inputClass}
-                  placeholder="0x... (wallet address of the student)"
-                  value={revokeAddress}
-                  onChange={(e) => setRevokeAddress(e.target.value)}
+                  placeholder="e.g. PHY/2022/054"
+                  value={revokePaxId}
+                  onChange={(e) => setRevokePaxId(e.target.value)}
                 />
+                <p className="text-xs text-slate-500 mt-1">Enter the student&apos;s PaxID. We&apos;ll look up the certificate on the selected programme automatically.</p>
               </div>
               <div>
                 <label className={labelClass}>Reason for Revocation</label>
@@ -2598,7 +2609,7 @@ Jane Smith,jane@uni.edu,0x8ba1f109551bD432803012645Ac136ddd64DBA72,Physics,Secon
               </div>
               <button
                 onClick={handleRevoke}
-                disabled={isRevoking || !revokeAddress || !revokeReason}
+                disabled={isRevoking || !revokePaxId || !revokeReason}
                 className={`${btnClass} bg-red-700 hover:bg-red-600 disabled:opacity-50`}
               >
                 {isRevoking ? 'Revoking... Please wait' : 'Revoke Certificate'}

@@ -537,9 +537,41 @@ export default function Dashboard() {
       const provider = await getReadOnlyProvider();
       const factory = new ethers.Contract(FACTORY_ADDRESS, FACTORY_ABI, provider);
 
-      // Single call to the Factory - returns only the contracts this wallet has access to.
-      // This replaces the old loop that made 4 RPC calls per university contract.
-      const addresses: string[] = await factory.getWalletUniversities(walletAddress);
+      // Programmes where this wallet is the ADMIN/creator (tracked by the Factory).
+      const adminAddresses: string[] = await factory.getWalletUniversities(walletAddress);
+
+      // Programmes where this wallet was granted ISSUER_ROLE are NOT tracked by the Factory,
+      // so we must scan every deployed programme and check the role on-chain. Without this,
+      // an authorised issuer sees "No programmes are currently assigned to your wallet."
+      const allUniversities: string[] = await factory.getDeployedUniversities().catch(() => [] as string[]);
+      const issuerAddresses: string[] = [];
+      if (allUniversities.length > 0) {
+        // Resolve the ISSUER_ROLE constant once from any deployed programme.
+        const issuerRole = await new ethers.Contract(allUniversities[0], UNIVERSITY_ABI, provider)
+          .ISSUER_ROLE()
+          .catch(() => null);
+        if (issuerRole) {
+          await Promise.all(
+            allUniversities.map(async (addr) => {
+              const hasRole = await new ethers.Contract(addr, UNIVERSITY_ABI, provider)
+                .hasRole(issuerRole, walletAddress)
+                .catch(() => false);
+              if (hasRole) issuerAddresses.push(addr);
+            })
+          );
+        }
+      }
+
+      // Merge admin + issuer programmes, de-duplicated (case-insensitive on address).
+      const seen = new Set<string>();
+      const addresses: string[] = [];
+      for (const addr of [...adminAddresses, ...issuerAddresses]) {
+        const key = addr.toLowerCase();
+        if (!seen.has(key)) {
+          seen.add(key);
+          addresses.push(addr);
+        }
+      }
 
       if (addresses.length === 0) {
         setMyUniversities([]);

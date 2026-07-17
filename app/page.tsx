@@ -483,16 +483,12 @@ export default function Dashboard() {
       const provider = await getReadOnlyProvider();
       const factory = new ethers.Contract(FACTORY_ADDRESS, FACTORY_ABI, provider);
 
-      // Owner sees ALL universities (including deactivated) for management
-      // Everyone else (including unauthenticated visitors) only sees active universities
-      const effectiveRole = role ?? walletRole;
+      // The verify tab is public and should show ALL universities (including deactivated).
+      // This allows students/public to verify certificates from institutions that are no longer active.
+      // Only the owner management views need to see deactivation status for admin purposes.
       let addresses: string[] = [];
       try {
-        if (effectiveRole === 'owner') {
-          addresses = await factory.getAllUniversities();
-        } else {
-          addresses = await factory.getActiveUniversities();
-        }
+        addresses = await factory.getAllUniversities();
       } catch (_e) {
         // Fallback for simpler factory deployments that lack getAllUniversities/getActiveUniversities
         try {

@@ -1287,7 +1287,9 @@ export default function Dashboard() {
             // Get dean signature for selected faculty
             try {
               const faculties = await universityContract.getFacultySignatories();
-              const selectedFac = faculties.find((f: any) => f.facultyName.toLowerCase() === selectedFaculty.toLowerCase());
+              const selectedFac = faculties.find(
+          (f: any) => normalizeFacultyName(f.facultyName) === normalizeFacultyName(selectedFaculty)
+        );
               if (selectedFac) {
                 deanName = selectedFac.deanName;
                 deanSignature = selectedFac.deanSignatureURL;
@@ -1351,12 +1353,29 @@ export default function Dashboard() {
     }
   };
 
+  // Normalises a faculty name for reliable comparison. Spreadsheet exports frequently add a
+  // trailing carriage return (CRLF files), non-breaking spaces, or doubled spaces — and since
+  // FacultyName is the LAST CSV column, it is the most common victim. Without this, a strict
+  // equality check silently failed to find the dean, so certificates were issued with no dean
+  // name or signature.
+  const normalizeFacultyName = (value: string) =>
+    (value || '')
+      .replace(/\u00a0/g, ' ') // non-breaking space -> normal space
+      .replace(/\s+/g, ' ')    // collapse whitespace (also removes \r and \n)
+      .trim()
+      .toLowerCase();
+
   // CSV parsing and validation
   const handleCSVUpload = (file: File) => {
     console.log('[v0] Parsing CSV file:', file.name);
     Papa.parse(file, {
       header: true,
       skipEmptyLines: true,
+      // Strip the UTF-8 BOM and surrounding whitespace from headers, otherwise a header like
+      // "FacultyName\r" produces an undefined row.FacultyName.
+      transformHeader: (h: string) => h.replace(/^\ufeff/, '').trim(),
+      // Trim every cell so trailing \r / spaces never reach the matching logic.
+      transform: (v: string) => (typeof v === 'string' ? v.trim() : v),
       complete: (results: any) => {
         console.log('[v0] CSV parsed, rows:', results.data.length);
         const rows = results.data as typeof bulkCSVData;
@@ -1380,7 +1399,22 @@ export default function Dashboard() {
       if (!row.CourseName || !row.CourseName.trim()) errors.push('Missing Course Name');
       if (!row.Grade || !row.Grade.trim()) errors.push('Missing Grade');
       if (!row.PaxID || !row.PaxID.trim()) errors.push('Missing PaxID');
-      if (!row.FacultyName || !row.FacultyName.trim()) errors.push('Missing Faculty Name');
+      if (!row.FacultyName || !row.FacultyName.trim()) {
+        errors.push('Missing Faculty Name');
+      } else if (faculties.length > 0) {
+        // Verify the faculty actually exists on the selected programme. Catching this here
+        // prevents issuing certificates that end up with no dean name or signature.
+        const match = faculties.find(
+          (f: any) => normalizeFacultyName(f.facultyName) === normalizeFacultyName(row.FacultyName)
+        );
+        if (!match) {
+          errors.push(
+            `Faculty "${row.FacultyName.trim()}" is not registered on this programme. Expected one of: ${faculties
+              .map((f: any) => f.facultyName)
+              .join(', ')}`
+          );
+        }
+      }
 
       return {
         row: idx + 1,
@@ -1405,6 +1439,15 @@ export default function Dashboard() {
     const failCount = validations.length - passCount;
     showMsg('info', `CSV Validation: ${passCount} valid, ${failCount} invalid rows`);
   };
+
+  // Re-run validation once the programme's faculties have loaded (or the programme changes),
+  // otherwise a CSV uploaded before the faculty list arrived would skip the faculty check.
+  useEffect(() => {
+    if (bulkCSVData.length > 0 && faculties.length > 0) {
+      validateBulkData(bulkCSVData);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [faculties, univAddress]);
 
   const issueBulkCertificates = async () => {
     console.log('[v0] Starting bulk issuance');
@@ -1580,8 +1623,20 @@ export default function Dashboard() {
             const batch = emailRows.slice(i, i + 5);
             await Promise.all(batch.map(async (row) => {
               try {
-                // Find faculty signatory for this row
-                const selectedFac = faculties.find((f: any) => f.facultyName.toLowerCase() === row.FacultyName.toLowerCase());
+                // Find faculty signatory for this row using normalised comparison so stray
+                // whitespace / carriage returns from the CSV can't break the dean lookup.
+                const rowFaculty = normalizeFacultyName(row.FacultyName);
+                const selectedFac = faculties.find(
+                  (f: any) => normalizeFacultyName(f.facultyName) === rowFaculty
+                );
+                if (!selectedFac) {
+                  console.warn(
+                    '[v0] No faculty signatory matched for row',
+                    row.PaxID,
+                    '- CSV faculty:', JSON.stringify(row.FacultyName),
+                    '- available:', faculties.map((f: any) => f.facultyName)
+                  );
+                }
                 
                 await fetch('/api/certificate/send-email', {
                   method: 'POST',
@@ -1603,7 +1658,7 @@ export default function Dashboard() {
                     vcPosition: 'Vice Chancellor',
                     dean: selectedFac?.deanName || '',
                     deanSignature: selectedFac?.deanSignatureURL || '',
-                    deanPosition: `Dean of ${row.FacultyName}`,
+                    deanPosition: `Dean of ${selectedFac?.facultyName || row.FacultyName}`,
                     logoUrl: config?.logoURL || '',
                     domain: verificationDomain,
                   }),

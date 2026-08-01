@@ -6,6 +6,7 @@ import { ethers } from 'ethers';
 import SignatureCanvas from 'react-signature-canvas';
 import Papa from 'papaparse';
 import { logGDPRCompliant } from '@/lib/dataMasking';
+import Chatbot from '@/components/chatbot';
 
 // Factory contract - PaxID, grade, signatory config, logo URL, deactivation support, bulk issuance
 const FACTORY_ADDRESS = '0x39D88237DE1ea136006A9123f5787802a23AE4a2';
@@ -2851,6 +2852,7 @@ Jane Smith,jane@uni.edu,0x8ba1f109551bD432803012645Ac136ddd64DBA72,Physics,Secon
           </p>
         </div>
       </div>
+      <Chatbot />
     </main>
   );
 }

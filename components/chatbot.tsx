@@ -9,7 +9,7 @@ export default function Chatbot() {
   const [input, setInput] = useState('');
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  const { messages, sendMessage, status, stop } = useChat({
+  const { messages, sendMessage, status, stop, error, regenerate } = useChat({
     transport: new DefaultChatTransport({
       api: '/api/chat',
     }),
@@ -105,6 +105,20 @@ export default function Chatbot() {
                     <div className="w-2 h-2 bg-slate-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
                     <div className="w-2 h-2 bg-slate-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
                   </div>
+                </div>
+              </div>
+            )}
+            {error && (
+              <div className="flex justify-start">
+                <div className="max-w-[90%] bg-red-900/40 border border-red-700 text-red-200 rounded-lg px-4 py-3">
+                  <p className="text-sm font-medium">Something went wrong</p>
+                  <p className="text-xs mt-1 text-red-300 break-words">{error.message}</p>
+                  <button
+                    onClick={() => regenerate()}
+                    className="mt-2 text-xs bg-red-700 hover:bg-red-600 text-white rounded px-3 py-1 transition-colors"
+                  >
+                    Try again
+                  </button>
                 </div>
               </div>
             )}

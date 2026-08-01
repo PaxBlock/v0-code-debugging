@@ -41,6 +41,16 @@ export async function POST(req: Request) {
   });
 
   return createUIMessageStreamResponse({
-    stream: toUIMessageStream({ stream: result.stream }),
+    stream: toUIMessageStream({
+      stream: result.stream,
+      onError: (error) => {
+        // Surface the real cause to the client instead of a generic "An error occurred."
+        const message = error instanceof Error ? error.message : String(error);
+        if (message.includes('credit card')) {
+          return 'The AI service is not activated on this Vercel account yet. A credit card must be added on the Vercel team (AI Gateway free credits) before the assistant can reply.';
+        }
+        return `Assistant error: ${message}`;
+      },
+    }),
   });
 }

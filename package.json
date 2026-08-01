@@ -9,6 +9,7 @@
     "lint": "next lint"
   },
   "dependencies": {
+    "@ai-sdk/anthropic": "^4.0.27",
     "@ai-sdk/react": "^4.0.50",
     "@vercel/blob": "^2.3.3",
     "ai": "^7.0.47",

@@ -2026,7 +2026,7 @@ Jane Smith,jane@uni.edu,0x8ba1f109551bD432803012645Ac136ddd64DBA72,Physics,Secon
                 <div className="border border-gray-300 rounded-lg bg-white p-2">
                   <SignatureCanvas
                     ref={registrarSignatureRef}
-                    penColor="white"
+                    penColor="black"
                     canvasProps={{ width: 500, height: 150, className: 'w-full cursor-crosshair' }}
                   />
                 </div>
@@ -2063,7 +2063,7 @@ Jane Smith,jane@uni.edu,0x8ba1f109551bD432803012645Ac136ddd64DBA72,Physics,Secon
                 <div className="border border-gray-300 rounded-lg bg-white p-2">
                   <SignatureCanvas
                     ref={vcSignatureRef}
-                    penColor="white"
+                    penColor="black"
                     canvasProps={{ width: 500, height: 150, className: 'w-full cursor-crosshair' }}
                   />
                 </div>
@@ -2135,7 +2135,7 @@ Jane Smith,jane@uni.edu,0x8ba1f109551bD432803012645Ac136ddd64DBA72,Physics,Secon
                 <div className="border border-gray-300 rounded-lg bg-white p-2 mt-1">
                   <SignatureCanvas
                     ref={currentFacultySignatureRef}
-                    penColor="white"
+                    penColor="black"
                     canvasProps={{ width: 500, height: 150, className: 'w-full cursor-crosshair' }}
                   />
                 </div>

@@ -2,62 +2,22 @@ import {
   convertToModelMessages,
   createUIMessageStream,
   createUIMessageStreamResponse,
-  generateText,
+  stepCountIs,
   streamText,
   toUIMessageStream,
+  tool,
   UIMessage,
 } from 'ai';
+import { anthropic } from '@ai-sdk/anthropic';
+import { z } from 'zod';
 import { findFallbackAnswer, FALLBACK_GREETING } from '@/lib/chat-fallback';
+import { PLATFORM_KNOWLEDGE } from '@/lib/platform-knowledge';
+import { lookupCredential } from '@/lib/credential-lookup';
 
-export const maxDuration = 30;
+export const maxDuration = 60;
 
-const SYSTEM_PROMPT = `You are a helpful assistant for the PAX Certificate System, a blockchain-based academic credential platform.
-
-You help admins and users with:
-- How to issue single and bulk certificates
-- CSV format requirements for bulk issuance
-- Faculty registration and dean signature setup
-- Certificate revocation process
-- Verification process for credentials
-- Troubleshooting common issues (dean signatures not showing, logo not appearing, gas limits, etc.)
-- Understanding the platform's architecture (Ethereum, Base L2, smart contracts)
-- Wallet connection and role management (Admin, Issuer, Verifier)
-
-Key platform details:
-- Built on Ethereum (Sepolia testnet, planned migration to Base L2)
-- Uses smart contracts for credential anchoring
-- Supports bulk CSV issuance with faculty matching
-- Certificates include dean, registrar, and VC signatures
-- Verification is public and works for all institutions (including deactivated ones)
-- Uses PaxID format like "PHY/2022/054" for certificate lookup
-- No traditional backend database - all records on-chain
-
-Be concise, accurate, and helpful. If you don't know something, say so rather than guessing.`;
-
-// Cache the AI Gateway health status in module scope so we don't pay a health-check
-// round-trip on every message. We re-check on every request while it's failing so the
-// assistant recovers as soon as billing is activated; once healthy, we trust it for 5 minutes.
-let gatewayHealthyUntil = 0;
-const HEALTHY_TTL_MS = 5 * 60 * 1000;
-
-async function isGatewayHealthy(): Promise<boolean> {
-  if (Date.now() < gatewayHealthyUntil) return true;
-  try {
-    await generateText({
-      model: 'anthropic/claude-sonnet-4.5',
-      prompt: 'ping',
-      maxOutputTokens: 1,
-    });
-    gatewayHealthyUntil = Date.now() + HEALTHY_TTL_MS;
-    return true;
-  } catch (error) {
-    console.log(
-      '[v0] AI Gateway health check failed, using fallback:',
-      error instanceof Error ? error.message : String(error)
-    );
-    return false;
-  }
-}
+// Claude Sonnet 5 via the direct Anthropic provider (reads ANTHROPIC_API_KEY from env).
+const MODEL = 'claude-sonnet-5';
 
 // Extract the latest user message text from the UIMessage array.
 function getLatestUserText(messages: UIMessage[]): string {
@@ -79,7 +39,6 @@ function fallbackResponse(answer: string) {
     execute: ({ writer }) => {
       const id = 'fallback-text';
       writer.write({ type: 'text-start', id });
-      // Chunk the answer into small deltas for a natural streaming feel.
       const words = answer.split(' ');
       let buffer = '';
       for (const word of words) {
@@ -101,32 +60,52 @@ function fallbackResponse(answer: string) {
 export async function POST(req: Request) {
   const { messages }: { messages: UIMessage[] } = await req.json();
 
-  // If the AI Gateway isn't available (billing verification pending), answer from the
-  // built-in knowledge base so admins still get help.
-  const healthy = await isGatewayHealthy();
-  if (!healthy) {
+  // If the Anthropic API key isn't configured yet, answer from the built-in knowledge
+  // base so admins still get help. Once the key is added, Claude takes over automatically.
+  if (!process.env.ANTHROPIC_API_KEY) {
     const question = getLatestUserText(messages);
     const answer = findFallbackAnswer(question);
     const text = answer
-      ? `${answer}\n\n---\n*Note: I'm in offline mode (AI service not yet activated on this account), so this answer comes from the built-in help library.*`
+      ? `${answer}\n\n---\n*Note: I'm in offline mode (AI key not yet configured), so this answer comes from the built-in help library. For credential lookups and richer answers, the AI key is needed.*`
       : `${FALLBACK_GREETING}`;
     return fallbackResponse(text);
   }
 
   const result = streamText({
-    model: 'anthropic/claude-sonnet-4.5',
-    instructions: SYSTEM_PROMPT,
+    model: anthropic(MODEL),
+    instructions: PLATFORM_KNOWLEDGE,
     messages: await convertToModelMessages(messages),
+    stopWhen: stepCountIs(5),
+    tools: {
+      lookupCredential: tool({
+        description:
+          'Look up the live status of an academic credential on the PAX blockchain. Use this whenever a user wants to verify or check a specific certificate. Requires the institution/programme name (or contract address) and a student identifier (PaxID / Matric No. like "PHY/2022/054", or a wallet address 0x...).',
+        inputSchema: z.object({
+          institution: z
+            .string()
+            .describe('The institution or programme name (e.g. "University of Lagos"), or its contract address.'),
+          identifier: z
+            .string()
+            .describe('The student PaxID / Matric No. (e.g. "PHY/2022/054") or wallet address (0x...).'),
+        }),
+        execute: async ({ institution, identifier }) => {
+          return await lookupCredential(institution, identifier);
+        },
+      }),
+    },
   });
 
   return createUIMessageStreamResponse({
     stream: toUIMessageStream({
       stream: result.stream,
       onError: (error) => {
-        // Surface the real cause to the client instead of a generic "An error occurred."
         const message = error instanceof Error ? error.message : String(error);
-        if (message.includes('credit card')) {
-          return 'The AI service is not activated on this Vercel account yet. A credit card must be added on the Vercel team (AI Gateway free credits) before the assistant can reply.';
+        console.log('[v0] Claude chat error:', message);
+        if (message.includes('credit') || message.includes('billing')) {
+          return 'The AI service hit a billing issue. Please check the Anthropic API key and account balance.';
+        }
+        if (message.includes('API key') || message.includes('authentication') || message.includes('401')) {
+          return 'The AI API key appears to be invalid or missing. Please check the ANTHROPIC_API_KEY configuration.';
         }
         return `Assistant error: ${message}`;
       },

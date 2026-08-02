@@ -136,7 +136,7 @@ export default function Chatbot() {
                   className={`max-w-[85%] rounded-lg px-4 py-2 overflow-hidden ${
                     message.role === 'user'
                       ? 'bg-pax-600 text-black'
-                      : 'bg-white text-gray-100'
+                      : 'bg-gray-100 text-black'
                   }`}
                 >
                   {message.parts.map((part, index) => {
@@ -160,12 +160,12 @@ export default function Chatbot() {
                             ol: ({ children }) => <ol className="list-decimal pl-4 mb-2 space-y-1">{children}</ol>,
                             li: ({ children }) => <li className="leading-relaxed">{children}</li>,
                             a: ({ href, children }) => (
-                              <a href={href} target="_blank" rel="noopener noreferrer" className="text-pax-400 underline hover:text-pax-300">
+                              <a href={href} target="_blank" rel="noopener noreferrer" className="text-pax-600 underline hover:text-pax-700">
                                 {children}
                               </a>
                             ),
                             code: ({ children }) => (
-                              <code className="bg-white text-pax-300 rounded px-1 py-0.5 text-xs [overflow-wrap:anywhere]">{children}</code>
+                              <code className="bg-white text-pax-600 rounded px-1 py-0.5 text-xs [overflow-wrap:anywhere]">{children}</code>
                             ),
                           }}
                         >
@@ -179,11 +179,11 @@ export default function Chatbot() {
             ))}
             {(status === 'submitted' || status === 'streaming') && (
               <div className="flex justify-start">
-                <div className="bg-white text-gray-100 rounded-lg px-4 py-2">
+                <div className="bg-gray-100 text-black rounded-lg px-4 py-2">
                   <div className="flex items-center space-x-2">
-                    <div className="w-2 h-2 bg-gray-600 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
-                    <div className="w-2 h-2 bg-gray-600 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
-                    <div className="w-2 h-2 bg-gray-600 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+                    <div className="w-2 h-2 bg-pax-600 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
+                    <div className="w-2 h-2 bg-pax-600 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
+                    <div className="w-2 h-2 bg-pax-600 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
                   </div>
                 </div>
               </div>

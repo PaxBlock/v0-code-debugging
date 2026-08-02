@@ -1,19 +1,51 @@
 'use client';
 
 import { useChat } from '@ai-sdk/react';
-import { DefaultChatTransport } from 'ai';
+import { DefaultChatTransport, type UIMessage } from 'ai';
 import { useState, useRef, useEffect } from 'react';
+import ReactMarkdown from 'react-markdown';
+
+const STORAGE_KEY = 'pax-chat-messages';
+
+// Load persisted messages from localStorage (client-side only, no database).
+// This lets a user reload the page — or leave and come back on their phone —
+// and still see their previous conversation with the assistant.
+function loadPersistedMessages(): UIMessage[] {
+  if (typeof window === 'undefined') return [];
+  try {
+    const raw = window.localStorage.getItem(STORAGE_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
 
 export default function Chatbot() {
   const [isOpen, setIsOpen] = useState(false);
   const [input, setInput] = useState('');
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  const { messages, sendMessage, status, stop, error, regenerate } = useChat({
+  const { messages, sendMessage, status, stop, error, regenerate, setMessages } = useChat({
+    id: 'pax-assistant',
+    messages: loadPersistedMessages(),
     transport: new DefaultChatTransport({
       api: '/api/chat',
     }),
   });
+
+  // Persist the conversation whenever it changes so it survives page reloads.
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    try {
+      if (messages.length > 0) {
+        window.localStorage.setItem(STORAGE_KEY, JSON.stringify(messages));
+      }
+    } catch {
+      // Storage full or unavailable — the chat still works, just won't persist.
+    }
+  }, [messages]);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -31,12 +63,19 @@ export default function Chatbot() {
     }
   };
 
+  const handleClearChat = () => {
+    setMessages([]);
+    if (typeof window !== 'undefined') {
+      window.localStorage.removeItem(STORAGE_KEY);
+    }
+  };
+
   return (
     <>
       {/* Floating button */}
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className="fixed bottom-6 right-6 z-50 w-14 h-14 rounded-full bg-blue-600 hover:bg-blue-700 text-white shadow-lg flex items-center justify-center transition-all duration-200 hover:scale-110"
+        className="fixed bottom-6 right-6 z-50 w-14 h-14 rounded-full bg-pax-600 hover:bg-pax-700 text-white shadow-lg flex items-center justify-center transition-all duration-200 hover:scale-110"
         aria-label="Open chatbot"
       >
         {isOpen ? (
@@ -52,28 +91,39 @@ export default function Chatbot() {
 
       {/* Chat panel */}
       {isOpen && (
-        <div className="fixed bottom-24 right-6 z-50 w-96 h-[500px] bg-slate-900 border border-slate-700 rounded-lg shadow-2xl flex flex-col overflow-hidden">
+        <div className="fixed bottom-24 right-6 z-50 w-96 max-w-[calc(100vw-3rem)] h-[500px] max-h-[calc(100vh-8rem)] bg-slate-900 border border-slate-700 rounded-lg shadow-2xl flex flex-col overflow-hidden">
           {/* Header */}
           <div className="bg-slate-800 px-4 py-3 border-b border-slate-700 flex items-center justify-between">
             <div>
               <h3 className="text-white font-semibold">PAX Assistant</h3>
               <p className="text-slate-400 text-xs">Ask me anything about the platform</p>
             </div>
-            <button
-              onClick={() => setIsOpen(false)}
-              className="text-slate-400 hover:text-white transition-colors"
-            >
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-              </svg>
-            </button>
+            <div className="flex items-center gap-3">
+              {messages.length > 0 && (
+                <button
+                  onClick={handleClearChat}
+                  className="text-slate-400 hover:text-white transition-colors text-xs"
+                  title="Clear conversation"
+                >
+                  Clear
+                </button>
+              )}
+              <button
+                onClick={() => setIsOpen(false)}
+                className="text-slate-400 hover:text-white transition-colors"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
           </div>
 
           {/* Messages */}
           <div className="flex-1 overflow-y-auto p-4 space-y-4">
             {messages.length === 0 && (
               <div className="text-center text-slate-500 mt-8">
-                <p className="text-sm">Hi! I'm your PAX Assistant.</p>
+                <p className="text-sm">Hi! I&apos;m your PAX Assistant.</p>
                 <p className="text-xs mt-2">Ask me about issuing certificates, bulk uploads, verification, or troubleshooting.</p>
               </div>
             )}
@@ -83,17 +133,47 @@ export default function Chatbot() {
                 className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}
               >
                 <div
-                  className={`max-w-[80%] rounded-lg px-4 py-2 ${
+                  className={`max-w-[85%] rounded-lg px-4 py-2 overflow-hidden ${
                     message.role === 'user'
-                      ? 'bg-blue-600 text-white'
+                      ? 'bg-pax-600 text-white'
                       : 'bg-slate-800 text-slate-200'
                   }`}
                 >
-                  {message.parts.map((part, index) =>
-                    part.type === 'text' ? (
-                      <span key={index} className="text-sm whitespace-pre-wrap">{part.text}</span>
-                    ) : null
-                  )}
+                  {message.parts.map((part, index) => {
+                    if (part.type !== 'text') return null;
+                    // break-words + break-all ensures long unbroken strings (wallet
+                    // addresses, PaxIDs) wrap inside the bubble instead of overflowing.
+                    if (message.role === 'user') {
+                      return (
+                        <span key={index} className="text-sm whitespace-pre-wrap break-words [overflow-wrap:anywhere]">
+                          {part.text}
+                        </span>
+                      );
+                    }
+                    return (
+                      <div key={index} className="text-sm break-words [overflow-wrap:anywhere] chat-markdown">
+                        <ReactMarkdown
+                          components={{
+                            p: ({ children }) => <p className="mb-2 last:mb-0 leading-relaxed">{children}</p>,
+                            strong: ({ children }) => <strong className="font-semibold text-white">{children}</strong>,
+                            ul: ({ children }) => <ul className="list-disc pl-4 mb-2 space-y-1">{children}</ul>,
+                            ol: ({ children }) => <ol className="list-decimal pl-4 mb-2 space-y-1">{children}</ol>,
+                            li: ({ children }) => <li className="leading-relaxed">{children}</li>,
+                            a: ({ href, children }) => (
+                              <a href={href} target="_blank" rel="noopener noreferrer" className="text-pax-400 underline hover:text-pax-300">
+                                {children}
+                              </a>
+                            ),
+                            code: ({ children }) => (
+                              <code className="bg-slate-900 text-pax-300 rounded px-1 py-0.5 text-xs [overflow-wrap:anywhere]">{children}</code>
+                            ),
+                          }}
+                        >
+                          {part.text}
+                        </ReactMarkdown>
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
             ))}
@@ -112,7 +192,7 @@ export default function Chatbot() {
               <div className="flex justify-start">
                 <div className="max-w-[90%] bg-red-900/40 border border-red-700 text-red-200 rounded-lg px-4 py-3">
                   <p className="text-sm font-medium">Something went wrong</p>
-                  <p className="text-xs mt-1 text-red-300 break-words">{error.message}</p>
+                  <p className="text-xs mt-1 text-red-300 break-words [overflow-wrap:anywhere]">{error.message}</p>
                   <button
                     onClick={() => regenerate()}
                     className="mt-2 text-xs bg-red-700 hover:bg-red-600 text-white rounded px-3 py-1 transition-colors"
@@ -134,7 +214,7 @@ export default function Chatbot() {
                 onChange={(e) => setInput(e.target.value)}
                 placeholder="Type your question..."
                 disabled={status !== 'ready'}
-                className="flex-1 bg-slate-800 text-white rounded-lg px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50"
+                className="flex-1 min-w-0 bg-slate-800 text-white rounded-lg px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-pax-500 disabled:opacity-50"
               />
               {status === 'streaming' || status === 'submitted' ? (
                 <button
@@ -148,7 +228,7 @@ export default function Chatbot() {
                 <button
                   type="submit"
                   disabled={!input.trim() || status !== 'ready'}
-                  className="bg-blue-600 hover:bg-blue-700 text-white rounded-lg px-4 py-2 text-sm transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="bg-pax-600 hover:bg-pax-700 text-white rounded-lg px-4 py-2 text-sm transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   Send
                 </button>

@@ -71,9 +71,9 @@ body {
   border: 1px solid rgba(100, 116, 139, 0.2);
 }
 
-/* Gradient text */
+/* Gradient text — Pax brand orange */
 .gradient-text {
-  background: linear-gradient(135deg, #06b6d4 0%, #3b82f6 100%);
+  background: linear-gradient(135deg, #f47b52 0%, #ef5728 100%);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;

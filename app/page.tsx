@@ -1807,7 +1807,7 @@ Jane Smith,jane@uni.edu,0x8ba1f109551bD432803012645Ac136ddd64DBA72,Physics,Secon
     }
   };
 
-  const inputClass = 'w-full px-4 py-3 rounded-lg border border-slate-600 bg-slate-800 text-white placeholder-slate-400 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 text-sm';
+  const inputClass = 'w-full px-4 py-3 rounded-lg border border-slate-600 bg-slate-800 text-white placeholder-slate-400 focus:outline-none focus:border-pax-500 focus:ring-1 focus:ring-pax-500 text-sm';
   const labelClass = 'block text-sm font-medium text-slate-300 mb-1';
   const btnClass = 'w-full py-3 px-6 rounded-lg font-semibold text-white transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed text-sm';
 
@@ -1825,7 +1825,7 @@ Jane Smith,jane@uni.edu,0x8ba1f109551bD432803012645Ac136ddd64DBA72,Physics,Secon
               <span className={`text-xs font-semibold px-2 py-1 rounded-full border ${
                 walletRole === 'owner'  ? 'bg-yellow-900/40 border-yellow-600 text-yellow-300' :
                 walletRole === 'admin'  ? 'bg-purple-900/40 border-purple-600 text-purple-300' :
-                walletRole === 'issuer' ? 'bg-blue-900/40 border-blue-600 text-blue-300' :
+                walletRole === 'issuer' ? 'bg-pax-900/40 border-pax-600 text-pax-300' :
                 'bg-slate-700 border-slate-600 text-slate-400'
               }`}>
                 {walletRole === 'owner' ? 'Pax Owner' : walletRole === 'admin' ? 'Admin' : walletRole === 'issuer' ? 'Issuer' : 'Verifier'}
@@ -1834,7 +1834,7 @@ Jane Smith,jane@uni.edu,0x8ba1f109551bD432803012645Ac136ddd64DBA72,Physics,Secon
             <button
               onClick={connectWallet}
               disabled={isConnecting}
-              className={`px-4 py-2 rounded-lg text-sm font-semibold transition-all ${account ? 'bg-green-700 hover:bg-green-600' : 'bg-blue-600 hover:bg-blue-700'} disabled:opacity-50`}
+              className={`px-4 py-2 rounded-lg text-sm font-semibold transition-all ${account ? 'bg-green-700 hover:bg-green-600' : 'bg-pax-600 hover:bg-pax-700'} disabled:opacity-50`}
             >
               {isConnecting ? 'Connecting...' : account ? `${account.slice(0, 6)}...${account.slice(-4)}` : 'Connect Wallet'}
             </button>
@@ -1864,7 +1864,7 @@ Jane Smith,jane@uni.edu,0x8ba1f109551bD432803012645Ac136ddd64DBA72,Physics,Secon
           <div className={`mb-6 p-4 rounded-lg text-sm font-medium flex justify-between items-start gap-4 ${
             msg.type === 'success' ? 'bg-green-900/40 border border-green-600 text-green-200' :
             msg.type === 'error' ? 'bg-red-900/40 border border-red-600 text-red-200' :
-            'bg-blue-900/40 border border-blue-600 text-blue-200'
+            'bg-pax-900/40 border border-pax-600 text-pax-200'
           }`}>
             <span>{msg.text}</span>
             <button onClick={() => setMsg(null)} className="shrink-0 opacity-60 hover:opacity-100 text-lg leading-none">x</button>
@@ -1888,7 +1888,7 @@ Jane Smith,jane@uni.edu,0x8ba1f109551bD432803012645Ac136ddd64DBA72,Physics,Secon
                 disabled={!canAccess}
                 title={!canAccess && !account ? 'Connect your wallet to access this tab' : !canAccess ? 'Your wallet does not have permission to access this tab' : undefined}
                 className={`flex-1 py-2.5 px-3 rounded-md text-sm font-medium transition-all
-                  ${activeTab === tab ? 'bg-blue-600 text-white shadow' : ''}
+                  ${activeTab === tab ? 'bg-pax-600 text-white shadow' : ''}
                   ${canAccess ? 'text-slate-300 hover:text-white cursor-pointer' : 'text-slate-600 cursor-not-allowed opacity-40'}
                 `}
               >
@@ -1911,7 +1911,7 @@ Jane Smith,jane@uni.edu,0x8ba1f109551bD432803012645Ac136ddd64DBA72,Physics,Secon
                 : 'This section is only available to the Pax platform owner. Your wallet does not have the required permission.'}
             </p>
             {!account && (
-              <button onClick={connectWallet} className="mt-2 px-5 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg text-sm font-semibold">
+              <button onClick={connectWallet} className="mt-2 px-5 py-2 bg-pax-600 hover:bg-pax-700 rounded-lg text-sm font-semibold">
                 Connect Wallet
               </button>
             )}
@@ -1925,7 +1925,7 @@ Jane Smith,jane@uni.edu,0x8ba1f109551bD432803012645Ac136ddd64DBA72,Physics,Secon
             </div>
             <h2 className="text-lg font-bold text-slate-300">Connect Your Wallet</h2>
             <p className="text-slate-500 text-sm max-w-xs">You need to connect a wallet with Issuer or Admin permission to issue certificates.</p>
-            <button onClick={connectWallet} className="mt-2 px-5 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg text-sm font-semibold">
+            <button onClick={connectWallet} className="mt-2 px-5 py-2 bg-pax-600 hover:bg-pax-700 rounded-lg text-sm font-semibold">
               Connect Wallet
             </button>
           </div>
@@ -1963,13 +1963,13 @@ Jane Smith,jane@uni.edu,0x8ba1f109551bD432803012645Ac136ddd64DBA72,Physics,Secon
               <label className={labelClass}>Programme Administrator Wallet</label>
               <input className={inputClass} placeholder="0x..." value={univAdmin} onChange={(e) => setUnivAdmin(e.target.value)} />
               {account && (
-                <button onClick={() => setUnivAdmin(account)} className="mt-1 text-xs text-blue-400 hover:text-blue-300 underline">
+                <button onClick={() => setUnivAdmin(account)} className="mt-1 text-xs text-pax-400 hover:text-pax-300 underline">
                   Use my connected wallet ({account.slice(0, 6)}...{account.slice(-4)})
                 </button>
               )}
               <p className="text-xs text-slate-500 mt-1">This wallet will administer the programme and authorise certificate issuers.</p>
             </div>
-            <button onClick={deployUniversity} disabled={isDeploying} className={`${btnClass} bg-blue-600 hover:bg-blue-700`}>
+            <button onClick={deployUniversity} disabled={isDeploying} className={`${btnClass} bg-pax-600 hover:bg-pax-700`}>
               {isDeploying ? 'Registering Programme... Please wait' : 'Register Programme'}
             </button>
             {deployedUnivAddress && (
@@ -1977,7 +1977,7 @@ Jane Smith,jane@uni.edu,0x8ba1f109551bD432803012645Ac136ddd64DBA72,Physics,Secon
                 <p className="text-xs text-slate-400 mb-1">Programme successfully registered. Contract address (save this):</p>
                 <p className="font-mono text-green-400 text-sm break-all">{deployedUnivAddress}</p>
                 <p className="text-xs text-slate-500 mt-2">This address uniquely identifies your programme on the blockchain. Complete Step 2 below to configure your signatories.</p>
-                <button onClick={() => setConfigUnivAddress(deployedUnivAddress)} className="mt-2 text-xs text-blue-400 hover:text-blue-300 underline">
+                <button onClick={() => setConfigUnivAddress(deployedUnivAddress)} className="mt-2 text-xs text-pax-400 hover:text-pax-300 underline">
                   Use this address for signatory setup
                 </button>
               </div>
@@ -1985,9 +1985,9 @@ Jane Smith,jane@uni.edu,0x8ba1f109551bD432803012645Ac136ddd64DBA72,Physics,Secon
           </div>
 
           {/* Step 2: Signature Configuration */}
-          <div className="bg-slate-800 rounded-xl p-6 border border-blue-900/40 space-y-6 mt-6">
+          <div className="bg-slate-800 rounded-xl p-6 border border-pax-900/40 space-y-6 mt-6">
             <div className="flex items-center gap-2">
-              <span className="bg-blue-700 text-white text-xs font-bold px-2 py-0.5 rounded-full">Step 2</span>
+              <span className="bg-pax-700 text-white text-xs font-bold px-2 py-0.5 rounded-full">Step 2</span>
               <h2 className="text-base font-bold">Configure Institution Signatories & Faculties</h2>
               <span className="text-xs text-slate-400 ml-auto">Draw real signatures using your mouse</span>
             </div>
@@ -2008,7 +2008,7 @@ Jane Smith,jane@uni.edu,0x8ba1f109551bD432803012645Ac136ddd64DBA72,Physics,Secon
 
             {/* CORE SIGNATORIES SECTION */}
             <div className="border border-slate-700 rounded-lg p-4 space-y-6">
-              <h3 className="text-sm font-semibold text-blue-300">Core Signatories (Required)</h3>
+              <h3 className="text-sm font-semibold text-pax-300">Core Signatories (Required)</h3>
 
               {/* Registrar Signature */}
               <div className="space-y-2">
@@ -2040,7 +2040,7 @@ Jane Smith,jane@uni.edu,0x8ba1f109551bD432803012645Ac136ddd64DBA72,Physics,Secon
                   <button
                     onClick={saveRegistrarSignature}
                     disabled={uploadingSignatory === 'registrar'}
-                    className={`text-xs px-3 py-1 ${registrarSignatureURL ? 'bg-green-700' : 'bg-blue-600 hover:bg-blue-700'} text-white rounded`}
+                    className={`text-xs px-3 py-1 ${registrarSignatureURL ? 'bg-green-700' : 'bg-pax-600 hover:bg-pax-700'} text-white rounded`}
                   >
                     {registrarSignatureURL ? '✓ Saved' : uploadingSignatory === 'registrar' ? 'Uploading...' : 'Save Signature'}
                   </button>
@@ -2077,7 +2077,7 @@ Jane Smith,jane@uni.edu,0x8ba1f109551bD432803012645Ac136ddd64DBA72,Physics,Secon
                   <button
                     onClick={saveVCSignature}
                     disabled={uploadingSignatory === 'vc'}
-                    className={`text-xs px-3 py-1 ${vcSignatureURL ? 'bg-green-700' : 'bg-blue-600 hover:bg-blue-700'} text-white rounded`}
+                    className={`text-xs px-3 py-1 ${vcSignatureURL ? 'bg-green-700' : 'bg-pax-600 hover:bg-pax-700'} text-white rounded`}
                   >
                     {vcSignatureURL ? '✓ Saved' : uploadingSignatory === 'vc' ? 'Uploading...' : 'Save Signature'}
                   </button>
@@ -2110,7 +2110,7 @@ Jane Smith,jane@uni.edu,0x8ba1f109551bD432803012645Ac136ddd64DBA72,Physics,Secon
               </div>
 
               {/* Save Core Signatories Button */}
-              <button onClick={saveInstitutionConfig} disabled={isSettingConfig || logoUploading} className={`${btnClass} bg-blue-600 hover:bg-blue-700 w-full`}>
+              <button onClick={saveInstitutionConfig} disabled={isSettingConfig || logoUploading} className={`${btnClass} bg-pax-600 hover:bg-pax-700 w-full`}>
                 {logoUploading ? 'Uploading logo...' : isSettingConfig ? 'Saving... Please wait' : 'Save Core Signatories to Blockchain'}
               </button>
             </div>
@@ -2235,7 +2235,7 @@ Jane Smith,jane@uni.edu,0x8ba1f109551bD432803012645Ac136ddd64DBA72,Physics,Secon
                 <h3 className="text-sm font-semibold text-slate-300">All Registered Institutions</h3>
                 <button
                   onClick={() => loadUniversities(true, 'owner')}
-                  className="text-xs text-blue-400 hover:text-blue-300 underline"
+                  className="text-xs text-pax-400 hover:text-pax-300 underline"
                 >
                   Refresh
                 </button>
@@ -2276,7 +2276,7 @@ Jane Smith,jane@uni.edu,0x8ba1f109551bD432803012645Ac136ddd64DBA72,Physics,Secon
                           <button
                             onClick={() => handleReactivate(u.address)}
                             disabled={isReactivating === u.address}
-                            className="text-xs text-blue-400 hover:text-blue-300 underline disabled:opacity-50"
+                            className="text-xs text-pax-400 hover:text-pax-300 underline disabled:opacity-50"
                           >
                             {isReactivating === u.address ? 'Reactivating...' : 'Reactivate'}
                           </button>
@@ -2312,7 +2312,7 @@ Jane Smith,jane@uni.edu,0x8ba1f109551bD432803012645Ac136ddd64DBA72,Physics,Secon
                   <div className="space-y-1">
                     <div className={`${inputClass} text-slate-500`}>No programmes are currently assigned to your wallet.</div>
                     <p className="text-xs text-slate-500">Your wallet must be registered as an administrator or authorised issuer on a programme to appear here.</p>
-                    <button onClick={() => loadMyUniversities(account)} className="text-xs text-blue-400 hover:text-blue-300 underline">Refresh</button>
+                    <button onClick={() => loadMyUniversities(account)} className="text-xs text-pax-400 hover:text-pax-300 underline">Refresh</button>
                   </div>
                 ) : (
                   <div className="flex gap-2">
@@ -2340,7 +2340,7 @@ Jane Smith,jane@uni.edu,0x8ba1f109551bD432803012645Ac136ddd64DBA72,Physics,Secon
                 <label className={labelClass}>Staff Wallet Address</label>
                 <input className={inputClass} placeholder="0x... (wallet address of the staff member to authorise)" value={grantAddress} onChange={(e) => setGrantAddress(e.target.value)} />
                 {account && (
-                  <button onClick={() => setGrantAddress(account)} className="mt-1 text-xs text-blue-400 hover:text-blue-300 underline">
+                  <button onClick={() => setGrantAddress(account)} className="mt-1 text-xs text-pax-400 hover:text-pax-300 underline">
                     Use my connected wallet ({account.slice(0, 6)}...{account.slice(-4)})
                   </button>
                 )}
@@ -2464,9 +2464,9 @@ Jane Smith,jane@uni.edu,0x8ba1f109551bD432803012645Ac136ddd64DBA72,Physics,Secon
             </div>
 
             {/* Bulk Issue Certificates */}
-            <div className="bg-slate-800 rounded-xl p-6 border border-blue-900/40 space-y-4">
+            <div className="bg-slate-800 rounded-xl p-6 border border-pax-900/40 space-y-4">
               <div className="flex items-center gap-2">
-                <span className="bg-blue-600 text-white text-xs font-bold px-2 py-0.5 rounded-full">Bulk</span>
+                <span className="bg-pax-600 text-white text-xs font-bold px-2 py-0.5 rounded-full">Bulk</span>
                 <h2 className="text-base font-bold">Issue Multiple Certificates (CSV)</h2>
                 <span className="text-xs text-slate-400 ml-auto">Issuer only</span>
               </div>
@@ -2554,14 +2554,14 @@ Jane Smith,jane@uni.edu,0x8ba1f109551bD432803012645Ac136ddd64DBA72,Physics,Secon
                   <button 
                     onClick={issueBulkCertificates}
                     disabled={isBulkIssuing || bulkValidationResults.filter(v => v.valid).length === 0}
-                    className={`${btnClass} ${isBulkIssuing || bulkValidationResults.filter(v => v.valid).length === 0 ? 'opacity-50 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700'}`}
+                    className={`${btnClass} ${isBulkIssuing || bulkValidationResults.filter(v => v.valid).length === 0 ? 'opacity-50 cursor-not-allowed' : 'bg-pax-600 hover:bg-pax-700'}`}
                   >
                     {isBulkIssuing ? `Issuing... ${bulkProgress}%` : `Issue ${bulkValidationResults.filter(v => v.valid).length} Certificates`}
                   </button>
                   {isBulkIssuing && (
                     <div className="mt-2 w-full bg-slate-700 rounded-full h-2 overflow-hidden">
                       <div 
-                        className="bg-blue-500 h-full transition-all duration-300"
+                        className="bg-pax-500 h-full transition-all duration-300"
                         style={{ width: `${bulkProgress}%` }}
                       />
                     </div>
@@ -2716,13 +2716,13 @@ Jane Smith,jane@uni.edu,0x8ba1f109551bD432803012645Ac136ddd64DBA72,Physics,Secon
             <div className="flex gap-2 bg-slate-700/60 p-1 rounded-lg">
               <button
                 onClick={() => { setVerifyMode('paxid'); setCertResult(null); }}
-                className={`flex-1 py-2 rounded-md text-sm font-medium transition-all ${verifyMode === 'paxid' ? 'bg-blue-600 text-white shadow' : 'text-slate-400 hover:text-white'}`}
+                className={`flex-1 py-2 rounded-md text-sm font-medium transition-all ${verifyMode === 'paxid' ? 'bg-pax-600 text-white shadow' : 'text-slate-400 hover:text-white'}`}
               >
                 Search by PaxID / Matric No.
               </button>
               <button
                 onClick={() => { setVerifyMode('wallet'); setCertResult(null); }}
-                className={`flex-1 py-2 rounded-md text-sm font-medium transition-all ${verifyMode === 'wallet' ? 'bg-blue-600 text-white shadow' : 'text-slate-400 hover:text-white'}`}
+                className={`flex-1 py-2 rounded-md text-sm font-medium transition-all ${verifyMode === 'wallet' ? 'bg-pax-600 text-white shadow' : 'text-slate-400 hover:text-white'}`}
               >
                 Search by Wallet Address
               </button>
@@ -2816,7 +2816,7 @@ Jane Smith,jane@uni.edu,0x8ba1f109551bD432803012645Ac136ddd64DBA72,Physics,Secon
                       href={`https://sepolia.etherscan.io/token/${certResult.univAddress}?a=${certResult.studentAddress}`}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="text-xs text-blue-400 hover:text-blue-300 underline"
+                      className="text-xs text-pax-400 hover:text-pax-300 underline"
                     >
                       View on Blockchain
                     </a>

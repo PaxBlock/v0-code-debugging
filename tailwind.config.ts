@@ -8,7 +8,7 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
-        // Pax brand color — extracted from the favicon swoosh (#EF5728)
+        // Pax brand color — extracted from the favicon swoosh. Minimal color palette: orange, white, black.
         pax: {
           50: "#FEF3EE",
           100: "#FDE5DA",

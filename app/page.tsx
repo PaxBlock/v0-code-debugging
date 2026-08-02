@@ -1807,26 +1807,26 @@ Jane Smith,jane@uni.edu,0x8ba1f109551bD432803012645Ac136ddd64DBA72,Physics,Secon
     }
   };
 
-  const inputClass = 'w-full px-4 py-3 rounded-lg border border-slate-600 bg-slate-800 text-white placeholder-slate-400 focus:outline-none focus:border-pax-500 focus:ring-1 focus:ring-pax-500 text-sm';
-  const labelClass = 'block text-sm font-medium text-slate-300 mb-1';
-  const btnClass = 'w-full py-3 px-6 rounded-lg font-semibold text-white transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed text-sm';
+  const inputClass = 'w-full px-4 py-3 rounded-lg border border-gray-300 bg-white text-black placeholder-gray-400 focus:outline-none focus:border-pax-500 focus:ring-1 focus:ring-pax-500 text-sm';
+  const labelClass = 'block text-sm font-medium text-gray-600 mb-1';
+  const btnClass = 'w-full py-3 px-6 rounded-lg font-semibold text-black transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed text-sm';
 
   return (
-    <main className="min-h-screen bg-slate-900 text-white font-sans">
+    <main className="min-h-screen bg-white text-black font-sans">
       {/* Header */}
-      <header className="border-b border-slate-700 bg-slate-900/95 backdrop-blur sticky top-0 z-10">
+      <header className="border-b border-gray-200 bg-white/95 backdrop-blur sticky top-0 z-10">
         <div className="max-w-3xl mx-auto px-4 py-4 flex items-center justify-between">
           <div>
-            <h1 className="text-xl font-bold text-white">PAX Certificate System</h1>
-            <p className="text-xs text-slate-400">Blockchain-Verified Academic Credentials</p>
+            <h1 className="text-xl font-bold text-black">PAX Certificate System</h1>
+            <p className="text-xs text-gray-700">Blockchain-Verified Academic Credentials</p>
           </div>
           <div className="flex items-center gap-2">
             {account && walletRole && (
               <span className={`text-xs font-semibold px-2 py-1 rounded-full border ${
-                walletRole === 'owner'  ? 'bg-yellow-900/40 border-yellow-600 text-yellow-300' :
+                walletRole === 'owner'  ? 'bg-yellow-900/40 border-yellow-600 text-pax-100' :
                 walletRole === 'admin'  ? 'bg-purple-900/40 border-purple-600 text-purple-300' :
                 walletRole === 'issuer' ? 'bg-pax-900/40 border-pax-600 text-pax-300' :
-                'bg-slate-700 border-slate-600 text-slate-400'
+                'bg-gray-50 border-gray-300 text-gray-700'
               }`}>
                 {walletRole === 'owner' ? 'Pax Owner' : walletRole === 'admin' ? 'Admin' : walletRole === 'issuer' ? 'Issuer' : 'Verifier'}
               </span>
@@ -1844,7 +1844,7 @@ Jane Smith,jane@uni.edu,0x8ba1f109551bD432803012645Ac136ddd64DBA72,Physics,Secon
                   navigator.clipboard.writeText(account);
                   showMsg('success', 'Wallet address copied to clipboard!');
                 }}
-                className="p-2 rounded-lg bg-slate-700 hover:bg-slate-600 transition-all text-slate-300 hover:text-white"
+                className="p-2 rounded-lg bg-gray-50 hover:bg-gray-100 transition-all text-gray-600 hover:text-black"
                 title="Copy wallet address"
               >
                 <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -1863,7 +1863,7 @@ Jane Smith,jane@uni.edu,0x8ba1f109551bD432803012645Ac136ddd64DBA72,Physics,Secon
         {msg && (
           <div className={`mb-6 p-4 rounded-lg text-sm font-medium flex justify-between items-start gap-4 ${
             msg.type === 'success' ? 'bg-green-900/40 border border-green-600 text-green-200' :
-            msg.type === 'error' ? 'bg-red-900/40 border border-red-600 text-red-200' :
+            msg.type === 'error' ? 'bg-pax-900/40 border border-pax-600 text-pax-100' :
             'bg-pax-900/40 border border-pax-600 text-pax-200'
           }`}>
             <span>{msg.text}</span>
@@ -1872,7 +1872,7 @@ Jane Smith,jane@uni.edu,0x8ba1f109551bD432803012645Ac136ddd64DBA72,Physics,Secon
         )}
 
         {/* Tabs — visibility depends on connected wallet role */}
-        <div className="flex gap-1 bg-slate-800 p-1 rounded-lg mb-8 border border-slate-700">
+        <div className="flex gap-1 bg-white p-1 rounded-lg mb-8 border border-gray-200">
           {(['deploy', 'issue', 'verify'] as const).map((tab) => {
             // Determine if this tab is accessible to the current wallet
             const canAccess =
@@ -1888,8 +1888,8 @@ Jane Smith,jane@uni.edu,0x8ba1f109551bD432803012645Ac136ddd64DBA72,Physics,Secon
                 disabled={!canAccess}
                 title={!canAccess && !account ? 'Connect your wallet to access this tab' : !canAccess ? 'Your wallet does not have permission to access this tab' : undefined}
                 className={`flex-1 py-2.5 px-3 rounded-md text-sm font-medium transition-all
-                  ${activeTab === tab ? 'bg-pax-600 text-white shadow' : ''}
-                  ${canAccess ? 'text-slate-300 hover:text-white cursor-pointer' : 'text-slate-600 cursor-not-allowed opacity-40'}
+                  ${activeTab === tab ? 'bg-pax-600 text-black shadow' : ''}
+                  ${canAccess ? 'text-gray-600 hover:text-black cursor-pointer' : 'text-gray-800 cursor-not-allowed opacity-40'}
                 `}
               >
                 {tab === 'deploy' ? 'Register Programme' : tab === 'issue' ? 'Issue Certificate' : 'Verify Certificate'}
@@ -1901,11 +1901,11 @@ Jane Smith,jane@uni.edu,0x8ba1f109551bD432803012645Ac136ddd64DBA72,Physics,Secon
         {/* Access guard — shown when a tab is active but wallet has no permission */}
         {activeTab === 'deploy' && walletRole !== 'owner' && (
           <div className="flex flex-col items-center justify-center py-24 text-center gap-4">
-            <div className="w-16 h-16 rounded-full bg-slate-800 border border-slate-700 flex items-center justify-center text-3xl">
-              <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="text-slate-500"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+            <div className="w-16 h-16 rounded-full bg-white border border-gray-200 flex items-center justify-center text-3xl">
+              <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="text-gray-700"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
             </div>
-            <h2 className="text-lg font-bold text-slate-300">Access Restricted</h2>
-            <p className="text-slate-500 text-sm max-w-xs">
+            <h2 className="text-lg font-bold text-gray-600">Access Restricted</h2>
+            <p className="text-gray-700 text-sm max-w-xs">
               {!account
                 ? 'Please connect your wallet to access this section.'
                 : 'This section is only available to the Pax platform owner. Your wallet does not have the required permission.'}
@@ -1920,11 +1920,11 @@ Jane Smith,jane@uni.edu,0x8ba1f109551bD432803012645Ac136ddd64DBA72,Physics,Secon
 
         {activeTab === 'issue' && !account && (
           <div className="flex flex-col items-center justify-center py-24 text-center gap-4">
-            <div className="w-16 h-16 rounded-full bg-slate-800 border border-slate-700 flex items-center justify-center">
-              <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="text-slate-500"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+            <div className="w-16 h-16 rounded-full bg-white border border-gray-200 flex items-center justify-center">
+              <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="text-gray-700"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
             </div>
-            <h2 className="text-lg font-bold text-slate-300">Connect Your Wallet</h2>
-            <p className="text-slate-500 text-sm max-w-xs">You need to connect a wallet with Issuer or Admin permission to issue certificates.</p>
+            <h2 className="text-lg font-bold text-gray-600">Connect Your Wallet</h2>
+            <p className="text-gray-700 text-sm max-w-xs">You need to connect a wallet with Issuer or Admin permission to issue certificates.</p>
             <button onClick={connectWallet} className="mt-2 px-5 py-2 bg-pax-600 hover:bg-pax-700 rounded-lg text-sm font-semibold">
               Connect Wallet
             </button>
@@ -1933,31 +1933,31 @@ Jane Smith,jane@uni.edu,0x8ba1f109551bD432803012645Ac136ddd64DBA72,Physics,Secon
 
         {activeTab === 'issue' && account && walletRole === 'none' && (
           <div className="flex flex-col items-center justify-center py-24 text-center gap-4">
-            <div className="w-16 h-16 rounded-full bg-slate-800 border border-slate-700 flex items-center justify-center">
-              <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="text-slate-500"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+            <div className="w-16 h-16 rounded-full bg-white border border-gray-200 flex items-center justify-center">
+              <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="text-gray-700"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
             </div>
-            <h2 className="text-lg font-bold text-slate-300">No Permission Found</h2>
-            <p className="text-slate-500 text-sm max-w-xs">Your connected wallet ({account.slice(0, 6)}...{account.slice(-4)}) does not have Issuer or Admin access on any programme. Contact your institution administrator.</p>
+            <h2 className="text-lg font-bold text-gray-600">No Permission Found</h2>
+            <p className="text-gray-700 text-sm max-w-xs">Your connected wallet ({account.slice(0, 6)}...{account.slice(-4)}) does not have Issuer or Admin access on any programme. Contact your institution administrator.</p>
           </div>
         )}
 
         {/* Deploy University Tab */}
         {activeTab === 'deploy' && walletRole === 'owner' && (
           <div className="space-y-6">
-          <div className="bg-slate-800 rounded-xl p-6 border border-slate-700 space-y-4">
+          <div className="bg-white rounded-xl p-6 border border-gray-200 space-y-4">
             <div>
               <h2 className="text-lg font-bold">Register a New Programme</h2>
-              <p className="text-slate-400 text-sm mt-1">Register your institution and degree programme to begin issuing verified certificates.</p>
+              <p className="text-gray-700 text-sm mt-1">Register your institution and degree programme to begin issuing verified certificates.</p>
             </div>
             <div>
               <label className={labelClass}>Institution Name</label>
               <input className={inputClass} placeholder="e.g. University of Lagos" value={univName} onChange={(e) => setUnivName(e.target.value)} />
-              <p className="text-xs text-slate-500 mt-1">Your institution's official name. You&apos;ll add different faculties and degree levels in Step 2 (no need to create separate programmes).</p>
+              <p className="text-xs text-gray-700 mt-1">Your institution's official name. You&apos;ll add different faculties and degree levels in Step 2 (no need to create separate programmes).</p>
             </div>
             <div>
               <label className={labelClass}>Certificate Identifier</label>
               <input className={inputClass} placeholder="e.g. UNILAG" value={univSymbol} onChange={(e) => setUnivSymbol(e.target.value)} />
-              <p className="text-xs text-slate-500 mt-1">A short unique code for this institution (2-6 characters, e.g. UNILAG, HARV)</p>
+              <p className="text-xs text-gray-700 mt-1">A short unique code for this institution (2-6 characters, e.g. UNILAG, HARV)</p>
             </div>
             <div>
               <label className={labelClass}>Programme Administrator Wallet</label>
@@ -1967,16 +1967,16 @@ Jane Smith,jane@uni.edu,0x8ba1f109551bD432803012645Ac136ddd64DBA72,Physics,Secon
                   Use my connected wallet ({account.slice(0, 6)}...{account.slice(-4)})
                 </button>
               )}
-              <p className="text-xs text-slate-500 mt-1">This wallet will administer the programme and authorise certificate issuers.</p>
+              <p className="text-xs text-gray-700 mt-1">This wallet will administer the programme and authorise certificate issuers.</p>
             </div>
             <button onClick={deployUniversity} disabled={isDeploying} className={`${btnClass} bg-pax-600 hover:bg-pax-700`}>
               {isDeploying ? 'Registering Programme... Please wait' : 'Register Programme'}
             </button>
             {deployedUnivAddress && (
               <div className="mt-2 p-4 bg-green-900/20 border border-green-700 rounded-lg">
-                <p className="text-xs text-slate-400 mb-1">Programme successfully registered. Contract address (save this):</p>
+                <p className="text-xs text-gray-700 mb-1">Programme successfully registered. Contract address (save this):</p>
                 <p className="font-mono text-green-400 text-sm break-all">{deployedUnivAddress}</p>
-                <p className="text-xs text-slate-500 mt-2">This address uniquely identifies your programme on the blockchain. Complete Step 2 below to configure your signatories.</p>
+                <p className="text-xs text-gray-700 mt-2">This address uniquely identifies your programme on the blockchain. Complete Step 2 below to configure your signatories.</p>
                 <button onClick={() => setConfigUnivAddress(deployedUnivAddress)} className="mt-2 text-xs text-pax-400 hover:text-pax-300 underline">
                   Use this address for signatory setup
                 </button>
@@ -1985,13 +1985,13 @@ Jane Smith,jane@uni.edu,0x8ba1f109551bD432803012645Ac136ddd64DBA72,Physics,Secon
           </div>
 
           {/* Step 2: Signature Configuration */}
-          <div className="bg-slate-800 rounded-xl p-6 border border-pax-900/40 space-y-6 mt-6">
+          <div className="bg-white rounded-xl p-6 border border-pax-900/40 space-y-6 mt-6">
             <div className="flex items-center gap-2">
-              <span className="bg-pax-700 text-white text-xs font-bold px-2 py-0.5 rounded-full">Step 2</span>
+              <span className="bg-pax-700 text-black text-xs font-bold px-2 py-0.5 rounded-full">Step 2</span>
               <h2 className="text-base font-bold">Configure Institution Signatories & Faculties</h2>
-              <span className="text-xs text-slate-400 ml-auto">Draw real signatures using your mouse</span>
+              <span className="text-xs text-gray-700 ml-auto">Draw real signatures using your mouse</span>
             </div>
-            <p className="text-slate-400 text-sm">
+            <p className="text-gray-700 text-sm">
               Add institution-wide signatories (Registrar, Vice-Chancellor), then configure faculties. Each faculty can represent a degree level (BSc, LLB, etc.) with its own dean. Signatures will appear on all issued certificates.
             </p>
 
@@ -2007,7 +2007,7 @@ Jane Smith,jane@uni.edu,0x8ba1f109551bD432803012645Ac136ddd64DBA72,Physics,Secon
             </div>
 
             {/* CORE SIGNATORIES SECTION */}
-            <div className="border border-slate-700 rounded-lg p-4 space-y-6">
+            <div className="border border-gray-200 rounded-lg p-4 space-y-6">
               <h3 className="text-sm font-semibold text-pax-300">Core Signatories (Required)</h3>
 
               {/* Registrar Signature */}
@@ -2022,8 +2022,8 @@ Jane Smith,jane@uni.edu,0x8ba1f109551bD432803012645Ac136ddd64DBA72,Physics,Secon
                     <input className={inputClass} placeholder="e.g. Registrar" value={registrarPosition} onChange={(e) => setRegistrarPosition(e.target.value)} />
                   </div>
                 </div>
-                <label className="text-xs text-slate-300 font-semibold block mt-3">Draw Registrar&apos;s Signature</label>
-                <div className="border border-slate-600 rounded-lg bg-slate-900 p-2">
+                <label className="text-xs text-gray-600 font-semibold block mt-3">Draw Registrar&apos;s Signature</label>
+                <div className="border border-gray-300 rounded-lg bg-white p-2">
                   <SignatureCanvas
                     ref={registrarSignatureRef}
                     penColor="white"
@@ -2033,14 +2033,14 @@ Jane Smith,jane@uni.edu,0x8ba1f109551bD432803012645Ac136ddd64DBA72,Physics,Secon
                 <div className="flex gap-2">
                   <button
                     onClick={() => registrarSignatureRef.current?.clear()}
-                    className="text-xs px-3 py-1 bg-slate-700 hover:bg-slate-600 rounded text-slate-300"
+                    className="text-xs px-3 py-1 bg-gray-50 hover:bg-gray-100 rounded text-gray-600"
                   >
                     Clear
                   </button>
                   <button
                     onClick={saveRegistrarSignature}
                     disabled={uploadingSignatory === 'registrar'}
-                    className={`text-xs px-3 py-1 ${registrarSignatureURL ? 'bg-green-700' : 'bg-pax-600 hover:bg-pax-700'} text-white rounded`}
+                    className={`text-xs px-3 py-1 ${registrarSignatureURL ? 'bg-green-700' : 'bg-pax-600 hover:bg-pax-700'} text-black rounded`}
                   >
                     {registrarSignatureURL ? '✓ Saved' : uploadingSignatory === 'registrar' ? 'Uploading...' : 'Save Signature'}
                   </button>
@@ -2059,8 +2059,8 @@ Jane Smith,jane@uni.edu,0x8ba1f109551bD432803012645Ac136ddd64DBA72,Physics,Secon
                     <input className={inputClass} placeholder="e.g. Vice-Chancellor" value={vcPosition} onChange={(e) => setVcPosition(e.target.value)} />
                   </div>
                 </div>
-                <label className="text-xs text-slate-300 font-semibold block mt-3">Draw Vice-Chancellor&apos;s Signature</label>
-                <div className="border border-slate-600 rounded-lg bg-slate-900 p-2">
+                <label className="text-xs text-gray-600 font-semibold block mt-3">Draw Vice-Chancellor&apos;s Signature</label>
+                <div className="border border-gray-300 rounded-lg bg-white p-2">
                   <SignatureCanvas
                     ref={vcSignatureRef}
                     penColor="white"
@@ -2070,14 +2070,14 @@ Jane Smith,jane@uni.edu,0x8ba1f109551bD432803012645Ac136ddd64DBA72,Physics,Secon
                 <div className="flex gap-2">
                   <button
                     onClick={() => vcSignatureRef.current?.clear()}
-                    className="text-xs px-3 py-1 bg-slate-700 hover:bg-slate-600 rounded text-slate-300"
+                    className="text-xs px-3 py-1 bg-gray-50 hover:bg-gray-100 rounded text-gray-600"
                   >
                     Clear
                   </button>
                   <button
                     onClick={saveVCSignature}
                     disabled={uploadingSignatory === 'vc'}
-                    className={`text-xs px-3 py-1 ${vcSignatureURL ? 'bg-green-700' : 'bg-pax-600 hover:bg-pax-700'} text-white rounded`}
+                    className={`text-xs px-3 py-1 ${vcSignatureURL ? 'bg-green-700' : 'bg-pax-600 hover:bg-pax-700'} text-black rounded`}
                   >
                     {vcSignatureURL ? '✓ Saved' : uploadingSignatory === 'vc' ? 'Uploading...' : 'Save Signature'}
                   </button>
@@ -2088,7 +2088,7 @@ Jane Smith,jane@uni.edu,0x8ba1f109551bD432803012645Ac136ddd64DBA72,Physics,Secon
               <div>
                 <label className={labelClass}>Verification Domain (optional)</label>
                 <input className={inputClass} placeholder="e.g. verify.oauife.edu.ng" value={verificationDomain} onChange={(e) => setVerificationDomain(e.target.value)} />
-                <p className="text-xs text-slate-500 mt-1">The domain printed on certificates for QR verification. Defaults to your platform URL.</p>
+                <p className="text-xs text-gray-700 mt-1">The domain printed on certificates for QR verification. Defaults to your platform URL.</p>
               </div>
 
               <div>
@@ -2099,11 +2099,11 @@ Jane Smith,jane@uni.edu,0x8ba1f109551bD432803012645Ac136ddd64DBA72,Physics,Secon
                   onChange={(e) => setLogoFile(e.target.files?.[0] || null)}
                   className={inputClass}
                 />
-                <p className="text-xs text-slate-500 mt-1">Upload a logo (PNG or JPG — max 2MB). Will appear on certificates. Leave blank to use default PAX branding.</p>
+                <p className="text-xs text-gray-700 mt-1">Upload a logo (PNG or JPG — max 2MB). Will appear on certificates. Leave blank to use default PAX branding.</p>
                 {logoFile && (
                   <div className="mt-2 flex items-center gap-2">
                     <span className="text-sm text-green-400">✓ {logoFile.name} selected</span>
-                    <button onClick={() => setLogoFile(null)} className="text-xs text-slate-400 hover:text-slate-300 underline">Clear</button>
+                    <button onClick={() => setLogoFile(null)} className="text-xs text-gray-700 hover:text-gray-600 underline">Clear</button>
                   </div>
                 )}
                 {logoURL && <div className="mt-2 flex items-center gap-2"><span className="text-sm text-green-400">✓ Logo uploaded</span></div>}
@@ -2116,9 +2116,9 @@ Jane Smith,jane@uni.edu,0x8ba1f109551bD432803012645Ac136ddd64DBA72,Physics,Secon
             </div>
 
             {/* FACULTIES SECTION */}
-            <div className="border border-slate-700 rounded-lg p-4 space-y-4">
+            <div className="border border-gray-200 rounded-lg p-4 space-y-4">
               <h3 className="text-sm font-semibold text-green-300">Configure Faculties & Degree Programs</h3>
-              <p className="text-xs text-slate-400">Each faculty can represent a different degree level (e.g., &quot;Faculty of Science&quot; for BSc, &quot;Faculty of Law&quot; for LLB). Add a dean with signature for each faculty. You can add as many as your institution needs.</p>
+              <p className="text-xs text-gray-700">Each faculty can represent a different degree level (e.g., &quot;Faculty of Science&quot; for BSc, &quot;Faculty of Law&quot; for LLB). Add a dean with signature for each faculty. You can add as many as your institution needs.</p>
 
               <div>
                 <label className={labelClass}>Faculty / Degree Program Name</label>
@@ -2131,8 +2131,8 @@ Jane Smith,jane@uni.edu,0x8ba1f109551bD432803012645Ac136ddd64DBA72,Physics,Secon
               </div>
 
               <div>
-                <label className="text-xs text-slate-300 font-semibold block">Draw Dean&apos;s Signature</label>
-                <div className="border border-slate-600 rounded-lg bg-slate-900 p-2 mt-1">
+                <label className="text-xs text-gray-600 font-semibold block">Draw Dean&apos;s Signature</label>
+                <div className="border border-gray-300 rounded-lg bg-white p-2 mt-1">
                   <SignatureCanvas
                     ref={currentFacultySignatureRef}
                     penColor="white"
@@ -2142,7 +2142,7 @@ Jane Smith,jane@uni.edu,0x8ba1f109551bD432803012645Ac136ddd64DBA72,Physics,Secon
                 <div className="flex gap-2 mt-2">
                   <button
                     onClick={() => currentFacultySignatureRef.current?.clear()}
-                    className="text-xs px-3 py-1 bg-slate-700 hover:bg-slate-600 rounded text-slate-300"
+                    className="text-xs px-3 py-1 bg-gray-50 hover:bg-gray-100 rounded text-gray-600"
                   >
                     Clear
                   </button>
@@ -2159,12 +2159,12 @@ Jane Smith,jane@uni.edu,0x8ba1f109551bD432803012645Ac136ddd64DBA72,Physics,Secon
               {/* Faculties List */}
               {configuredFaculties.length > 0 && (
                 <div className="mt-4 space-y-2">
-                  <p className="text-xs text-slate-400">Added Faculties ({configuredFaculties.length}):</p>
+                  <p className="text-xs text-gray-700">Added Faculties ({configuredFaculties.length}):</p>
                   {configuredFaculties.map((fac) => (
-                    <div key={fac.id} className="flex items-center justify-between bg-slate-700/30 p-2 rounded text-sm">
+                    <div key={fac.id} className="flex items-center justify-between bg-gray-50/30 p-2 rounded text-sm">
                       <div>
-                        <p className="text-slate-300 font-semibold">{fac.name}</p>
-                        <p className="text-xs text-slate-400">Dean: {fac.deanName}</p>
+                        <p className="text-gray-600 font-semibold">{fac.name}</p>
+                        <p className="text-xs text-gray-700">Dean: {fac.deanName}</p>
                       </div>
                       <span className="text-green-400 text-xs">✓ Signature saved</span>
                     </div>
@@ -2175,18 +2175,18 @@ Jane Smith,jane@uni.edu,0x8ba1f109551bD432803012645Ac136ddd64DBA72,Physics,Secon
           </div>
 
           {/* Step 3: Manage Institutions — Owner only */}
-          <div className="bg-slate-800 rounded-xl p-6 border border-red-900/40 space-y-5 mt-6">
+          <div className="bg-white rounded-xl p-6 border border-pax-900/40 space-y-5 mt-6">
             <div className="flex items-center gap-2">
-              <span className="bg-red-700 text-white text-xs font-bold px-2 py-0.5 rounded-full">Step 3</span>
+              <span className="bg-pax-700 text-black text-xs font-bold px-2 py-0.5 rounded-full">Step 3</span>
               <h2 className="text-base font-bold">Manage Registered Institutions</h2>
-              <span className="text-xs text-slate-400 ml-auto">Owner access only</span>
+              <span className="text-xs text-gray-700 ml-auto">Owner access only</span>
             </div>
-            <p className="text-slate-400 text-sm">
+            <p className="text-gray-700 text-sm">
               Deactivate an institution to remove them from the platform. Their existing certificates remain permanently verifiable on-chain, but no new certificates can be issued. You can reactivate them at any time.
             </p>
 
             {/* Deactivate form */}
-            <div className="space-y-3 border border-slate-700 rounded-lg p-4">
+            <div className="space-y-3 border border-gray-200 rounded-lg p-4">
               <h3 className="text-sm font-semibold text-red-400">Deactivate an Institution</h3>
               <div>
                 <label className={labelClass}>Institution Contract Address</label>
@@ -2223,7 +2223,7 @@ Jane Smith,jane@uni.edu,0x8ba1f109551bD432803012645Ac136ddd64DBA72,Physics,Secon
               <button
                 onClick={handleDeactivate}
                 disabled={isDeactivating || !deactivateAddress || !deactivateReason}
-                className={`${btnClass} bg-red-700 hover:bg-red-600 disabled:opacity-50`}
+                className={`${btnClass} bg-pax-700 hover:bg-pax-600 disabled:opacity-50`}
               >
                 {isDeactivating ? 'Deactivating... Please wait' : 'Deactivate Institution'}
               </button>
@@ -2232,7 +2232,7 @@ Jane Smith,jane@uni.edu,0x8ba1f109551bD432803012645Ac136ddd64DBA72,Physics,Secon
             {/* Current institutions list with status */}
             <div className="space-y-2">
               <div className="flex items-center justify-between">
-                <h3 className="text-sm font-semibold text-slate-300">All Registered Institutions</h3>
+                <h3 className="text-sm font-semibold text-gray-600">All Registered Institutions</h3>
                 <button
                   onClick={() => loadUniversities(true, 'owner')}
                   className="text-xs text-pax-400 hover:text-pax-300 underline"
@@ -2241,9 +2241,9 @@ Jane Smith,jane@uni.edu,0x8ba1f109551bD432803012645Ac136ddd64DBA72,Physics,Secon
                 </button>
               </div>
               {isLoadingUnis ? (
-                <p className="text-xs text-slate-500">Loading institutions...</p>
+                <p className="text-xs text-gray-700">Loading institutions...</p>
               ) : universities.length === 0 ? (
-                <p className="text-xs text-slate-500">No institutions registered yet.</p>
+                <p className="text-xs text-gray-700">No institutions registered yet.</p>
               ) : (
                 <div className="space-y-2">
                   {universities.map((u) => (
@@ -2252,14 +2252,14 @@ Jane Smith,jane@uni.edu,0x8ba1f109551bD432803012645Ac136ddd64DBA72,Physics,Secon
                       className={`flex items-center justify-between p-3 rounded-lg border text-sm ${
                         u.deactivated
                           ? 'bg-red-950/20 border-red-900/50'
-                          : 'bg-slate-700/40 border-slate-700'
+                          : 'bg-gray-50/40 border-gray-200'
                       }`}
                     >
                       <div className="flex flex-col gap-0.5 min-w-0">
-                        <span className={`font-medium truncate ${u.deactivated ? 'text-red-400 line-through opacity-60' : 'text-slate-200'}`}>
+                        <span className={`font-medium truncate ${u.deactivated ? 'text-red-400 line-through opacity-60' : 'text-gray-100'}`}>
                           {u.name}
                         </span>
-                        <span className="font-mono text-xs text-slate-500 truncate">{u.address}</span>
+                        <span className="font-mono text-xs text-gray-700 truncate">{u.address}</span>
                         {u.deactivated && u.deactivationReason && (
                           <span className="text-xs text-red-400 mt-0.5">Reason: {u.deactivationReason}</span>
                         )}
@@ -2267,7 +2267,7 @@ Jane Smith,jane@uni.edu,0x8ba1f109551bD432803012645Ac136ddd64DBA72,Physics,Secon
                       <div className="flex items-center gap-2 ml-3 shrink-0">
                         <span className={`text-xs font-semibold px-2 py-0.5 rounded-full border ${
                           u.deactivated
-                            ? 'bg-red-900/30 border-red-700 text-red-400'
+                            ? 'bg-red-900/30 border-pax-700 text-red-400'
                             : 'bg-green-900/30 border-green-700 text-green-400'
                         }`}>
                           {u.deactivated ? 'Deactivated' : 'Active'}
@@ -2295,23 +2295,23 @@ Jane Smith,jane@uni.edu,0x8ba1f109551bD432803012645Ac136ddd64DBA72,Physics,Secon
         {activeTab === 'issue' && account && (walletRole === 'owner' || walletRole === 'admin' || walletRole === 'issuer') && (
           <div className="space-y-6">
             {/* Step 1: Grant Role */}
-            <div className="bg-slate-800 rounded-xl p-6 border border-amber-700/40 space-y-4">
+            <div className="bg-white rounded-xl p-6 border border-amber-700/40 space-y-4">
               <div className="flex items-center gap-2">
-                <span className="bg-amber-600 text-white text-xs font-bold px-2 py-0.5 rounded-full">Step 1</span>
+                <span className="bg-amber-600 text-black text-xs font-bold px-2 py-0.5 rounded-full">Step 1</span>
                 <h2 className="text-base font-bold">Authorise a Certificate Issuer</h2>
-                <span className="text-xs text-slate-400 ml-auto">One-time setup per programme</span>
+                <span className="text-xs text-gray-700 ml-auto">One-time setup per programme</span>
               </div>
-              <p className="text-slate-400 text-sm">The programme administrator must authorise a staff member before they can issue certificates. This only needs to be done once per issuer.</p>
+              <p className="text-gray-700 text-sm">The programme administrator must authorise a staff member before they can issue certificates. This only needs to be done once per issuer.</p>
               <div>
                 <label className={labelClass}>Select University Programme</label>
                 {!account ? (
                   <div className={`${inputClass} text-amber-400`}>Please connect your wallet to view your assigned programmes.</div>
                 ) : isLoadingMyUnis ? (
-                  <div className={`${inputClass} text-slate-400`}>Loading your programmes...</div>
+                  <div className={`${inputClass} text-gray-700`}>Loading your programmes...</div>
                 ) : myUniversities.length === 0 ? (
                   <div className="space-y-1">
-                    <div className={`${inputClass} text-slate-500`}>No programmes are currently assigned to your wallet.</div>
-                    <p className="text-xs text-slate-500">Your wallet must be registered as an administrator or authorised issuer on a programme to appear here.</p>
+                    <div className={`${inputClass} text-gray-700`}>No programmes are currently assigned to your wallet.</div>
+                    <p className="text-xs text-gray-700">Your wallet must be registered as an administrator or authorised issuer on a programme to appear here.</p>
                     <button onClick={() => loadMyUniversities(account)} className="text-xs text-pax-400 hover:text-pax-300 underline">Refresh</button>
                   </div>
                 ) : (
@@ -2326,7 +2326,7 @@ Jane Smith,jane@uni.edu,0x8ba1f109551bD432803012645Ac136ddd64DBA72,Physics,Secon
                         <option key={u.address} value={u.address}>{u.name}</option>
                       ))}
                     </select>
-                    <button onClick={() => loadMyUniversities(account)} className="shrink-0 px-3 py-3 rounded-lg bg-slate-700 hover:bg-slate-600 text-sm text-slate-300" title="Refresh">Reload</button>
+                    <button onClick={() => loadMyUniversities(account)} className="shrink-0 px-3 py-3 rounded-lg bg-gray-50 hover:bg-gray-100 text-sm text-gray-600" title="Refresh">Reload</button>
                   </div>
                 )}
                 {hasIssuerRole === true && (
@@ -2351,16 +2351,16 @@ Jane Smith,jane@uni.edu,0x8ba1f109551bD432803012645Ac136ddd64DBA72,Physics,Secon
             </div>
 
             {/* Step 2: Issue Certificate */}
-            <div className="bg-slate-800 rounded-xl p-6 border border-slate-700 space-y-4">
+            <div className="bg-white rounded-xl p-6 border border-gray-200 space-y-4">
               <div className="flex items-center gap-2">
-                <span className="bg-green-600 text-white text-xs font-bold px-2 py-0.5 rounded-full">Step 2</span>
+                <span className="bg-green-600 text-black text-xs font-bold px-2 py-0.5 rounded-full">Step 2</span>
                 <h2 className="text-base font-bold">Issue Certificate</h2>
               </div>
-              <p className="text-slate-400 text-sm">Issue a tamper-proof, permanent certificate to a student. The certificate is tied to their wallet and cannot be transferred.</p>
+              <p className="text-gray-700 text-sm">Issue a tamper-proof, permanent certificate to a student. The certificate is tied to their wallet and cannot be transferred.</p>
               <div>
                 <label className={labelClass}>Select Programme</label>
                 {myUniversities.length === 0 ? (
-                  <div className={`${inputClass} text-slate-400`}>Please complete Step 1 first to load your assigned programmes.</div>
+                  <div className={`${inputClass} text-gray-700`}>Please complete Step 1 first to load your assigned programmes.</div>
                 ) : (
                   <select
                     className={inputClass}
@@ -2373,12 +2373,12 @@ Jane Smith,jane@uni.edu,0x8ba1f109551bD432803012645Ac136ddd64DBA72,Physics,Secon
                     ))}
                   </select>
                 )}
-                <p className="text-xs text-slate-500 mt-1">Select the programme this certificate is being issued under.</p>
+                <p className="text-xs text-gray-700 mt-1">Select the programme this certificate is being issued under.</p>
               </div>
               <div>
                 <label className={labelClass}>Student Wallet Address</label>
                 <input className={inputClass} placeholder="0x... (student's wallet address)" value={studentAddress} onChange={(e) => setStudentAddress(e.target.value)} />
-                <p className="text-xs text-slate-500 mt-1">The certificate will be permanently issued to this wallet address.</p>
+                <p className="text-xs text-gray-700 mt-1">The certificate will be permanently issued to this wallet address.</p>
               </div>
               <div>
                 <label className={labelClass}>Student Full Name</label>
@@ -2391,7 +2391,7 @@ Jane Smith,jane@uni.edu,0x8ba1f109551bD432803012645Ac136ddd64DBA72,Physics,Secon
                 />
               </div>
               <div>
-                <label className={labelClass}>Select Faculty <span className="text-slate-500 font-normal">(for dean signature)</span></label>
+                <label className={labelClass}>Select Faculty <span className="text-gray-700 font-normal">(for dean signature)</span></label>
                 <select 
                   className={inputClass}
                   value={selectedFaculty} 
@@ -2407,7 +2407,7 @@ Jane Smith,jane@uni.edu,0x8ba1f109551bD432803012645Ac136ddd64DBA72,Physics,Secon
                     </option>
                   ))}
                 </select>
-                <p className="text-xs text-slate-500 mt-1">Select the faculty the student belongs to. The dean's signature for this faculty will appear on the certificate.</p>
+                <p className="text-xs text-gray-700 mt-1">Select the faculty the student belongs to. The dean's signature for this faculty will appear on the certificate.</p>
               </div>
               <div>
                 <label className={labelClass}>Field of Study</label>
@@ -2433,7 +2433,7 @@ Jane Smith,jane@uni.edu,0x8ba1f109551bD432803012645Ac136ddd64DBA72,Physics,Secon
                   <option value="Credit">Credit</option>
                   <option value="Satisfactory">Satisfactory</option>
                 </select>
-                <p className="text-xs text-slate-500 mt-1">This will appear on the certificate NFT and is encrypted on-chain.</p>
+                <p className="text-xs text-gray-700 mt-1">This will appear on the certificate NFT and is encrypted on-chain.</p>
               </div>
               <div>
                 <label className={labelClass}>PaxID (Matric Number)</label>
@@ -2444,10 +2444,10 @@ Jane Smith,jane@uni.edu,0x8ba1f109551bD432803012645Ac136ddd64DBA72,Physics,Secon
                   onChange={(e) => setPaxId(e.target.value.toUpperCase())}
                   maxLength={50}
                 />
-                <p className="text-xs text-slate-500 mt-1">Stored in uppercase automatically. Employers can type it in any case to verify. Must be unique per student.</p>
+                <p className="text-xs text-gray-700 mt-1">Stored in uppercase automatically. Employers can type it in any case to verify. Must be unique per student.</p>
               </div>
               <div>
-                <label className={labelClass}>Student Email <span className="text-slate-500 font-normal">(optional — for softcopy delivery)</span></label>
+                <label className={labelClass}>Student Email <span className="text-gray-700 font-normal">(optional — for softcopy delivery)</span></label>
                 <input
                   className={inputClass}
                   type="email"
@@ -2456,7 +2456,7 @@ Jane Smith,jane@uni.edu,0x8ba1f109551bD432803012645Ac136ddd64DBA72,Physics,Secon
                   onChange={(e) => setStudentEmail(e.target.value)}
                   maxLength={254}
                 />
-                <p className="text-xs text-slate-500 mt-1">If provided, the student receives a beautiful PDF-quality certificate to their inbox immediately after issuance. The email is never stored — it is used once and discarded.</p>
+                <p className="text-xs text-gray-700 mt-1">If provided, the student receives a beautiful PDF-quality certificate to their inbox immediately after issuance. The email is never stored — it is used once and discarded.</p>
               </div>
               <button onClick={issueCertificate} disabled={isIssuing} className={`${btnClass} bg-green-600 hover:bg-green-700`}>
                 {isIssuing ? 'Issuing Certificate... Please wait' : 'Issue Certificate'}
@@ -2464,24 +2464,24 @@ Jane Smith,jane@uni.edu,0x8ba1f109551bD432803012645Ac136ddd64DBA72,Physics,Secon
             </div>
 
             {/* Bulk Issue Certificates */}
-            <div className="bg-slate-800 rounded-xl p-6 border border-pax-900/40 space-y-4">
+            <div className="bg-white rounded-xl p-6 border border-pax-900/40 space-y-4">
               <div className="flex items-center gap-2">
-                <span className="bg-pax-600 text-white text-xs font-bold px-2 py-0.5 rounded-full">Bulk</span>
+                <span className="bg-pax-600 text-black text-xs font-bold px-2 py-0.5 rounded-full">Bulk</span>
                 <h2 className="text-base font-bold">Issue Multiple Certificates (CSV)</h2>
-                <span className="text-xs text-slate-400 ml-auto">Issuer only</span>
+                <span className="text-xs text-gray-700 ml-auto">Issuer only</span>
               </div>
-              <p className="text-slate-400 text-sm">Upload a CSV file to issue up to 500 certificates in a single blockchain transaction. All students must have wallet addresses.</p>
+              <p className="text-gray-700 text-sm">Upload a CSV file to issue up to 500 certificates in a single blockchain transaction. All students must have wallet addresses.</p>
               
               {/* Step 1: Download Template */}
               <div>
                 <label className={labelClass}>Step 1: Download CSV Template</label>
                 <button 
                   onClick={downloadCSVTemplate}
-                  className="text-xs px-4 py-2 bg-slate-700 hover:bg-slate-600 rounded text-white"
+                  className="text-xs px-4 py-2 bg-gray-50 hover:bg-gray-100 rounded text-black"
                 >
                   📥 Download Template
                 </button>
-                <p className="text-xs text-slate-500 mt-1">CSV must have columns: StudentName, StudentEmail, WalletAddress, CourseName, Grade, PaxID, FacultyName</p>
+                <p className="text-xs text-gray-700 mt-1">CSV must have columns: StudentName, StudentEmail, WalletAddress, CourseName, Grade, PaxID, FacultyName</p>
               </div>
 
               {/* Step 2: Upload CSV */}
@@ -2497,16 +2497,16 @@ Jane Smith,jane@uni.edu,0x8ba1f109551bD432803012645Ac136ddd64DBA72,Physics,Secon
                   }}
                   className={inputClass}
                 />
-                <p className="text-xs text-slate-500 mt-1">Select a CSV file with student data.</p>
+                <p className="text-xs text-gray-700 mt-1">Select a CSV file with student data.</p>
               </div>
 
               {/* Step 3: Validation Preview */}
               {bulkCSVData.length > 0 && (
                 <div>
                   <label className={labelClass}>Step 3: Validation Preview</label>
-                  <div className="bg-slate-900 rounded-lg overflow-x-auto text-xs max-h-60 overflow-y-auto border border-slate-700">
+                  <div className="bg-white rounded-lg overflow-x-auto text-xs max-h-60 overflow-y-auto border border-gray-200">
                     <table className="w-full">
-                      <thead className="sticky top-0 bg-slate-800 border-b border-slate-700">
+                      <thead className="sticky top-0 bg-white border-b border-gray-200">
                         <tr>
                           <th className="px-3 py-2 text-left">Row</th>
                           <th className="px-3 py-2 text-left">Student</th>
@@ -2541,7 +2541,7 @@ Jane Smith,jane@uni.edu,0x8ba1f109551bD432803012645Ac136ddd64DBA72,Physics,Secon
                       </tbody>
                     </table>
                   </div>
-                  <p className="text-xs text-slate-400 mt-2">
+                  <p className="text-xs text-gray-700 mt-2">
                     Valid: {bulkValidationResults.filter(v => v.valid).length} / {bulkCSVData.length}
                   </p>
                 </div>
@@ -2559,7 +2559,7 @@ Jane Smith,jane@uni.edu,0x8ba1f109551bD432803012645Ac136ddd64DBA72,Physics,Secon
                     {isBulkIssuing ? `Issuing... ${bulkProgress}%` : `Issue ${bulkValidationResults.filter(v => v.valid).length} Certificates`}
                   </button>
                   {isBulkIssuing && (
-                    <div className="mt-2 w-full bg-slate-700 rounded-full h-2 overflow-hidden">
+                    <div className="mt-2 w-full bg-gray-50 rounded-full h-2 overflow-hidden">
                       <div 
                         className="bg-pax-500 h-full transition-all duration-300"
                         style={{ width: `${bulkProgress}%` }}
@@ -2571,19 +2571,19 @@ Jane Smith,jane@uni.edu,0x8ba1f109551bD432803012645Ac136ddd64DBA72,Physics,Secon
             </div>
 
             {/* Step 3: Revoke Certificate */}
-            <div className="bg-slate-800 rounded-xl p-6 border border-red-900/40 space-y-4">
+            <div className="bg-white rounded-xl p-6 border border-pax-900/40 space-y-4">
               <div className="flex items-center gap-2">
-                <span className="bg-red-800 text-white text-xs font-bold px-2 py-0.5 rounded-full">Step 3</span>
+                <span className="bg-red-800 text-black text-xs font-bold px-2 py-0.5 rounded-full">Step 3</span>
                 <h2 className="text-base font-bold">Revoke a Certificate</h2>
-                <span className="text-xs text-slate-400 ml-auto">Admin only</span>
+                <span className="text-xs text-gray-700 ml-auto">Admin only</span>
               </div>
-              <p className="text-slate-400 text-sm">
+              <p className="text-gray-700 text-sm">
                 Revoke an issued certificate. The revocation and its reason are recorded permanently on the blockchain and will be visible to anyone who verifies that certificate.
               </p>
               <div>
                 <label className={labelClass}>Select Programme</label>
                 {myUniversities.length === 0 ? (
-                  <div className={`${inputClass} text-slate-400`}>No programmes assigned to your wallet yet.</div>
+                  <div className={`${inputClass} text-gray-700`}>No programmes assigned to your wallet yet.</div>
                 ) : (
                   <select
                     className={inputClass}
@@ -2605,7 +2605,7 @@ Jane Smith,jane@uni.edu,0x8ba1f109551bD432803012645Ac136ddd64DBA72,Physics,Secon
                   value={revokePaxId}
                   onChange={(e) => setRevokePaxId(e.target.value)}
                 />
-                <p className="text-xs text-slate-500 mt-1">Enter the student&apos;s PaxID. We&apos;ll look up the certificate on the selected programme automatically.</p>
+                <p className="text-xs text-gray-700 mt-1">Enter the student&apos;s PaxID. We&apos;ll look up the certificate on the selected programme automatically.</p>
               </div>
               <div>
                 <label className={labelClass}>Reason for Revocation</label>
@@ -2648,7 +2648,7 @@ Jane Smith,jane@uni.edu,0x8ba1f109551bD432803012645Ac136ddd64DBA72,Physics,Secon
                 </div>
               )}
               <div>
-                <label className={labelClass}>Student Email <span className="text-slate-500 font-normal">(optional — to notify them)</span></label>
+                <label className={labelClass}>Student Email <span className="text-gray-700 font-normal">(optional — to notify them)</span></label>
                 <input
                   type="email"
                   className={inputClass}
@@ -2657,12 +2657,12 @@ Jane Smith,jane@uni.edu,0x8ba1f109551bD432803012645Ac136ddd64DBA72,Physics,Secon
                   onChange={(e) => setRevokeEmail(e.target.value)}
                   maxLength={254}
                 />
-                <p className="text-xs text-slate-500 mt-1">If provided, the student will receive an email notifying them of the revocation and the reason. The email is not stored.</p>
+                <p className="text-xs text-gray-700 mt-1">If provided, the student will receive an email notifying them of the revocation and the reason. The email is not stored.</p>
               </div>
               <button
                 onClick={handleRevoke}
                 disabled={isRevoking || !revokePaxId || !revokeReason}
-                className={`${btnClass} bg-red-700 hover:bg-red-600 disabled:opacity-50`}
+                className={`${btnClass} bg-pax-700 hover:bg-pax-600 disabled:opacity-50`}
               >
                 {isRevoking ? 'Revoking... Please wait' : 'Revoke Certificate'}
               </button>
@@ -2672,16 +2672,16 @@ Jane Smith,jane@uni.edu,0x8ba1f109551bD432803012645Ac136ddd64DBA72,Physics,Secon
 
         {/* Verify Certificate Tab */}
         {activeTab === 'verify' && (
-          <div className="bg-slate-800 rounded-xl p-6 border border-slate-700 space-y-4">
+          <div className="bg-white rounded-xl p-6 border border-gray-200 space-y-4">
             <div>
               <h2 className="text-lg font-bold">Verify a Certificate</h2>
-              <p className="text-slate-400 text-sm mt-1">Confirm the authenticity of any certificate issued through this platform. Open to the public — no account or wallet needed.</p>
+              <p className="text-gray-700 text-sm mt-1">Confirm the authenticity of any certificate issued through this platform. Open to the public — no account or wallet needed.</p>
             </div>
 
             <div>
               <label className={labelClass}>Select Institution & Programme</label>
               {isLoadingUnis ? (
-                <div className="w-full px-4 py-3 rounded-lg border border-slate-600 bg-slate-800 text-slate-400 text-sm">
+                <div className="w-full px-4 py-3 rounded-lg border border-gray-300 bg-white text-gray-700 text-sm">
                   Loading registered programmes...
                 </div>
               ) : universities.length === 0 ? (
@@ -2689,7 +2689,7 @@ Jane Smith,jane@uni.edu,0x8ba1f109551bD432803012645Ac136ddd64DBA72,Physics,Secon
                   <select className={inputClass} disabled>
                     <option>No programmes registered yet</option>
                   </select>
-                  <button onClick={loadUniversities} className="shrink-0 px-3 py-3 rounded-lg bg-slate-700 hover:bg-slate-600 text-sm text-slate-300">
+                  <button onClick={loadUniversities} className="shrink-0 px-3 py-3 rounded-lg bg-gray-50 hover:bg-gray-100 text-sm text-gray-600">
                     Reload
                   </button>
                 </div>
@@ -2705,7 +2705,7 @@ Jane Smith,jane@uni.edu,0x8ba1f109551bD432803012645Ac136ddd64DBA72,Physics,Secon
                       <option key={u.address} value={u.address}>{u.name}</option>
                     ))}
                   </select>
-                  <button onClick={loadUniversities} className="shrink-0 px-3 py-3 rounded-lg bg-slate-700 hover:bg-slate-600 text-sm text-slate-300" title="Refresh list">
+                  <button onClick={loadUniversities} className="shrink-0 px-3 py-3 rounded-lg bg-gray-50 hover:bg-gray-100 text-sm text-gray-600" title="Refresh list">
                     Reload
                   </button>
                 </div>
@@ -2713,16 +2713,16 @@ Jane Smith,jane@uni.edu,0x8ba1f109551bD432803012645Ac136ddd64DBA72,Physics,Secon
             </div>
 
             {/* Toggle: wallet address vs PaxID */}
-            <div className="flex gap-2 bg-slate-700/60 p-1 rounded-lg">
+            <div className="flex gap-2 bg-gray-50/60 p-1 rounded-lg">
               <button
                 onClick={() => { setVerifyMode('paxid'); setCertResult(null); }}
-                className={`flex-1 py-2 rounded-md text-sm font-medium transition-all ${verifyMode === 'paxid' ? 'bg-pax-600 text-white shadow' : 'text-slate-400 hover:text-white'}`}
+                className={`flex-1 py-2 rounded-md text-sm font-medium transition-all ${verifyMode === 'paxid' ? 'bg-pax-600 text-black shadow' : 'text-gray-700 hover:text-black'}`}
               >
                 Search by PaxID / Matric No.
               </button>
               <button
                 onClick={() => { setVerifyMode('wallet'); setCertResult(null); }}
-                className={`flex-1 py-2 rounded-md text-sm font-medium transition-all ${verifyMode === 'wallet' ? 'bg-pax-600 text-white shadow' : 'text-slate-400 hover:text-white'}`}
+                className={`flex-1 py-2 rounded-md text-sm font-medium transition-all ${verifyMode === 'wallet' ? 'bg-pax-600 text-black shadow' : 'text-gray-700 hover:text-black'}`}
               >
                 Search by Wallet Address
               </button>
@@ -2737,7 +2737,7 @@ Jane Smith,jane@uni.edu,0x8ba1f109551bD432803012645Ac136ddd64DBA72,Physics,Secon
                   value={verifyPaxId}
                   onChange={(e) => { setVerifyPaxId(e.target.value); setCertResult(null); }}
                 />
-                <p className="text-xs text-slate-500 mt-1">Enter the student&apos;s matric number exactly as registered. No wallet address needed.</p>
+                <p className="text-xs text-gray-700 mt-1">Enter the student&apos;s matric number exactly as registered. No wallet address needed.</p>
               </div>
             ) : (
               <div>
@@ -2756,7 +2756,7 @@ Jane Smith,jane@uni.edu,0x8ba1f109551bD432803012645Ac136ddd64DBA72,Physics,Secon
             </button>
 
             {certResult && (
-              <div className={`mt-2 p-5 rounded-xl border space-y-4 ${certResult.isRevoked ? 'bg-red-900/20 border-red-700/60' : 'bg-slate-700/60 border-green-700/50'}`}>
+              <div className={`mt-2 p-5 rounded-xl border space-y-4 ${certResult.isRevoked ? 'bg-red-900/20 border-pax-700/60' : 'bg-gray-50/60 border-green-700/50'}`}>
                 {/* Status banner */}
                 {certResult.isRevoked ? (
                   <div className="space-y-2">
@@ -2764,11 +2764,11 @@ Jane Smith,jane@uni.edu,0x8ba1f109551bD432803012645Ac136ddd64DBA72,Physics,Secon
                       <div className="w-2.5 h-2.5 rounded-full bg-red-400 shrink-0"></div>
                       <span className="text-red-400 font-semibold text-sm">Certificate Revoked</span>
                     </div>
-                    <div className="p-3 bg-red-900/30 border border-red-700/40 rounded-lg">
-                      <p className="text-xs text-slate-400 uppercase tracking-wide mb-1">Reason for Revocation</p>
-                      <p className="text-red-200 text-sm font-medium">This certificate was revoked by the issuing institution because: {certResult.revocationReason}</p>
+                    <div className="p-3 bg-red-900/30 border border-pax-700/40 rounded-lg">
+                      <p className="text-xs text-gray-700 uppercase tracking-wide mb-1">Reason for Revocation</p>
+                      <p className="text-pax-100 text-sm font-medium">This certificate was revoked by the issuing institution because: {certResult.revocationReason}</p>
                       {certResult.revocationDate && (
-                        <p className="text-xs text-slate-500 mt-1">Revoked on {certResult.revocationDate}</p>
+                        <p className="text-xs text-gray-700 mt-1">Revoked on {certResult.revocationDate}</p>
                       )}
                     </div>
                   </div>
@@ -2781,35 +2781,35 @@ Jane Smith,jane@uni.edu,0x8ba1f109551bD432803012645Ac136ddd64DBA72,Physics,Secon
                 {/* Certificate details */}
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <p className="text-slate-400 text-xs uppercase tracking-wide mb-1">Graduate Name</p>
-                    <p className={`font-medium ${certResult.isRevoked ? 'text-slate-400 line-through' : 'text-white'}`}>{certResult.candidateName}</p>
+                    <p className="text-gray-700 text-xs uppercase tracking-wide mb-1">Graduate Name</p>
+                    <p className={`font-medium ${certResult.isRevoked ? 'text-gray-700 line-through' : 'text-black'}`}>{certResult.candidateName}</p>
                   </div>
                   <div>
-                    <p className="text-slate-400 text-xs uppercase tracking-wide mb-1">PaxID / Matric No.</p>
-                    <p className="font-mono text-white font-semibold">{certResult.paxId || '—'}</p>
+                    <p className="text-gray-700 text-xs uppercase tracking-wide mb-1">PaxID / Matric No.</p>
+                    <p className="font-mono text-black font-semibold">{certResult.paxId || '—'}</p>
                   </div>
                   <div>
-                    <p className="text-slate-400 text-xs uppercase tracking-wide mb-1">Field of Study</p>
-                    <p className={`font-medium ${certResult.isRevoked ? 'text-slate-400 line-through' : 'text-white'}`}>{certResult.courseName}</p>
+                    <p className="text-gray-700 text-xs uppercase tracking-wide mb-1">Field of Study</p>
+                    <p className={`font-medium ${certResult.isRevoked ? 'text-gray-700 line-through' : 'text-black'}`}>{certResult.courseName}</p>
                   </div>
                   <div>
-                    <p className="text-slate-400 text-xs uppercase tracking-wide mb-1">Classification</p>
-                    <p className={`font-medium ${certResult.isRevoked ? 'text-slate-400 line-through' : 'text-white'}`}>{certResult.grade || '—'}</p>
+                    <p className="text-gray-700 text-xs uppercase tracking-wide mb-1">Classification</p>
+                    <p className={`font-medium ${certResult.isRevoked ? 'text-gray-700 line-through' : 'text-black'}`}>{certResult.grade || '—'}</p>
                   </div>
                   <div>
-                    <p className="text-slate-400 text-xs uppercase tracking-wide mb-1">Institution & Programme</p>
-                    <p className="text-white font-medium">{certResult.universityName}</p>
+                    <p className="text-gray-700 text-xs uppercase tracking-wide mb-1">Institution & Programme</p>
+                    <p className="text-black font-medium">{certResult.universityName}</p>
                   </div>
                   <div>
-                    <p className="text-slate-400 text-xs uppercase tracking-wide mb-1">Date of Issue</p>
-                    <p className="text-white font-medium">{certResult.issuedAt}</p>
+                    <p className="text-gray-700 text-xs uppercase tracking-wide mb-1">Date of Issue</p>
+                    <p className="text-black font-medium">{certResult.issuedAt}</p>
                   </div>
                 </div>
-                <div className="pt-2 border-t border-slate-600 flex justify-between items-center">
+                <div className="pt-2 border-t border-gray-300 flex justify-between items-center">
                   <div>
-                    <p className="text-slate-400 text-xs uppercase tracking-wide mb-1">Certificate Reference</p>
-                    <p className="font-mono text-white font-semibold text-sm">#{certResult.tokenId}</p>
-                    <p className="text-slate-500 text-xs mt-0.5">Unique credential identifier on the blockchain</p>
+                    <p className="text-gray-700 text-xs uppercase tracking-wide mb-1">Certificate Reference</p>
+                    <p className="font-mono text-black font-semibold text-sm">#{certResult.tokenId}</p>
+                    <p className="text-gray-700 text-xs mt-0.5">Unique credential identifier on the blockchain</p>
                   </div>
                   <div className="flex flex-col items-end gap-1">
                     <a
@@ -2836,15 +2836,15 @@ Jane Smith,jane@uni.edu,0x8ba1f109551bD432803012645Ac136ddd64DBA72,Physics,Secon
         )}
 
         {/* Footer */}
-        <div className="mt-10 text-center text-xs text-slate-600 space-y-1">
+        <div className="mt-10 text-center text-xs text-gray-800 space-y-1">
           <p>Powered by Pax &mdash; Blockchain-Verified Academic Credentials</p>
-          <p className="text-slate-700">
+          <p className="text-gray-900">
             Running on Sepolia Testnet &mdash; Registry:{' '}
             <a
               href={`https://sepolia.etherscan.io/address/${FACTORY_ADDRESS}`}
               target="_blank"
               rel="noopener noreferrer"
-              className="font-mono hover:text-slate-500 underline"
+              className="font-mono hover:text-gray-700 underline"
               title="View factory contract on Etherscan"
             >
               {FACTORY_ADDRESS.slice(0, 6)}...{FACTORY_ADDRESS.slice(-4)}

@@ -1823,9 +1823,9 @@ Jane Smith,jane@uni.edu,0x8ba1f109551bD432803012645Ac136ddd64DBA72,Physics,Secon
           <div className="flex items-center gap-2">
             {account && walletRole && (
               <span className={`text-xs font-semibold px-2 py-1 rounded-full border ${
-                walletRole === 'owner'  ? 'bg-yellow-900/40 border-yellow-600 text-pax-100' :
-                walletRole === 'admin'  ? 'bg-purple-900/40 border-purple-600 text-purple-300' :
-                walletRole === 'issuer' ? 'bg-pax-900/40 border-pax-600 text-pax-300' :
+                walletRole === 'owner'  ? 'bg-yellow-900/40 border-yellow-600 text-black' :
+                walletRole === 'admin'  ? 'bg-purple-900/40 border-purple-600 text-purple-700' :
+                walletRole === 'issuer' ? 'bg-pax-900/40 border-pax-600 text-pax-700' :
                 'bg-gray-50 border-gray-300 text-gray-700'
               }`}>
                 {walletRole === 'owner' ? 'Pax Owner' : walletRole === 'admin' ? 'Admin' : walletRole === 'issuer' ? 'Issuer' : 'Verifier'}
@@ -1862,9 +1862,9 @@ Jane Smith,jane@uni.edu,0x8ba1f109551bD432803012645Ac136ddd64DBA72,Physics,Secon
         {/* Message Banner */}
         {msg && (
           <div className={`mb-6 p-4 rounded-lg text-sm font-medium flex justify-between items-start gap-4 ${
-            msg.type === 'success' ? 'bg-green-900/40 border border-green-600 text-green-200' :
-            msg.type === 'error' ? 'bg-pax-900/40 border border-pax-600 text-pax-100' :
-            'bg-pax-900/40 border border-pax-600 text-pax-200'
+            msg.type === 'success' ? 'bg-green-900/40 border border-green-600 text-green-700' :
+            msg.type === 'error' ? 'bg-pax-900/40 border border-pax-600 text-black' :
+            'bg-pax-900/40 border border-pax-600 text-pax-700'
           }`}>
             <span>{msg.text}</span>
             <button onClick={() => setMsg(null)} className="shrink-0 opacity-60 hover:opacity-100 text-lg leading-none">x</button>
@@ -1963,7 +1963,7 @@ Jane Smith,jane@uni.edu,0x8ba1f109551bD432803012645Ac136ddd64DBA72,Physics,Secon
               <label className={labelClass}>Programme Administrator Wallet</label>
               <input className={inputClass} placeholder="0x..." value={univAdmin} onChange={(e) => setUnivAdmin(e.target.value)} />
               {account && (
-                <button onClick={() => setUnivAdmin(account)} className="mt-1 text-xs text-pax-400 hover:text-pax-300 underline">
+                <button onClick={() => setUnivAdmin(account)} className="mt-1 text-xs text-pax-600 hover:text-pax-700 underline">
                   Use my connected wallet ({account.slice(0, 6)}...{account.slice(-4)})
                 </button>
               )}
@@ -1975,9 +1975,9 @@ Jane Smith,jane@uni.edu,0x8ba1f109551bD432803012645Ac136ddd64DBA72,Physics,Secon
             {deployedUnivAddress && (
               <div className="mt-2 p-4 bg-green-900/20 border border-green-700 rounded-lg">
                 <p className="text-xs text-gray-700 mb-1">Programme successfully registered. Contract address (save this):</p>
-                <p className="font-mono text-green-400 text-sm break-all">{deployedUnivAddress}</p>
+                <p className="font-mono text-green-700 text-sm break-all">{deployedUnivAddress}</p>
                 <p className="text-xs text-gray-700 mt-2">This address uniquely identifies your programme on the blockchain. Complete Step 2 below to configure your signatories.</p>
-                <button onClick={() => setConfigUnivAddress(deployedUnivAddress)} className="mt-2 text-xs text-pax-400 hover:text-pax-300 underline">
+                <button onClick={() => setConfigUnivAddress(deployedUnivAddress)} className="mt-2 text-xs text-pax-600 hover:text-pax-700 underline">
                   Use this address for signatory setup
                 </button>
               </div>
@@ -2008,7 +2008,7 @@ Jane Smith,jane@uni.edu,0x8ba1f109551bD432803012645Ac136ddd64DBA72,Physics,Secon
 
             {/* CORE SIGNATORIES SECTION */}
             <div className="border border-gray-200 rounded-lg p-4 space-y-6">
-              <h3 className="text-sm font-semibold text-pax-300">Core Signatories (Required)</h3>
+              <h3 className="text-sm font-semibold text-pax-700">Core Signatories (Required)</h3>
 
               {/* Registrar Signature */}
               <div className="space-y-2">
@@ -2102,11 +2102,11 @@ Jane Smith,jane@uni.edu,0x8ba1f109551bD432803012645Ac136ddd64DBA72,Physics,Secon
                 <p className="text-xs text-gray-700 mt-1">Upload a logo (PNG or JPG — max 2MB). Will appear on certificates. Leave blank to use default PAX branding.</p>
                 {logoFile && (
                   <div className="mt-2 flex items-center gap-2">
-                    <span className="text-sm text-green-400">✓ {logoFile.name} selected</span>
+                    <span className="text-sm text-green-700">✓ {logoFile.name} selected</span>
                     <button onClick={() => setLogoFile(null)} className="text-xs text-gray-700 hover:text-gray-600 underline">Clear</button>
                   </div>
                 )}
-                {logoURL && <div className="mt-2 flex items-center gap-2"><span className="text-sm text-green-400">✓ Logo uploaded</span></div>}
+                {logoURL && <div className="mt-2 flex items-center gap-2"><span className="text-sm text-green-700">✓ Logo uploaded</span></div>}
               </div>
 
               {/* Save Core Signatories Button */}
@@ -2166,7 +2166,7 @@ Jane Smith,jane@uni.edu,0x8ba1f109551bD432803012645Ac136ddd64DBA72,Physics,Secon
                         <p className="text-gray-600 font-semibold">{fac.name}</p>
                         <p className="text-xs text-gray-700">Dean: {fac.deanName}</p>
                       </div>
-                      <span className="text-green-400 text-xs">✓ Signature saved</span>
+                      <span className="text-green-700 text-xs">✓ Signature saved</span>
                     </div>
                   ))}
                 </div>
@@ -2187,7 +2187,7 @@ Jane Smith,jane@uni.edu,0x8ba1f109551bD432803012645Ac136ddd64DBA72,Physics,Secon
 
             {/* Deactivate form */}
             <div className="space-y-3 border border-gray-200 rounded-lg p-4">
-              <h3 className="text-sm font-semibold text-red-400">Deactivate an Institution</h3>
+              <h3 className="text-sm font-semibold text-red-700">Deactivate an Institution</h3>
               <div>
                 <label className={labelClass}>Institution Contract Address</label>
                 <input
@@ -2235,7 +2235,7 @@ Jane Smith,jane@uni.edu,0x8ba1f109551bD432803012645Ac136ddd64DBA72,Physics,Secon
                 <h3 className="text-sm font-semibold text-gray-600">All Registered Institutions</h3>
                 <button
                   onClick={() => loadUniversities(true, 'owner')}
-                  className="text-xs text-pax-400 hover:text-pax-300 underline"
+                  className="text-xs text-pax-600 hover:text-pax-700 underline"
                 >
                   Refresh
                 </button>
@@ -2256,19 +2256,19 @@ Jane Smith,jane@uni.edu,0x8ba1f109551bD432803012645Ac136ddd64DBA72,Physics,Secon
                       }`}
                     >
                       <div className="flex flex-col gap-0.5 min-w-0">
-                        <span className={`font-medium truncate ${u.deactivated ? 'text-red-400 line-through opacity-60' : 'text-gray-100'}`}>
+                        <span className={`font-medium truncate ${u.deactivated ? 'text-red-700 line-through' : 'text-black'}`}>
                           {u.name}
                         </span>
                         <span className="font-mono text-xs text-gray-700 truncate">{u.address}</span>
                         {u.deactivated && u.deactivationReason && (
-                          <span className="text-xs text-red-400 mt-0.5">Reason: {u.deactivationReason}</span>
+                          <span className="text-xs text-red-700 mt-0.5">Reason: {u.deactivationReason}</span>
                         )}
                       </div>
                       <div className="flex items-center gap-2 ml-3 shrink-0">
                         <span className={`text-xs font-semibold px-2 py-0.5 rounded-full border ${
                           u.deactivated
-                            ? 'bg-red-900/30 border-pax-700 text-red-400'
-                            : 'bg-green-900/30 border-green-700 text-green-400'
+                            ? 'bg-red-900/30 border-pax-700 text-red-700'
+                            : 'bg-green-900/30 border-green-700 text-green-700'
                         }`}>
                           {u.deactivated ? 'Deactivated' : 'Active'}
                         </span>
@@ -2276,7 +2276,7 @@ Jane Smith,jane@uni.edu,0x8ba1f109551bD432803012645Ac136ddd64DBA72,Physics,Secon
                           <button
                             onClick={() => handleReactivate(u.address)}
                             disabled={isReactivating === u.address}
-                            className="text-xs text-pax-400 hover:text-pax-300 underline disabled:opacity-50"
+                            className="text-xs text-pax-600 hover:text-pax-700 underline disabled:opacity-50"
                           >
                             {isReactivating === u.address ? 'Reactivating...' : 'Reactivate'}
                           </button>
@@ -2305,14 +2305,14 @@ Jane Smith,jane@uni.edu,0x8ba1f109551bD432803012645Ac136ddd64DBA72,Physics,Secon
               <div>
                 <label className={labelClass}>Select University Programme</label>
                 {!account ? (
-                  <div className={`${inputClass} text-amber-400`}>Please connect your wallet to view your assigned programmes.</div>
+                  <div className={`${inputClass} text-amber-700`}>Please connect your wallet to view your assigned programmes.</div>
                 ) : isLoadingMyUnis ? (
                   <div className={`${inputClass} text-gray-700`}>Loading your programmes...</div>
                 ) : myUniversities.length === 0 ? (
                   <div className="space-y-1">
                     <div className={`${inputClass} text-gray-700`}>No programmes are currently assigned to your wallet.</div>
                     <p className="text-xs text-gray-700">Your wallet must be registered as an administrator or authorised issuer on a programme to appear here.</p>
-                    <button onClick={() => loadMyUniversities(account)} className="text-xs text-pax-400 hover:text-pax-300 underline">Refresh</button>
+                    <button onClick={() => loadMyUniversities(account)} className="text-xs text-pax-600 hover:text-pax-700 underline">Refresh</button>
                   </div>
                 ) : (
                   <div className="flex gap-2">
@@ -2330,17 +2330,17 @@ Jane Smith,jane@uni.edu,0x8ba1f109551bD432803012645Ac136ddd64DBA72,Physics,Secon
                   </div>
                 )}
                 {hasIssuerRole === true && (
-                  <p className="text-xs text-green-400 mt-1">This wallet is already authorised to issue certificates for this programme. You may proceed to Step 2.</p>
+                  <p className="text-xs text-green-700 mt-1">This wallet is already authorised to issue certificates for this programme. You may proceed to Step 2.</p>
                 )}
                 {hasIssuerRole === false && (
-                  <p className="text-xs text-amber-400 mt-1">This wallet is not yet authorised. Please complete Step 1 before issuing certificates.</p>
+                  <p className="text-xs text-amber-700 mt-1">This wallet is not yet authorised. Please complete Step 1 before issuing certificates.</p>
                 )}
               </div>
               <div>
                 <label className={labelClass}>Staff Wallet Address</label>
                 <input className={inputClass} placeholder="0x... (wallet address of the staff member to authorise)" value={grantAddress} onChange={(e) => setGrantAddress(e.target.value)} />
                 {account && (
-                  <button onClick={() => setGrantAddress(account)} className="mt-1 text-xs text-pax-400 hover:text-pax-300 underline">
+                  <button onClick={() => setGrantAddress(account)} className="mt-1 text-xs text-pax-600 hover:text-pax-700 underline">
                     Use my connected wallet ({account.slice(0, 6)}...{account.slice(-4)})
                   </button>
                 )}
@@ -2530,9 +2530,9 @@ Jane Smith,jane@uni.edu,0x8ba1f109551bD432803012645Ac136ddd64DBA72,Physics,Secon
                               <td className="px-3 py-2">{row.PaxID}</td>
                               <td className="px-3 py-2">
                                 {validation?.valid ? (
-                                  <span className="text-green-400">✓</span>
+                                  <span className="text-green-700">✓</span>
                                 ) : (
-                                  <span className="text-red-400" title={validation?.error}>✗ {validation?.error?.split(';')[0]}</span>
+                                  <span className="text-red-700" title={validation?.error}>✗ {validation?.error?.split(';')[0]}</span>
                                 )}
                               </td>
                             </tr>
@@ -2762,11 +2762,11 @@ Jane Smith,jane@uni.edu,0x8ba1f109551bD432803012645Ac136ddd64DBA72,Physics,Secon
                   <div className="space-y-2">
                     <div className="flex items-center gap-2">
                       <div className="w-2.5 h-2.5 rounded-full bg-red-400 shrink-0"></div>
-                      <span className="text-red-400 font-semibold text-sm">Certificate Revoked</span>
+                      <span className="text-red-700 font-semibold text-sm">Certificate Revoked</span>
                     </div>
                     <div className="p-3 bg-red-900/30 border border-pax-700/40 rounded-lg">
                       <p className="text-xs text-gray-700 uppercase tracking-wide mb-1">Reason for Revocation</p>
-                      <p className="text-pax-100 text-sm font-medium">This certificate was revoked by the issuing institution because: {certResult.revocationReason}</p>
+                      <p className="text-black text-sm font-medium">This certificate was revoked by the issuing institution because: {certResult.revocationReason}</p>
                       {certResult.revocationDate && (
                         <p className="text-xs text-gray-700 mt-1">Revoked on {certResult.revocationDate}</p>
                       )}
@@ -2774,8 +2774,8 @@ Jane Smith,jane@uni.edu,0x8ba1f109551bD432803012645Ac136ddd64DBA72,Physics,Secon
                   </div>
                 ) : (
                   <div className="flex items-center gap-2">
-                    <div className="w-2.5 h-2.5 rounded-full bg-green-400 shrink-0 animate-pulse"></div>
-                    <span className="text-green-400 font-semibold text-sm">Certificate Verified — Authentic and Tamper-Proof</span>
+                    <div className="w-2.5 h-2.5 rounded-full bg-green-600 shrink-0 animate-pulse"></div>
+                    <span className="text-green-700 font-semibold text-sm">Certificate Verified — Authentic and Tamper-Proof</span>
                   </div>
                 )}
                 {/* Certificate details */}
@@ -2816,7 +2816,7 @@ Jane Smith,jane@uni.edu,0x8ba1f109551bD432803012645Ac136ddd64DBA72,Physics,Secon
                       href={`https://sepolia.etherscan.io/token/${certResult.univAddress}?a=${certResult.studentAddress}`}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="text-xs text-pax-400 hover:text-pax-300 underline"
+                      className="text-xs text-pax-600 hover:text-pax-700 underline"
                     >
                       View on Blockchain
                     </a>
@@ -2824,7 +2824,7 @@ Jane Smith,jane@uni.edu,0x8ba1f109551bD432803012645Ac136ddd64DBA72,Physics,Secon
                       href={`/api/certificate/image?name=${encodeURIComponent(certResult.candidateName)}&course=${encodeURIComponent(certResult.courseName)}&grade=${encodeURIComponent(certResult.grade)}&paxId=${encodeURIComponent(certResult.paxId)}&university=${encodeURIComponent(certResult.universityName)}&date=${encodeURIComponent(certResult.issuedAt)}&registrar=${encodeURIComponent(certResult.registrar || '')}&registrarSig=${encodeURIComponent(certResult.registrarSignature || '')}&registrarPos=${encodeURIComponent(certResult.registrarPosition || 'Registrar')}&vc=${encodeURIComponent(certResult.vc || '')}&vcSig=${encodeURIComponent(certResult.vcSignature || '')}&vcPos=${encodeURIComponent(certResult.vcPosition || 'Vice-Chancellor')}&dean=${encodeURIComponent(certResult.dean || '')}&deanSig=${encodeURIComponent(certResult.deanSignature || '')}&deanPos=${encodeURIComponent(certResult.deanPosition || 'Dean')}&logo=${encodeURIComponent(certResult.logoUrl || '')}&domain=${encodeURIComponent(certResult.domain || 'v0-paxadmin.vercel.app')}&verifyUrl=${encodeURIComponent(`https://${certResult.domain}/?tab=verify&paxId=${certResult.paxId}&contract=${certResult.univAddress}`)}&revoked=${certResult.isRevoked ? 'true' : 'false'}&revokeReason=${encodeURIComponent(certResult.revocationReason || '')}`}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="text-xs text-green-400 hover:text-green-300 underline"
+                      className="text-xs text-green-700 hover:text-green-300 underline"
                     >
                       View Certificate
                     </a>

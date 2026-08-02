@@ -9,15 +9,20 @@
     "lint": "next lint"
   },
   "dependencies": {
+    "@ai-sdk/anthropic": "^4.0.27",
+    "@ai-sdk/react": "^4.0.50",
     "@vercel/blob": "^2.3.3",
+    "ai": "^7.0.47",
     "ethers": "^6.16.0",
     "next": "^16.0.0",
     "papaparse": "^5.5.4",
     "pdf-lib": "^1.17.1",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
+    "react-markdown": "^10.1.0",
     "react-signature-canvas": "^1.1.0-alpha.2",
-    "resend": "^6.12.2"
+    "resend": "^6.12.2",
+    "zod": "^4.4.3"
   },
   "devDependencies": {
     "@types/node": "^20.10.0",

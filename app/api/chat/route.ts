@@ -8,7 +8,7 @@ import {
   tool,
   UIMessage,
 } from 'ai';
-import { anthropic } from '@ai-sdk/anthropic';
+import { createOpenAI } from '@ai-sdk/openai';
 import { z } from 'zod';
 import { findFallbackAnswer, FALLBACK_GREETING } from '@/lib/chat-fallback';
 import { PLATFORM_KNOWLEDGE } from '@/lib/platform-knowledge';
@@ -16,8 +16,13 @@ import { lookupCredential } from '@/lib/credential-lookup';
 
 export const maxDuration = 60;
 
-// Claude Sonnet 5 via the direct Anthropic provider (reads ANTHROPIC_API_KEY from env).
-const MODEL = 'claude-sonnet-5';
+// AgentRouter exposes an OpenAI-compatible API. The model can be changed with
+// AGENTROUTER_MODEL without changing application code.
+const MODEL = process.env.AGENTROUTER_MODEL || 'claude-opus-4-8';
+const agentRouter = createOpenAI({
+  apiKey: process.env.AGENTROUTER_API_KEY,
+  baseURL: 'https://agentrouter.org/v1',
+});
 
 // Extract the latest user message text from the UIMessage array.
 function getLatestUserText(messages: UIMessage[]): string {
@@ -58,11 +63,13 @@ function fallbackResponse(answer: string) {
 }
 
 export async function POST(req: Request) {
-  const { messages }: { messages: UIMessage[] } = await req.json();
+  const { messages, model: requestedModel }: { messages: UIMessage[]; model?: string } = await req.json();
+  const allowedModels = new Set(['claude-opus-4-8', 'claude-sonnet-4-5', 'gpt-5.6']);
+  const selectedModel = requestedModel && allowedModels.has(requestedModel) ? requestedModel : MODEL;
 
-  // If the Anthropic API key isn't configured yet, answer from the built-in knowledge
-  // base so admins still get help. Once the key is added, Claude takes over automatically.
-  if (!process.env.ANTHROPIC_API_KEY) {
+  // If the AgentRouter key isn't configured yet, answer from the built-in knowledge
+  // base so users still get help. Once the key is added, AgentRouter takes over automatically.
+  if (!process.env.AGENTROUTER_API_KEY) {
     const question = getLatestUserText(messages);
     const answer = findFallbackAnswer(question);
     const text = answer
@@ -72,7 +79,7 @@ export async function POST(req: Request) {
   }
 
   const result = streamText({
-    model: anthropic(MODEL),
+    model: agentRouter(selectedModel),
     instructions: PLATFORM_KNOWLEDGE,
     messages: await convertToModelMessages(messages),
     stopWhen: stepCountIs(5),
@@ -100,12 +107,12 @@ export async function POST(req: Request) {
       stream: result.stream,
       onError: (error) => {
         const message = error instanceof Error ? error.message : String(error);
-        console.log('[v0] Claude chat error:', message);
-        if (message.includes('credit') || message.includes('billing')) {
-          return 'The AI service hit a billing issue. Please check the Anthropic API key and account balance.';
+        console.log('[v0] AgentRouter chat error:', message);
+        if (message.includes('credit') || message.includes('billing') || message.includes('balance')) {
+          return 'The AI service hit a billing issue. Please check your AgentRouter account balance and API key.';
         }
         if (message.includes('API key') || message.includes('authentication') || message.includes('401')) {
-          return 'The AI API key appears to be invalid or missing. Please check the ANTHROPIC_API_KEY configuration.';
+          return 'The AgentRouter API key appears to be invalid or missing. Please check the AGENTROUTER_API_KEY configuration.';
         }
         return `Assistant error: ${message}`;
       },

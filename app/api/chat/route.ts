@@ -9,7 +9,6 @@ import {
   UIMessage,
 } from 'ai';
 import { createOpenAI } from '@ai-sdk/openai';
-import { anthropic } from '@ai-sdk/anthropic';
 import { z } from 'zod';
 import { findFallbackAnswer, FALLBACK_GREETING } from '@/lib/chat-fallback';
 import { PLATFORM_KNOWLEDGE } from '@/lib/platform-knowledge';
@@ -86,11 +85,10 @@ export async function POST(req: Request) {
   const allowedModels = new Set(['claude-opus-4-8', 'claude-sonnet-4-5', 'gpt-5.6']);
   const selectedModel = requestedModel && allowedModels.has(requestedModel) ? requestedModel : MODEL;
 
-  // Prefer AgentRouter, but do not leave users with a blank chat if its API domain
-  // is blocked by an upstream WAF. Direct Claude remains the reliable fallback.
+  // Never call Anthropic here. AgentRouter is the only external AI provider;
+  // if it is blocked or unavailable, use the built-in knowledge fallback.
   const agentRouterAvailable = await agentRouterIsAvailable();
-  const claudeAvailable = Boolean(process.env.ANTHROPIC_API_KEY);
-  if (!agentRouterAvailable && !claudeAvailable) {
+  if (!agentRouterAvailable) {
     const question = getLatestUserText(messages);
     const answer = findFallbackAnswer(question);
     const text = answer
@@ -100,7 +98,7 @@ export async function POST(req: Request) {
   }
 
   const result = streamText({
-    model: agentRouterAvailable ? agentRouter(selectedModel) : anthropic('claude-sonnet-4-5'),
+    model: agentRouter(selectedModel),
     instructions: PLATFORM_KNOWLEDGE,
     messages: await convertToModelMessages(messages),
     stopWhen: stepCountIs(5),
@@ -135,7 +133,10 @@ export async function POST(req: Request) {
         if (message.includes('API key') || message.includes('authentication') || message.includes('401')) {
           return 'The AgentRouter API key appears to be invalid or missing. Please check the AGENTROUTER_API_KEY configuration.';
         }
-        return `Assistant error: ${message}`;
+        if (message.includes('organization has been disabled')) {
+          return 'AgentRouter rejected this request because its upstream organization is disabled. Please use an active AgentRouter account/key or contact AgentRouter support.';
+        }
+        return `AgentRouter error: ${message}`;
       },
     }),
   });

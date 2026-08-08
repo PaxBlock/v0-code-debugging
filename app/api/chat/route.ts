@@ -33,7 +33,10 @@ async function agentRouterIsAvailable(): Promise<boolean> {
       signal: AbortSignal.timeout(5000),
     });
     const contentType = response.headers.get('content-type') || '';
-    if (!response.ok || !contentType.includes('application/json')) return false;
+    if (!response.ok || !contentType.includes('application/json')) {
+      console.log('[v0] AgentRouter returned a non-JSON response; likely upstream WAF protection.');
+      return false;
+    }
     const payload = (await response.json()) as { data?: unknown };
     return Array.isArray(payload.data) && payload.data.length > 0;
   } catch (error) {
@@ -92,8 +95,8 @@ export async function POST(req: Request) {
     const question = getLatestUserText(messages);
     const answer = findFallbackAnswer(question);
     const text = answer
-      ? `${answer}\n\n---\n*Note: I'm in offline mode (AI key not yet configured), so this answer comes from the built-in help library. For credential lookups and richer answers, the AI key is needed.*`
-      : `${FALLBACK_GREETING}`;
+      ? `${answer}\n\n---\n*Note: I'm currently in offline mode because AgentRouter is not returning an API response from this server. Your key is configured, but AgentRouter is being blocked by its upstream security check. This answer comes from the built-in help library.*`
+      : `${FALLBACK_GREETING}\n\n*Note: AgentRouter is currently unreachable from this server, so I’m answering from the built-in help library.*`;
     return fallbackResponse(text);
   }
 

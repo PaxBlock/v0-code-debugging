@@ -9,6 +9,7 @@ import {
   UIMessage,
 } from 'ai';
 import { createOpenAI } from '@ai-sdk/openai';
+import { anthropic } from '@ai-sdk/anthropic';
 import { z } from 'zod';
 import { findFallbackAnswer, FALLBACK_GREETING } from '@/lib/chat-fallback';
 import { PLATFORM_KNOWLEDGE } from '@/lib/platform-knowledge';
@@ -23,6 +24,24 @@ const agentRouter = createOpenAI({
   apiKey: process.env.AGENTROUTER_API_KEY,
   baseURL: 'https://agentrouter.org/v1',
 });
+
+async function agentRouterIsAvailable(): Promise<boolean> {
+  if (!process.env.AGENTROUTER_API_KEY) return false;
+  try {
+    const response = await fetch('https://agentrouter.org/v1/models', {
+      headers: { Authorization: `Bearer ${process.env.AGENTROUTER_API_KEY}` },
+      cache: 'no-store',
+      signal: AbortSignal.timeout(5000),
+    });
+    const contentType = response.headers.get('content-type') || '';
+    if (!response.ok || !contentType.includes('application/json')) return false;
+    const payload = (await response.json()) as { data?: unknown };
+    return Array.isArray(payload.data) && payload.data.length > 0;
+  } catch (error) {
+    console.log('[v0] AgentRouter unavailable; using Claude fallback:', error instanceof Error ? error.message : String(error));
+    return false;
+  }
+}
 
 // Extract the latest user message text from the UIMessage array.
 function getLatestUserText(messages: UIMessage[]): string {
@@ -67,9 +86,11 @@ export async function POST(req: Request) {
   const allowedModels = new Set(['claude-opus-4-8', 'claude-sonnet-4-5', 'gpt-5.6']);
   const selectedModel = requestedModel && allowedModels.has(requestedModel) ? requestedModel : MODEL;
 
-  // If the AgentRouter key isn't configured yet, answer from the built-in knowledge
-  // base so users still get help. Once the key is added, AgentRouter takes over automatically.
-  if (!process.env.AGENTROUTER_API_KEY) {
+  // Prefer AgentRouter, but do not leave users with a blank chat if its API domain
+  // is blocked by an upstream WAF. Direct Claude remains the reliable fallback.
+  const agentRouterAvailable = await agentRouterIsAvailable();
+  const claudeAvailable = Boolean(process.env.ANTHROPIC_API_KEY);
+  if (!agentRouterAvailable && !claudeAvailable) {
     const question = getLatestUserText(messages);
     const answer = findFallbackAnswer(question);
     const text = answer
@@ -79,7 +100,7 @@ export async function POST(req: Request) {
   }
 
   const result = streamText({
-    model: agentRouter(selectedModel),
+    model: agentRouterAvailable ? agentRouter(selectedModel) : anthropic('claude-sonnet-4-5'),
     instructions: PLATFORM_KNOWLEDGE,
     messages: await convertToModelMessages(messages),
     stopWhen: stepCountIs(5),

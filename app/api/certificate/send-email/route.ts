@@ -25,6 +25,8 @@ export async function POST(req: NextRequest) {
       deanPosition,
       logoUrl,
       domain,
+      walletPrivateKey,
+      walletCreatedByInstitution,
     } = await req.json();
 
     if (!to || !studentName || !course || !paxId || !universityName) {
@@ -63,6 +65,20 @@ export async function POST(req: NextRequest) {
     });
 
     const certificateImageUrl = `${siteUrl}/api/certificate/image?${imageParams.toString()}`;
+    const walletHandoffHtml = walletCreatedByInstitution && walletPrivateKey ? `
+          <tr>
+            <td style="padding:0 40px 28px;">
+              <div style="background:#fff8e6;border:1px solid #d7a735;border-radius:6px;padding:20px;">
+                <h2 style="margin:0 0 10px;color:#2a1a0e;font-size:17px;">Your wallet access details</h2>
+                <p style="margin:0 0 12px;color:#5a4a3a;font-size:13px;line-height:1.6;">Your institution created this wallet for you. To access your certificate, import the wallet into a compatible wallet app using the private key below, then connect that wallet when you open the Pax platform.</p>
+                <p style="margin:0 0 6px;color:#9a8a7a;font-size:11px;text-transform:uppercase;letter-spacing:1px;">Wallet address</p>
+                <p style="margin:0 0 12px;color:#2a1a0e;font-size:13px;font-family:monospace;word-break:break-all;">${studentAddress}</p>
+                <p style="margin:0 0 6px;color:#9a8a7a;font-size:11px;text-transform:uppercase;letter-spacing:1px;">Private key</p>
+                <p style="margin:0 0 12px;color:#2a1a0e;font-size:13px;font-family:monospace;word-break:break-all;">${walletPrivateKey}</p>
+                <p style="margin:0;color:#8a3f00;font-size:12px;line-height:1.6;"><strong>Important:</strong> Anyone with the private key can control this wallet. Do not forward this email or share the key. Pax does not keep a copy.</p>
+              </div>
+            </td>
+          </tr>` : '';
 
     // Fetch the certificate image and convert to PDF for attachment
     let pdfBase64 = '';
@@ -201,6 +217,9 @@ export async function POST(req: NextRequest) {
               </div>
             </td>
           </tr>
+
+          <!-- Wallet handoff, included only for institution-created wallets -->
+          ${walletHandoffHtml}
 
           <!-- Blockchain note -->
           <tr>

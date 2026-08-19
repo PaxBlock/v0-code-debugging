@@ -201,6 +201,8 @@ export default function Dashboard() {
   // Issue tab
   const [univAddress, setUnivAddress] = useState('');
   const [studentAddress, setStudentAddress] = useState('');
+  const [walletSource, setWalletSource] = useState<'student' | 'institution'>('student');
+  const [studentPrivateKey, setStudentPrivateKey] = useState('');
   const [certificateName, setCertificateName] = useState('');
   const [courseName, setCourseName] = useState('');
   const [selectedFaculty, setSelectedFaculty] = useState(''); // Faculty for dean signature
@@ -217,9 +219,10 @@ export default function Dashboard() {
   // Bulk issuance
   const [bulkCSVData, setBulkCSVData] = useState<Array<{
     StudentName: string;
-    StudentEmail: string;
-    WalletAddress: string;
-    CourseName: string;
+  StudentEmail: string;
+  WalletAddress: string;
+  PrivateKey: string;
+  CourseName: string;
     Grade: string;
     PaxID: string;
     FacultyName: string;
@@ -1235,6 +1238,12 @@ export default function Dashboard() {
     if (!univAddress || !studentAddress || !certificateName || !courseName || !selectedFaculty || !grade || !paxId) {
       showMsg('error', 'Please fill in all fields including faculty, grade, and PaxID before issuing a certificate.'); return;
     }
+    if (walletSource === 'institution' && !studentPrivateKey.trim()) {
+      showMsg('error', 'Enter the private key for an institution-created wallet, or choose Student provided a wallet.'); return;
+    }
+    if (walletSource === 'institution' && !studentEmail) {
+      showMsg('error', 'A student email is required when the institution created the wallet so access details can be delivered securely.'); return;
+    }
     if (!ethers.isAddress(univAddress)) { showMsg('error', 'The university contract address is not valid.'); return; }
     if (!ethers.isAddress(studentAddress)) { showMsg('error', 'The student wallet address is not valid.'); return; }
     if (studentEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(studentEmail)) {
@@ -1328,6 +1337,8 @@ export default function Dashboard() {
               deanPosition,
               logoUrl,
               domain: verificationDomain,
+              walletPrivateKey: walletSource === 'institution' ? studentPrivateKey.trim() : undefined,
+              walletCreatedByInstitution: walletSource === 'institution',
             }),
           }).then(res => {
             if (res.ok) {
@@ -1395,8 +1406,9 @@ export default function Dashboard() {
       const errors: string[] = [];
 
       if (!row.StudentName || !row.StudentName.trim()) errors.push('Missing Student Name');
-      if (!row.WalletAddress || !row.WalletAddress.trim()) errors.push('Missing Wallet Address');
-      if (!ethers.isAddress(row.WalletAddress)) errors.push('Invalid wallet address');
+      if (!row.WalletAddress || !row.WalletAddress.trim()) errors.push('Missing Wallet Address — create a wallet at wallet.paxblockchain.com or ask the student for one');
+      if (row.WalletAddress && !ethers.isAddress(row.WalletAddress)) errors.push('Invalid wallet address');
+      if (row.PrivateKey?.trim() && !row.StudentEmail?.trim()) errors.push('Student Email is required when PrivateKey is supplied');
       if (!row.CourseName || !row.CourseName.trim()) errors.push('Missing Course Name');
       if (!row.Grade || !row.Grade.trim()) errors.push('Missing Grade');
       if (!row.PaxID || !row.PaxID.trim()) errors.push('Missing PaxID');
@@ -1662,6 +1674,8 @@ export default function Dashboard() {
                     deanPosition: `Dean of ${selectedFac?.facultyName || row.FacultyName}`,
                     logoUrl: config?.logoURL || '',
                     domain: verificationDomain,
+                    walletPrivateKey: row.PrivateKey?.trim() || undefined,
+                    walletCreatedByInstitution: Boolean(row.PrivateKey?.trim()),
                   }),
                 });
               } catch (emailError) {
@@ -1690,9 +1704,9 @@ export default function Dashboard() {
   };
 
   const downloadCSVTemplate = () => {
-    const template = `StudentName,StudentEmail,WalletAddress,CourseName,Grade,PaxID,FacultyName
-John Doe,john@uni.edu,0x742d35Cc6634C0532925a3b844Bc0e1f1748f5cc,Computer Science,First Class Honours,CS/2024/001,Faculty of Science
-Jane Smith,jane@uni.edu,0x8ba1f109551bD432803012645Ac136ddd64DBA72,Physics,Second Class Honours (Upper Division),PHY/2024/001,Faculty of Science`;
+    const template = `StudentName,StudentEmail,WalletAddress,PrivateKey,CourseName,Grade,PaxID,FacultyName
+John Doe,john@uni.edu,0x742d35Cc6634C0532925a3b844Bc0e1f1748f5cc,,Computer Science,First Class Honours,CS/2024/001,Faculty of Science
+Jane Smith,jane@uni.edu,0x8ba1f109551bD432803012645Ac136ddd64DBA72,,Physics,Second Class Honours (Upper Division),PHY/2024/001,Faculty of Science`;
     
     const blob = new Blob([template], { type: 'text/csv' });
     const url = URL.createObjectURL(blob);
@@ -2376,10 +2390,26 @@ Jane Smith,jane@uni.edu,0x8ba1f109551bD432803012645Ac136ddd64DBA72,Physics,Secon
                 <p className="text-xs text-gray-700 mt-1">Select the programme this certificate is being issued under.</p>
               </div>
               <div>
+                <label className={labelClass}>Who created the student wallet?</label>
+                <div className="grid grid-cols-2 gap-2 rounded-lg bg-gray-50 p-1 border border-gray-200">
+                  <button type="button" onClick={() => { setWalletSource('student'); setStudentPrivateKey(''); }} className={`rounded-md px-3 py-2 text-sm font-semibold ${walletSource === 'student' ? 'bg-pax-600 text-black' : 'text-gray-600 hover:bg-white'}`}>Student provided a wallet</button>
+                  <button type="button" onClick={() => setWalletSource('institution')} className={`rounded-md px-3 py-2 text-sm font-semibold ${walletSource === 'institution' ? 'bg-pax-600 text-black' : 'text-gray-600 hover:bg-white'}`}>Institution created it</button>
+                </div>
+                <p className="text-xs text-gray-700 mt-2">If the student already has a wallet, enter only the address. If your institution created one, enter the access details so we can send them to the student once.</p>
+                <a href="https://wallet.paxblockchain.com/" target="_blank" rel="noreferrer" className="inline-block mt-1 text-xs text-pax-700 underline">Create a wallet for a student at wallet.paxblockchain.com</a>
+              </div>
+              <div>
                 <label className={labelClass}>Student Wallet Address</label>
                 <input className={inputClass} placeholder="0x... (student's wallet address)" value={studentAddress} onChange={(e) => setStudentAddress(e.target.value)} />
                 <p className="text-xs text-gray-700 mt-1">The certificate will be permanently issued to this wallet address.</p>
               </div>
+              {walletSource === 'institution' && (
+                <div className="rounded-lg border border-amber-300 bg-amber-50 p-4 space-y-2">
+                  <label className={labelClass}>Student Private Key</label>
+                  <input type="password" autoComplete="off" className={inputClass} placeholder="Paste only for one-time student handoff" value={studentPrivateKey} onChange={(e) => setStudentPrivateKey(e.target.value)} />
+                  <p className="text-xs text-amber-900">This is used only to include wallet access details in the one-time email. Pax does not save it, show it again, or include it in any issuance record. Anyone with this key can control the wallet, so confirm the email address carefully.</p>
+                </div>
+              )}
               <div>
                 <label className={labelClass}>Student Full Name</label>
                 <input
@@ -2456,7 +2486,7 @@ Jane Smith,jane@uni.edu,0x8ba1f109551bD432803012645Ac136ddd64DBA72,Physics,Secon
                   onChange={(e) => setStudentEmail(e.target.value)}
                   maxLength={254}
                 />
-                <p className="text-xs text-gray-700 mt-1">If provided, the student receives a beautiful PDF-quality certificate to their inbox immediately after issuance. The email is never stored — it is used once and discarded.</p>
+                <p className="text-xs text-gray-700 mt-1">The student receives a PDF certificate after issuance. When the institution created the wallet, this same email also explains how to import the wallet and open the Pax platform to view the certificate. The email is used once and discarded.</p>
               </div>
               <button onClick={issueCertificate} disabled={isIssuing} className={`${btnClass} bg-green-600 hover:bg-green-700`}>
                 {isIssuing ? 'Issuing Certificate... Please wait' : 'Issue Certificate'}
@@ -2470,7 +2500,7 @@ Jane Smith,jane@uni.edu,0x8ba1f109551bD432803012645Ac136ddd64DBA72,Physics,Secon
                 <h2 className="text-base font-bold">Issue Multiple Certificates (CSV)</h2>
                 <span className="text-xs text-gray-700 ml-auto">Issuer only</span>
               </div>
-              <p className="text-gray-700 text-sm">Upload a CSV file to issue up to 500 certificates in a single blockchain transaction. All students must have wallet addresses.</p>
+              <p className="text-gray-700 text-sm">Upload a CSV to issue certificates in batches. Students may provide their own wallet address, or the institution can create one at wallet.paxblockchain.com. Add a PrivateKey only for institution-created wallets; it is used for the one-time student email and never retained by Pax.</p>
               
               {/* Step 1: Download Template */}
               <div>
@@ -2481,7 +2511,7 @@ Jane Smith,jane@uni.edu,0x8ba1f109551bD432803012645Ac136ddd64DBA72,Physics,Secon
                 >
                   📥 Download Template
                 </button>
-                <p className="text-xs text-gray-700 mt-1">CSV must have columns: StudentName, StudentEmail, WalletAddress, CourseName, Grade, PaxID, FacultyName</p>
+                <p className="text-xs text-gray-700 mt-1">Columns: StudentName, StudentEmail, WalletAddress, PrivateKey, CourseName, Grade, PaxID, FacultyName. Leave PrivateKey blank when the student supplied the wallet. StudentEmail is required when PrivateKey is present.</p>
               </div>
 
               {/* Step 2: Upload CSV */}

@@ -8,7 +8,7 @@ import {
   tool,
   UIMessage,
 } from 'ai';
-import { anthropic } from '@ai-sdk/anthropic';
+import { createOpenAI } from '@ai-sdk/openai';
 import { z } from 'zod';
 import { findFallbackAnswer, FALLBACK_GREETING } from '@/lib/chat-fallback';
 import { PLATFORM_KNOWLEDGE } from '@/lib/platform-knowledge';
@@ -16,8 +16,34 @@ import { lookupCredential } from '@/lib/credential-lookup';
 
 export const maxDuration = 60;
 
-// Claude Sonnet 5 via the direct Anthropic provider (reads ANTHROPIC_API_KEY from env).
-const MODEL = 'claude-sonnet-5';
+// AgentRouter exposes an OpenAI-compatible API. The model can be changed with
+// AGENTROUTER_MODEL without changing application code.
+const MODEL = process.env.AGENTROUTER_MODEL || 'claude-opus-4-8';
+const agentRouter = createOpenAI({
+  apiKey: process.env.AGENTROUTER_API_KEY,
+  baseURL: 'https://agentrouter.org/v1',
+});
+
+async function agentRouterIsAvailable(): Promise<boolean> {
+  if (!process.env.AGENTROUTER_API_KEY) return false;
+  try {
+    const response = await fetch('https://agentrouter.org/v1/models', {
+      headers: { Authorization: `Bearer ${process.env.AGENTROUTER_API_KEY}` },
+      cache: 'no-store',
+      signal: AbortSignal.timeout(5000),
+    });
+    const contentType = response.headers.get('content-type') || '';
+    if (!response.ok || !contentType.includes('application/json')) {
+      console.log('[v0] AgentRouter returned a non-JSON response; likely upstream WAF protection.');
+      return false;
+    }
+    const payload = (await response.json()) as { data?: unknown };
+    return Array.isArray(payload.data) && payload.data.length > 0;
+  } catch (error) {
+    console.log('[v0] AgentRouter unavailable; using Claude fallback:', error instanceof Error ? error.message : String(error));
+    return false;
+  }
+}
 
 // Extract the latest user message text from the UIMessage array.
 function getLatestUserText(messages: UIMessage[]): string {
@@ -58,21 +84,24 @@ function fallbackResponse(answer: string) {
 }
 
 export async function POST(req: Request) {
-  const { messages }: { messages: UIMessage[] } = await req.json();
+  const { messages, model: requestedModel }: { messages: UIMessage[]; model?: string } = await req.json();
+  const allowedModels = new Set(['claude-opus-4-8', 'claude-sonnet-4-5', 'gpt-5.6']);
+  const selectedModel = requestedModel && allowedModels.has(requestedModel) ? requestedModel : MODEL;
 
-  // If the Anthropic API key isn't configured yet, answer from the built-in knowledge
-  // base so admins still get help. Once the key is added, Claude takes over automatically.
-  if (!process.env.ANTHROPIC_API_KEY) {
+  // Never call Anthropic here. AgentRouter is the only external AI provider;
+  // if it is blocked or unavailable, use the built-in knowledge fallback.
+  const agentRouterAvailable = await agentRouterIsAvailable();
+  if (!agentRouterAvailable) {
     const question = getLatestUserText(messages);
     const answer = findFallbackAnswer(question);
     const text = answer
-      ? `${answer}\n\n---\n*Note: I'm in offline mode (AI key not yet configured), so this answer comes from the built-in help library. For credential lookups and richer answers, the AI key is needed.*`
-      : `${FALLBACK_GREETING}`;
+      ? `${answer}\n\n---\n*Note: I'm currently in offline mode because AgentRouter is not returning an API response from this server. Your key is configured, but AgentRouter is being blocked by its upstream security check. This answer comes from the built-in help library.*`
+      : `${FALLBACK_GREETING}\n\n*Note: AgentRouter is currently unreachable from this server, so I’m answering from the built-in help library.*`;
     return fallbackResponse(text);
   }
 
   const result = streamText({
-    model: anthropic(MODEL),
+    model: agentRouter(selectedModel),
     instructions: PLATFORM_KNOWLEDGE,
     messages: await convertToModelMessages(messages),
     stopWhen: stepCountIs(5),
@@ -100,14 +129,17 @@ export async function POST(req: Request) {
       stream: result.stream,
       onError: (error) => {
         const message = error instanceof Error ? error.message : String(error);
-        console.log('[v0] Claude chat error:', message);
-        if (message.includes('credit') || message.includes('billing')) {
-          return 'The AI service hit a billing issue. Please check the Anthropic API key and account balance.';
+        console.log('[v0] AgentRouter chat error:', message);
+        if (message.includes('credit') || message.includes('billing') || message.includes('balance')) {
+          return 'The AI service hit a billing issue. Please check your AgentRouter account balance and API key.';
         }
         if (message.includes('API key') || message.includes('authentication') || message.includes('401')) {
-          return 'The AI API key appears to be invalid or missing. Please check the ANTHROPIC_API_KEY configuration.';
+          return 'The AgentRouter API key appears to be invalid or missing. Please check the AGENTROUTER_API_KEY configuration.';
         }
-        return `Assistant error: ${message}`;
+        if (message.includes('organization has been disabled')) {
+          return 'AgentRouter rejected this request because its upstream organization is disabled. Please use an active AgentRouter account/key or contact AgentRouter support.';
+        }
+        return `AgentRouter error: ${message}`;
       },
     }),
   });

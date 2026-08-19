@@ -6,6 +6,12 @@ import { useState, useRef, useEffect } from 'react';
 import ReactMarkdown from 'react-markdown';
 
 const STORAGE_KEY = 'pax-chat-messages';
+const MODEL_STORAGE_KEY = 'pax-chat-model';
+const MODEL_OPTIONS = [
+  { id: 'claude-opus-4-8', label: 'Claude Opus 4.8' },
+  { id: 'claude-sonnet-4-5', label: 'Claude Sonnet 4.5' },
+  { id: 'gpt-5.6', label: 'GPT 5.6' },
+];
 
 // Load persisted messages from localStorage (client-side only, no database).
 // This lets a user reload the page — or leave and come back on their phone —
@@ -25,13 +31,22 @@ function loadPersistedMessages(): UIMessage[] {
 export default function Chatbot() {
   const [isOpen, setIsOpen] = useState(false);
   const [input, setInput] = useState('');
+  const [model, setModel] = useState('claude-opus-4-8');
   const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const savedModel = window.localStorage.getItem(MODEL_STORAGE_KEY);
+    if (savedModel && MODEL_OPTIONS.some((option) => option.id === savedModel)) setModel(savedModel);
+  }, []);
 
   const { messages, sendMessage, status, stop, error, regenerate, setMessages } = useChat({
     id: 'pax-assistant',
     messages: loadPersistedMessages(),
     transport: new DefaultChatTransport({
       api: '/api/chat',
+      prepareSendMessagesRequest: ({ messages }) => ({
+        body: { messages, model },
+      }),
     }),
   });
 
@@ -61,6 +76,11 @@ export default function Chatbot() {
       sendMessage({ text: input });
       setInput('');
     }
+  };
+
+  const handleModelChange = (nextModel: string) => {
+    setModel(nextModel);
+    window.localStorage.setItem(MODEL_STORAGE_KEY, nextModel);
   };
 
   const handleClearChat = () => {
@@ -97,6 +117,17 @@ export default function Chatbot() {
             <div>
               <h3 className="text-black font-semibold">PAX Assistant</h3>
               <p className="text-gray-700 text-xs">Ask me anything about the platform</p>
+              <label className="mt-2 flex items-center gap-2 text-[11px] text-gray-700">
+                <span>Model</span>
+                <select
+                  value={model}
+                  onChange={(event) => handleModelChange(event.target.value)}
+                  className="rounded border border-gray-300 bg-white px-1.5 py-1 text-[11px] text-black"
+                  aria-label="Choose AI model"
+                >
+                  {MODEL_OPTIONS.map((option) => <option key={option.id} value={option.id}>{option.label}</option>)}
+                </select>
+              </label>
             </div>
             <div className="flex items-center gap-3">
               {messages.length > 0 && (

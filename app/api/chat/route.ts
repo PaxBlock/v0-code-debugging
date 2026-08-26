@@ -21,18 +21,30 @@ export const maxDuration = 60;
 const MODEL = process.env.AGENTROUTER_MODEL || 'claude-opus-4-8';
 const agentRouter = createOpenAI({
   apiKey: process.env.AGENTROUTER_API_KEY,
-  baseURL: 'https://agentrouter.org/v1',
+  baseURL: 'https://co.agentrouter.org/v1',
+  headers: {
+    'HTTP-Referer': process.env.NEXT_PUBLIC_SITE_URL || 'https://paxblockchain.com',
+    'X-Title': 'PAX Assistant',
+  },
 });
 
 async function agentRouterIsAvailable(): Promise<boolean> {
   if (!process.env.AGENTROUTER_API_KEY) return false;
   try {
-    const response = await fetch('https://agentrouter.org/v1/models', {
-      headers: { Authorization: `Bearer ${process.env.AGENTROUTER_API_KEY}` },
+    const response = await fetch('https://co.agentrouter.org/v1/models', {
+      headers: {
+        Authorization: `Bearer ${process.env.AGENTROUTER_API_KEY}`,
+        'HTTP-Referer': process.env.NEXT_PUBLIC_SITE_URL || 'https://paxblockchain.com',
+        'X-Title': 'PAX Assistant',
+      },
       cache: 'no-store',
       signal: AbortSignal.timeout(5000),
     });
     const contentType = response.headers.get('content-type') || '';
+    if (response.status === 401) {
+      console.log('[v0] AgentRouter rejected the configured API key.');
+      return false;
+    }
     if (!response.ok || !contentType.includes('application/json')) {
       console.log('[v0] AgentRouter returned a non-JSON response; likely upstream WAF protection.');
       return false;
@@ -40,7 +52,7 @@ async function agentRouterIsAvailable(): Promise<boolean> {
     const payload = (await response.json()) as { data?: unknown };
     return Array.isArray(payload.data) && payload.data.length > 0;
   } catch (error) {
-    console.log('[v0] AgentRouter unavailable; using Claude fallback:', error instanceof Error ? error.message : String(error));
+    console.log('[v0] AgentRouter unavailable; using offline fallback:', error instanceof Error ? error.message : String(error));
     return false;
   }
 }
@@ -95,7 +107,7 @@ export async function POST(req: Request) {
     const question = getLatestUserText(messages);
     const answer = findFallbackAnswer(question);
     const text = answer
-      ? `${answer}\n\n---\n*Note: I'm currently in offline mode because AgentRouter is not returning an API response from this server. Your key is configured, but AgentRouter is being blocked by its upstream security check. This answer comes from the built-in help library.*`
+      ? `${answer}\n\n---\n*Note: I'm currently in offline mode because AgentRouter rejected the configured key or is unavailable. Please confirm the key was copied from AgentRouter and is active. This answer comes from the built-in help library.*`
       : `${FALLBACK_GREETING}\n\n*Note: AgentRouter is currently unreachable from this server, so I’m answering from the built-in help library.*`;
     return fallbackResponse(text);
   }
@@ -103,6 +115,7 @@ export async function POST(req: Request) {
   const result = streamText({
     model: agentRouter(selectedModel),
     instructions: PLATFORM_KNOWLEDGE,
+    maxOutputTokens: 4000,
     messages: await convertToModelMessages(messages),
     stopWhen: stepCountIs(5),
     tools: {

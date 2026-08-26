@@ -107,7 +107,7 @@ export async function POST(req: Request) {
     const question = getLatestUserText(messages);
     const answer = findFallbackAnswer(question);
     const text = answer
-      ? `${answer}\n\n---\n*Note: I'm currently in offline mode because AgentRouter rejected the configured key or is unavailable. Please confirm the key was copied from AgentRouter and is active. This answer comes from the built-in help library.*`
+      ? `${answer}\n\n---\n*Note: I’m currently in offline mode because AgentRouter rejected the configured API key. Create/copy an active key from https://agentrouter.org/console/token, add it as AGENTROUTER_API_KEY, and redeploy. This answer comes from the built-in help library.*`
       : `${FALLBACK_GREETING}\n\n*Note: AgentRouter is currently unreachable from this server, so I’m answering from the built-in help library.*`;
     return fallbackResponse(text);
   }

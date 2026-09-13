@@ -96,10 +96,14 @@ export async function GET(
       year: 'numeric', month: 'long', day: 'numeric',
     });
 
-    // Use the configured site URL so tokenURIs always resolve correctly even in preview builds
+    // QR links use the institution's configured verification domain when present.
+    // Until custom domains are connected, the Pax site remains the fallback host.
     const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || req.nextUrl.origin;
-    const verifyUrl = `${baseUrl}/?tab=verify&paxId=${encodeURIComponent(cert.paxId)}&contract=${univAddress}`;
-    const domain = config.verificationDomain || new URL(baseUrl).hostname;
+    const configuredDomain = (config.verificationDomain || '').trim().replace(/^https?:\/\//, '').replace(/\/$/, '');
+    const verificationBase = configuredDomain ? `https://${configuredDomain}` : baseUrl;
+    const institutionSlug = encodeURIComponent(univName.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, ''));
+    const verifyUrl = `${verificationBase}/verify/${institutionSlug}/${encodeURIComponent(cert.paxId)}`;
+    const domain = configuredDomain || new URL(baseUrl).hostname;
 
     // Build image URL with all dynamic fields including the live verify URL for the QR code
     const imageParams = new URLSearchParams({

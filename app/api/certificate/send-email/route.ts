@@ -40,8 +40,11 @@ export async function POST(req: NextRequest) {
 
     const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://v0-paxadmin.vercel.app';
 
-    // Build the certificate image URL with signature URLs
-    const verifyUrl = `${siteUrl}/?tab=verify&paxId=${encodeURIComponent(paxId)}&contract=${contractAddress}`;
+    // Build verification links on the institution's configured domain when provided.
+    const configuredDomain = String(domain || '').trim().replace(/^https?:\/\//, '').replace(/\/$/, '');
+    const verificationBase = configuredDomain ? `https://${configuredDomain}` : siteUrl;
+    const institutionSlug = universityName.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+    const verifyUrl = `${verificationBase}/verify/${encodeURIComponent(institutionSlug)}/${encodeURIComponent(paxId)}`;
     const imageParams = new URLSearchParams({
       name: studentName,
       course,

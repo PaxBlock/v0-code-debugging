@@ -12,9 +12,11 @@ export async function POST(req: NextRequest) {
   const result = await verificationDb.query(`SELECT institution_address, institution_name, status FROM verification_api_requests WHERE api_key_hash = $1 LIMIT 1`, [keyHash]);
   const access = result.rows[0];
   if (!access || access.status !== 'active') return NextResponse.json({ error: 'Invalid or inactive verification API key.' }, { status: 401 });
-  if (!body.studentAddress) return NextResponse.json({ valid: false, institution: access.institution_name, institutionAddress: access.institution_address, certificateId: String(body.certificateId), message: 'Provide studentAddress to complete the blockchain lookup.' });
+  if (!body.studentAddress) return NextResponse.json({ valid: false, institution: access.institution_name, institutionAddress: access.institution_address, certificateId: String(body.certificateId), error: 'studentAddress is required by the current blockchain contract. Use the wallet address that received the certificate.' }, { status: 400 });
   const lookup = await fetch(`${req.nextUrl.origin}/api/certificate/${encodeURIComponent(body.studentAddress)}?contract=${encodeURIComponent(access.institution_address)}`, { cache: 'no-store' });
   const certificate = await lookup.json();
-  if (!lookup.ok) return NextResponse.json({ valid: false, institution: access.institution_name, certificateId: String(body.certificateId), error: certificate.error || 'Certificate not found.' }, { status: lookup.status });
+  if (!lookup.ok) return NextResponse.json({ valid: false, institution: access.institution_name, certificateId: String(body.certificateId), error: certificate.error || 'No certificate was found for that student address in this institution.' }, { status: lookup.status });
+  const returnedPaxId = String(certificate?.attributes?.find((attribute: { trait_type?: string }) => attribute.trait_type === 'PaxID')?.value || '');
+  if (returnedPaxId && returnedPaxId !== String(body.certificateId)) return NextResponse.json({ valid: false, institution: access.institution_name, certificateId: String(body.certificateId), error: 'Certificate ID does not match the certificate owned by this student address.' }, { status: 404 });
   return NextResponse.json({ valid: true, institution: access.institution_name, institutionAddress: access.institution_address, certificateId: String(body.certificateId), certificate });
 }

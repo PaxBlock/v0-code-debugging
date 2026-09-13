@@ -950,25 +950,29 @@ export default function Dashboard() {
     if (!signer) { showMsg('error', 'Please connect your wallet first.'); return; }
     if (!configUnivAddress || !ethers.isAddress(configUnivAddress)) { showMsg('error', 'Please enter a valid programme contract address.'); return; }
     
-    // Debug which fields are empty
-    console.log('[v0] Validation check:', {
-      registrarName: registrarName ? '✓' : '✗ EMPTY',
-      registrarSignatureURL: registrarSignatureURL ? '✓' : '✗ EMPTY',
-      vcName: vcName ? '✓' : '✗ EMPTY',
-      vcSignatureURL: vcSignatureURL ? '✓' : '✗ EMPTY',
-      registrarNameValue: registrarName,
-      vcNameValue: vcName,
-      registrarURLValue: registrarSignatureURL,
-      vcURLValue: vcSignatureURL,
-    });
-    
-    if (!registrarName || !registrarSignatureURL || !vcName || !vcSignatureURL) { 
-      showMsg('error', 'Please fill in all signatory names and draw their signatures.'); 
-      return; 
-    }
     setIsSettingConfig(true);
     let finalLogoURL = logoURL;
     try {
+      const university = new ethers.Contract(configUnivAddress, UNIVERSITY_ABI, signer);
+      const current = await university.institutionConfig();
+      const currentConfig = {
+        registrarName: String(current.registrarName || current[0] || ''),
+        registrarSignatureURL: String(current.registrarSignatureURL || current[1] || ''),
+        viceChancellorName: String(current.viceChancellorName || current[2] || ''),
+        viceChancellorSignatureURL: String(current.viceChancellorSignatureURL || current[3] || ''),
+        verificationDomain: String(current.verificationDomain || current[4] || ''),
+        logoURL: String(current.logoURL || current[5] || ''),
+      };
+      const nextRegistrarName = registrarName.trim() || currentConfig.registrarName;
+      const nextRegistrarSignature = registrarSignatureURL || currentConfig.registrarSignatureURL;
+      const nextVcName = vcName.trim() || currentConfig.viceChancellorName;
+      const nextVcSignature = vcSignatureURL || currentConfig.viceChancellorSignatureURL;
+      if (!nextRegistrarName || !nextRegistrarSignature || !nextVcName || !nextVcSignature) {
+        showMsg('error', 'Add the missing signatory name and signature first. Existing values can be left unchanged.');
+        return;
+      }
+      finalLogoURL = logoURL || currentConfig.logoURL;
+      const nextDomain = verificationDomain.trim() || currentConfig.verificationDomain;
       // Upload logo if provided - but don't block if it fails
       if (logoFile) {
         setLogoUploading(true);
@@ -986,22 +990,13 @@ export default function Dashboard() {
         }
       }
 
-      const university = new ethers.Contract(configUnivAddress, UNIVERSITY_ABI, signer);
       showMsg('info', 'Saving institution signatories... Please confirm in MetaMask.');
-      console.log('[v0] Calling setInstitutionConfig with:', {
-        registrarName,
-        registrarSignatureURL: registrarSignatureURL.slice(0, 50) + '...',
-        vcName,
-        vcSignatureURL: vcSignatureURL.slice(0, 50) + '...',
-        verificationDomain,
-        finalLogoURL: finalLogoURL.slice(0, 50) + '...',
-      });
-      const tx = await university.setInstitutionConfig(registrarName, registrarSignatureURL, vcName, vcSignatureURL, verificationDomain, finalLogoURL);
+      const tx = await university.setInstitutionConfig(nextRegistrarName, nextRegistrarSignature, nextVcName, nextVcSignature, nextDomain, finalLogoURL);
       console.log('[v0] Transaction sent:', tx.hash);
       const receipt = await tx.wait();
       console.log('[v0] Transaction receipt:', receipt);
-      showMsg('success', 'Core signatories saved! Now add faculties below.');
-      setRegistrarName(''); setVcName(''); setRegistrarSignatureURL(''); setVcSignatureURL(''); setVerificationDomain(''); setLogoFile(null); setLogoURL('');
+      showMsg('success', 'Signatory changes saved. Any field left blank kept its existing value.');
+      setLogoFile(null);
     } catch (error) {
       console.error('[v0] Full error object:', error);
       console.error('[v0] Error message:', error instanceof Error ? error.message : String(error));
@@ -2062,6 +2057,7 @@ Jane Smith,jane@uni.edu,0x8ba1f109551bD432803012645Ac136ddd64DBA72,,Physics,Seco
             {/* CORE SIGNATORIES SECTION */}
             <div className="border border-gray-200 rounded-lg p-4 space-y-6">
               <h3 className="text-sm font-semibold text-pax-700">Core Signatories (Required)</h3>
+              <p className="text-xs text-gray-700">You can replace the Vice-Chancellor, Registrar, or both independently. Leave unchanged fields blank; the current on-chain values will be preserved. These changes apply to new certificates only.</p>
 
               {/* Registrar Signature */}
               <div className="space-y-2">
@@ -2171,7 +2167,7 @@ Jane Smith,jane@uni.edu,0x8ba1f109551bD432803012645Ac136ddd64DBA72,,Physics,Seco
             {/* FACULTIES SECTION */}
             <div className="border border-gray-200 rounded-lg p-4 space-y-4">
               <h3 className="text-sm font-semibold text-green-300">Configure Faculties & Degree Programs</h3>
-              <p className="text-xs text-gray-700">Each faculty can represent a different degree level (e.g., &quot;Faculty of Science&quot; for BSc, &quot;Faculty of Law&quot; for LLB). Add a dean with signature for each faculty. You can add as many as your institution needs.</p>
+              <p className="text-xs text-gray-700">Each faculty can represent a different degree level (e.g., &quot;Faculty of Science&quot; for BSc, &quot;Faculty of Law&quot; for LLB). Add a dean with signature for each faculty. To replace a dean, use the same faculty name and submit the new dean details; other faculties remain unchanged.</p>
 
               <div>
                 <label className={labelClass}>Faculty / Degree Program Name</label>

@@ -27,11 +27,27 @@ export async function POST(req: NextRequest) {
   if (body.certificateId && credential.paxId && credential.paxId.toUpperCase() !== String(body.certificateId).trim().toUpperCase()) {
     return NextResponse.json({ valid: false, institution: access.institution_name, certificateId: String(body.certificateId), error: 'Certificate ID does not match the credential found for this identifier.' }, { status: 404 });
   }
+  const valid = credential.status === 'valid';
+  const institution = credential.institutionName || access.institution_name;
   return NextResponse.json({
-    valid: credential.status === 'valid',
-    institution: credential.institutionName || access.institution_name,
+    valid,
+    institution,
     institutionAddress: access.institution_address,
     certificateId: credential.paxId || String(body.certificateId),
-    certificate: credential,
+    recipient: credential.candidateName || null,
+    program: credential.courseName || null,
+    classification: credential.grade || null,
+    issueDate: credential.issuedAt || null,
+    status: valid ? 'valid' : 'revoked',
+    walletAddress: credential.studentAddress || null,
+    certificate: {
+      ...credential,
+      recipient: credential.candidateName || null,
+      program: credential.courseName || null,
+      classification: credential.grade || null,
+      issueDate: credential.issuedAt || null,
+      status: valid ? 'valid' : 'revoked',
+      walletAddress: credential.studentAddress || null,
+    },
   });
 }

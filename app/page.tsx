@@ -1988,6 +1988,10 @@ Jane Smith,jane@uni.edu,0x8ba1f109551bD432803012645Ac136ddd64DBA72,,Physics,Seco
         {/* Deploy University Tab */}
         {activeTab === 'deploy' && walletRole === 'owner' && (
           <div className="space-y-6">
+          <section className="bg-pax-50 rounded-xl p-5 border-2 border-pax-600 space-y-3">
+            <div className="flex items-start justify-between gap-4"><div><p className="text-xs font-bold uppercase tracking-wider text-pax-700">Pax Owner controls</p><h2 className="text-xl font-bold mt-1">Institution signatories</h2><p className="text-sm text-gray-700 mt-1">Change the Vice-Chancellor, Registrar, and faculty Deans independently. Scroll to Step 2 below to select a programme and update signatures.</p></div><span className="shrink-0 rounded-full bg-pax-600 px-3 py-1 text-xs font-bold text-black">Register Programme</span></div>
+            <p className="text-xs text-gray-600">This area is only visible when the connected wallet is the Pax Owner.</p>
+          </section>
           <section className="bg-white rounded-xl p-6 border border-pax-900/40 space-y-4">
             <div className="flex justify-between items-center"><div><h2 className="text-lg font-bold">Verification API Requests</h2><p className="text-gray-700 text-sm mt-1">Review institution requests and approve keys manually. Approval creates a scoped key automatically.</p></div><button className="px-3 py-2 rounded-lg border border-gray-300 text-sm" onClick={loadApiRequests}>Refresh</button></div>
             {apiRequests.length === 0 ? <p className="text-sm text-gray-600">No API requests loaded yet.</p> : apiRequests.map((request) => <div key={request.id} className="border border-gray-200 rounded-lg p-4 space-y-2"><div className="flex justify-between gap-4"><div><p className="font-semibold">{request.institution_name}</p><p className="text-xs text-gray-600">{request.requester_email}</p></div><span className="text-xs uppercase font-semibold">{request.status}</span></div><p className="text-sm text-gray-700">{request.intended_use}</p>{request.api_key_prefix && <code className="text-xs">{request.api_key_prefix}••••••••</code>}{request.status === 'pending' && <div className="flex gap-2"><button className="px-3 py-2 rounded bg-green-700 text-white text-sm" onClick={() => updateApiRequest(request.id, 'approve')}>Approve and Create Key</button><button className="px-3 py-2 rounded border border-gray-300 text-sm" onClick={() => updateApiRequest(request.id, 'reject')}>Reject</button></div>}{request.status === 'active' && <button className="px-3 py-2 rounded bg-red-700 text-white text-sm" onClick={() => updateApiRequest(request.id, 'deactivate')}>Deactivate Key</button>}</div>)}
@@ -2036,7 +2040,7 @@ Jane Smith,jane@uni.edu,0x8ba1f109551bD432803012645Ac136ddd64DBA72,,Physics,Seco
           <div className="bg-white rounded-xl p-6 border border-pax-900/40 space-y-6 mt-6">
             <div className="flex items-center gap-2">
               <span className="bg-pax-700 text-black text-xs font-bold px-2 py-0.5 rounded-full">Step 2</span>
-              <h2 className="text-base font-bold">Configure Institution Signatories & Faculties</h2>
+              <h2 className="text-lg font-bold">Change VC, Registrar & Deans</h2>
               <span className="text-xs text-gray-700 ml-auto">Draw real signatures using your mouse</span>
             </div>
             <p className="text-gray-700 text-sm">

@@ -1078,9 +1078,14 @@ export default function Dashboard() {
       const tx = await university.setFacultySignatory(newFacultyName, newFacultyDean, signatureURL);
       await tx.wait();
 
-      // Add to local list
-      setConfiguredFaculties([...configuredFaculties, { id: Date.now().toString(), name: newFacultyName, deanName: newFacultyDean, signatureURL }]);
-      showMsg('success', `${newFacultyName} with Dean ${newFacultyDean} added successfully!`);
+      const normalizedFacultyName = newFacultyName.trim().toLowerCase().replace(/\s+/g, ' ');
+      setConfiguredFaculties((current) => {
+        const replacement = { id: Date.now().toString(), name: newFacultyName, deanName: newFacultyDean, signatureURL };
+        const existingIndex = current.findIndex((faculty) => faculty.name.trim().toLowerCase().replace(/\s+/g, ' ') === normalizedFacultyName);
+        if (existingIndex < 0) return [...current, replacement];
+        return current.map((faculty, index) => index === existingIndex ? replacement : faculty);
+      });
+      showMsg('success', `${newFacultyName} updated with Dean ${newFacultyDean}. The former Dean was replaced.`);
       
       // Clear form
       setNewFacultyName('');

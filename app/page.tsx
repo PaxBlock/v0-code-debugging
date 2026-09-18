@@ -1074,11 +1074,14 @@ export default function Dashboard() {
       const signatureURL = await uploadSignatureToBlob(signatureDataURL);
 
       const university = new ethers.Contract(configUnivAddress, UNIVERSITY_ABI, signer);
+      const existingFaculties = await university.getFacultySignatories();
+      const normalizedFacultyName = newFacultyName.trim().toLowerCase().replace(/\s+/g, ' ');
+      const existingFaculty = [...existingFaculties].reverse().find((faculty: any) => String(faculty.facultyName).trim().toLowerCase().replace(/\s+/g, ' ') === normalizedFacultyName);
+      const facultyNameOnChain = existingFaculty ? String(existingFaculty.facultyName) : newFacultyName.trim();
       showMsg('info', 'Saving faculty signatory... Please confirm in MetaMask.');
-      const tx = await university.setFacultySignatory(newFacultyName, newFacultyDean, signatureURL);
+      const tx = await university.setFacultySignatory(facultyNameOnChain, newFacultyDean.trim(), signatureURL);
       await tx.wait();
 
-      const normalizedFacultyName = newFacultyName.trim().toLowerCase().replace(/\s+/g, ' ');
       setConfiguredFaculties((current) => {
         const replacement = { id: Date.now().toString(), name: newFacultyName, deanName: newFacultyDean, signatureURL };
         const existingIndex = current.findIndex((faculty) => faculty.name.trim().toLowerCase().replace(/\s+/g, ' ') === normalizedFacultyName);
@@ -1223,9 +1226,16 @@ export default function Dashboard() {
     try {
       const provider = await getReadOnlyProvider();
       const university = new ethers.Contract(address, UNIVERSITY_ABI, provider);
-      const facultyList = await university.getFacultySignatories();
-      console.log('[v0] Fetched faculties:', facultyList);
-      setFaculties(facultyList);
+  const facultyList = await university.getFacultySignatories();
+  console.log('[v0] Fetched faculties:', facultyList);
+  const uniqueFaculties = [...facultyList].reduce((result: Array<{ facultyName: string; deanName: string }>, faculty: any) => {
+    const key = String(faculty.facultyName).trim().toLowerCase().replace(/\s+/g, ' ');
+    const existingIndex = result.findIndex((item) => item.facultyName.trim().toLowerCase().replace(/\s+/g, ' ') === key);
+    if (existingIndex >= 0) result[existingIndex] = { facultyName: String(faculty.facultyName), deanName: String(faculty.deanName) };
+    else result.push({ facultyName: String(faculty.facultyName), deanName: String(faculty.deanName) });
+    return result;
+  }, []);
+  setFaculties(uniqueFaculties);
       setSelectedFaculty(''); // Reset selection when new university is picked
     } catch (error) {
       console.error('[v0] Failed to fetch faculties:', error);
@@ -1236,10 +1246,11 @@ export default function Dashboard() {
     }
   };
 
-  // Call loadFacultiesForIssue when univAddress changes
+  // Reload when the programme changes and whenever the issue form becomes visible.
+  // This prevents the dean list from staying stale after an admin updates a faculty.
   useEffect(() => {
-    loadFacultiesForIssue(univAddress);
-  }, [univAddress]);
+  if (activeTab === 'issue') loadFacultiesForIssue(univAddress);
+  }, [univAddress, activeTab]);
 
   const issueCertificate = async () => {
     if (!signer) { showMsg('error', 'Please connect your wallet first.'); return; }
@@ -1305,9 +1316,9 @@ export default function Dashboard() {
             // Get dean signature for selected faculty
             try {
               const faculties = await universityContract.getFacultySignatories();
-              const selectedFac = faculties.find(
-          (f: any) => normalizeFacultyName(f.facultyName) === normalizeFacultyName(selectedFaculty)
-        );
+  const selectedFac = [...faculties].reverse().find(
+    (f: any) => normalizeFacultyName(f.facultyName) === normalizeFacultyName(selectedFaculty)
+  );
               if (selectedFac) {
                 deanName = selectedFac.deanName;
                 deanSignature = selectedFac.deanSignatureURL;
@@ -2476,8 +2487,18 @@ Jane Smith,jane@uni.edu,0x8ba1f109551bD432803012645Ac136ddd64DBA72,,Physics,Seco
                 />
               </div>
               <div>
-                <label className={labelClass}>Select Faculty <span className="text-gray-700 font-normal">(for dean signature)</span></label>
-                <select 
+  <div className="flex items-center justify-between gap-3">
+  <label className={labelClass}>Select Faculty <span className="text-gray-700 font-normal">(for dean signature)</span></label>
+  <button
+  type="button"
+  onClick={() => loadFacultiesForIssue(univAddress)}
+  disabled={!univAddress || isLoadingFaculties}
+  className="text-sm font-medium text-blue-700 hover:text-blue-900 disabled:cursor-not-allowed disabled:opacity-50"
+  >
+  {isLoadingFaculties ? 'Refreshing...' : 'Refresh deans'}
+  </button>
+  </div>
+  <select
                   className={inputClass}
                   value={selectedFaculty} 
                   onChange={(e) => setSelectedFaculty(e.target.value)}

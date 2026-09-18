@@ -1246,10 +1246,11 @@ export default function Dashboard() {
     }
   };
 
-  // Call loadFacultiesForIssue when univAddress changes
+  // Reload when the programme changes and whenever the issue form becomes visible.
+  // This prevents the dean list from staying stale after an admin updates a faculty.
   useEffect(() => {
-    loadFacultiesForIssue(univAddress);
-  }, [univAddress]);
+  if (activeTab === 'issue') loadFacultiesForIssue(univAddress);
+  }, [univAddress, activeTab]);
 
   const issueCertificate = async () => {
     if (!signer) { showMsg('error', 'Please connect your wallet first.'); return; }
@@ -2486,8 +2487,18 @@ Jane Smith,jane@uni.edu,0x8ba1f109551bD432803012645Ac136ddd64DBA72,,Physics,Seco
                 />
               </div>
               <div>
-                <label className={labelClass}>Select Faculty <span className="text-gray-700 font-normal">(for dean signature)</span></label>
-                <select 
+  <div className="flex items-center justify-between gap-3">
+  <label className={labelClass}>Select Faculty <span className="text-gray-700 font-normal">(for dean signature)</span></label>
+  <button
+  type="button"
+  onClick={() => loadFacultiesForIssue(univAddress)}
+  disabled={!univAddress || isLoadingFaculties}
+  className="text-sm font-medium text-blue-700 hover:text-blue-900 disabled:cursor-not-allowed disabled:opacity-50"
+  >
+  {isLoadingFaculties ? 'Refreshing...' : 'Refresh deans'}
+  </button>
+  </div>
+  <select
                   className={inputClass}
                   value={selectedFaculty} 
                   onChange={(e) => setSelectedFaculty(e.target.value)}

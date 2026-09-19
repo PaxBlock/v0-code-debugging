@@ -54,6 +54,9 @@ const UNIVERSITY_ABI = [
   'function setFacultySignatory(string memory facultyName, string memory deanName, string memory deanSignatureURL) external',
   'function removeFacultySignatory(string memory facultyName) external',
   'function removeInstitutionConfig() external',
+  'function removeRegistrar() external',
+  'function removeViceChancellor() external',
+  'function removeLogo() external',
   'function getFacultySignatories() external view returns (tuple(string facultyName, string deanName, string deanSignatureURL)[])',
   'function getFacultyCount() external view returns (uint256)',
   'function institutionConfig() external view returns (string registrarName, string registrarSignatureURL, string viceChancellorName, string viceChancellorSignatureURL, string verificationDomain, string logoURL)',
@@ -974,6 +977,22 @@ export default function Dashboard() {
   setIsRemovingSigner(facultyName);
   try { const university = new ethers.Contract(configUnivAddress, UNIVERSITY_ABI, signer); const tx = await university.removeFacultySignatory(facultyName); await tx.wait(); await loadSchoolConfig(configUnivAddress); showMsg('success', 'Faculty and dean signature removed.'); }
   catch (error) { showMsg('error', parseError(error)); }
+  finally { setIsRemovingSigner(null); }
+  };
+
+  const removeSingleInstitutionField = async (field: 'registrar' | 'vc' | 'logo') => {
+  if (!signer || !ethers.isAddress(configUnivAddress)) return;
+  const labels = { registrar: 'Registrar', vc: 'Vice-Chancellor', logo: 'logo' };
+  if (!window.confirm(`Remove only the current ${labels[field]} and its signature?`)) return;
+  setIsRemovingSigner(field);
+  try {
+  const university = new ethers.Contract(configUnivAddress, UNIVERSITY_ABI, signer);
+  const method = field === 'registrar' ? 'removeRegistrar' : field === 'vc' ? 'removeViceChancellor' : 'removeLogo';
+  const tx = await university[method]();
+  await tx.wait();
+  await loadSchoolConfig(configUnivAddress);
+  showMsg('success', `${labels[field]} removed independently.`);
+  } catch (error) { showMsg('error', parseError(error)); }
   finally { setIsRemovingSigner(null); }
   };
 
@@ -2232,8 +2251,13 @@ Jane Smith,jane@uni.edu,0x8ba1f109551bD432803012645Ac136ddd64DBA72,,Physics,Seco
               <button onClick={saveInstitutionConfig} disabled={isSettingConfig || logoUploading} className={`${btnClass} bg-pax-600 hover:bg-pax-700 w-full`}>
                 {logoUploading ? 'Uploading logo...' : isSettingConfig ? 'Saving... Please wait' : 'Save Core Signatories to Blockchain'}
               </button>
-              <button type="button" onClick={removeCoreSignatories} disabled={isRemovingSigner === 'core'} className="w-full rounded-lg border border-red-300 px-4 py-2 text-sm font-semibold text-red-700 hover:bg-red-50 disabled:opacity-50">
-                {isRemovingSigner === 'core' ? 'Removing core signatories...' : 'Remove current VC, Registrar, signatures & logo'}
+              <div className="grid gap-2 sm:grid-cols-3">
+                <button type="button" onClick={() => removeSingleInstitutionField('registrar')} disabled={Boolean(isRemovingSigner)} className="rounded-lg border border-red-300 px-3 py-2 text-sm font-semibold text-red-700 hover:bg-red-50 disabled:opacity-50">{isRemovingSigner === 'registrar' ? 'Removing...' : 'Remove Registrar'}</button>
+                <button type="button" onClick={() => removeSingleInstitutionField('vc')} disabled={Boolean(isRemovingSigner)} className="rounded-lg border border-red-300 px-3 py-2 text-sm font-semibold text-red-700 hover:bg-red-50 disabled:opacity-50">{isRemovingSigner === 'vc' ? 'Removing...' : 'Remove VC'}</button>
+                <button type="button" onClick={() => removeSingleInstitutionField('logo')} disabled={Boolean(isRemovingSigner)} className="rounded-lg border border-red-300 px-3 py-2 text-sm font-semibold text-red-700 hover:bg-red-50 disabled:opacity-50">{isRemovingSigner === 'logo' ? 'Removing...' : 'Remove Logo'}</button>
+              </div>
+              <button type="button" onClick={removeCoreSignatories} disabled={Boolean(isRemovingSigner)} className="w-full rounded-lg border border-red-300 px-4 py-2 text-sm font-semibold text-red-700 hover:bg-red-50 disabled:opacity-50">
+                {isRemovingSigner === 'core' ? 'Removing all core information...' : 'Remove all core information'}
               </button>
             </div>
 

@@ -190,6 +190,23 @@ contract AcademicCertificate is ERC721, ERC721URIStorage, AccessControl {
   emit InstitutionConfigUpdated(msg.sender);
   }
 
+  function removeRegistrar() external onlyRole(DEFAULT_ADMIN_ROLE) {
+  delete institutionConfig.registrarName;
+  delete institutionConfig.registrarSignatureURL;
+  emit InstitutionConfigUpdated(msg.sender);
+  }
+
+  function removeViceChancellor() external onlyRole(DEFAULT_ADMIN_ROLE) {
+  delete institutionConfig.viceChancellorName;
+  delete institutionConfig.viceChancellorSignatureURL;
+  emit InstitutionConfigUpdated(msg.sender);
+  }
+
+  function removeLogo() external onlyRole(DEFAULT_ADMIN_ROLE) {
+  delete institutionConfig.logoURL;
+  emit InstitutionConfigUpdated(msg.sender);
+  }
+
   /**
   * @dev Returns the count of faculties.
      */

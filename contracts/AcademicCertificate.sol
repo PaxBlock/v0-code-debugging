@@ -158,12 +158,57 @@ contract AcademicCertificate is ERC721, ERC721URIStorage, AccessControl {
     /**
      * @dev Returns all faculty signatories.
      */
-    function getFacultySignatories() external view returns (FacultySignatory[] memory) {
-        return facultySignatories;
-    }
+  function getFacultySignatories() external view returns (FacultySignatory[] memory) {
+  return facultySignatories;
+  }
 
-    /**
-     * @dev Returns the count of faculties.
+  /**
+  * @dev ADMIN ONLY: Remove a faculty and its dean signature.
+  * The faculty name can be added again later with a new signature.
+  */
+  function removeFacultySignatory(string memory facultyName) external onlyRole(DEFAULT_ADMIN_ROLE) {
+  uint256 storedIndex = facultyNameToIndex[facultyName];
+  require(storedIndex > 0, "Faculty not found");
+  uint256 removeIndex = storedIndex - 1;
+  uint256 lastIndex = facultySignatories.length - 1;
+  if (removeIndex != lastIndex) {
+    FacultySignatory memory lastFaculty = facultySignatories[lastIndex];
+    facultySignatories[removeIndex] = lastFaculty;
+    facultyNameToIndex[lastFaculty.facultyName] = removeIndex + 1;
+  }
+  facultySignatories.pop();
+  delete facultyNameToIndex[facultyName];
+  }
+
+  /**
+  * @dev ADMIN ONLY: Clear all current core signatories and branding.
+  * Removed signatures are no longer returned for certificate rendering.
+  */
+  function removeInstitutionConfig() external onlyRole(DEFAULT_ADMIN_ROLE) {
+  delete institutionConfig;
+  institutionConfigSet = false;
+  emit InstitutionConfigUpdated(msg.sender);
+  }
+
+  function removeRegistrar() external onlyRole(DEFAULT_ADMIN_ROLE) {
+  delete institutionConfig.registrarName;
+  delete institutionConfig.registrarSignatureURL;
+  emit InstitutionConfigUpdated(msg.sender);
+  }
+
+  function removeViceChancellor() external onlyRole(DEFAULT_ADMIN_ROLE) {
+  delete institutionConfig.viceChancellorName;
+  delete institutionConfig.viceChancellorSignatureURL;
+  emit InstitutionConfigUpdated(msg.sender);
+  }
+
+  function removeLogo() external onlyRole(DEFAULT_ADMIN_ROLE) {
+  delete institutionConfig.logoURL;
+  emit InstitutionConfigUpdated(msg.sender);
+  }
+
+  /**
+  * @dev Returns the count of faculties.
      */
     function getFacultyCount() external view returns (uint256) {
         return facultySignatories.length;

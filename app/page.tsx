@@ -9,7 +9,7 @@ import { logGDPRCompliant } from '@/lib/dataMasking';
 import Chatbot from '@/components/chatbot';
 
 // Factory contract - PaxID, grade, signatory config, logo URL, deactivation support, bulk issuance
-const FACTORY_ADDRESS = '0x39D88237DE1ea136006A9123f5787802a23AE4a2';
+const FACTORY_ADDRESS = '0x1D29E1931A4DE7C54F785579adc92C10a68bF201';
 const SEPOLIA_CHAIN_ID = 11155111;
 const SEPOLIA_HEX = '0xaa36a7';
 const BASE_METADATA_URI = 'https://ipfs.io/ipfs/'; // Base URI for certificate metadata storage
@@ -52,6 +52,11 @@ const UNIVERSITY_ABI = [
   'function resolvePaxId(string memory paxId) external view returns (address)',
   'function setInstitutionConfig(string memory registrarName, string memory registrarSignatureURL, string memory viceChancellorName, string memory viceChancellorSignatureURL, string memory verificationDomain, string memory logoURL) external',
   'function setFacultySignatory(string memory facultyName, string memory deanName, string memory deanSignatureURL) external',
+  'function removeFacultySignatory(string memory facultyName) external',
+  'function removeInstitutionConfig() external',
+  'function removeRegistrar() external',
+  'function removeViceChancellor() external',
+  'function removeLogo() external',
   'function getFacultySignatories() external view returns (tuple(string facultyName, string deanName, string deanSignatureURL)[])',
   'function getFacultyCount() external view returns (uint256)',
   'function institutionConfig() external view returns (string registrarName, string registrarSignatureURL, string viceChancellorName, string viceChancellorSignatureURL, string verificationDomain, string logoURL)',
@@ -253,6 +258,8 @@ export default function Dashboard() {
   const [logoURL, setLogoURL] = useState('');
   const [logoUploading, setLogoUploading] = useState(false);
   const [isSettingConfig, setIsSettingConfig] = useState(false);
+  const [isLoadingSchoolConfig, setIsLoadingSchoolConfig] = useState(false);
+  const [isRemovingSigner, setIsRemovingSigner] = useState<string | null>(null);
 
   // Signature system (Register tab - Step 2 redesigned)
   const [registrarSignatureURL, setRegistrarSignatureURL] = useState('');
@@ -943,6 +950,59 @@ export default function Dashboard() {
       console.error('[v0] uploadLogo - Error:', error);
       throw error;
     }
+  };
+
+  const loadSchoolConfig = async (address: string) => {
+  if (!ethers.isAddress(address)) return;
+  setIsLoadingSchoolConfig(true);
+  try {
+  const readProvider = await getReadOnlyProvider();
+  const university = new ethers.Contract(address, UNIVERSITY_ABI, readProvider);
+  const [config, facultyRows] = await Promise.all([university.institutionConfig(), university.getFacultySignatories()]);
+  setRegistrarName(String(config.registrarName || config[0] || ''));
+  setRegistrarSignatureURL(String(config.registrarSignatureURL || config[1] || ''));
+  setVcName(String(config.viceChancellorName || config[2] || ''));
+  setVcSignatureURL(String(config.viceChancellorSignatureURL || config[3] || ''));
+  setVerificationDomain(String(config.verificationDomain || config[4] || ''));
+  setLogoURL(String(config.logoURL || config[5] || ''));
+  setConfiguredFaculties(facultyRows.map((row: any, index: number) => ({ id: `${address}-${index}`, name: String(row.facultyName), deanName: String(row.deanName), signatureURL: String(row.deanSignatureURL) })));
+  showMsg('success', 'Current school information loaded from the programme contract.');
+  } catch (error) { showMsg('error', `Could not load school information: ${parseError(error)}`); }
+  finally { setIsLoadingSchoolConfig(false); }
+  };
+
+  const removeFaculty = async (facultyName: string) => {
+  if (!signer || !ethers.isAddress(configUnivAddress)) return;
+  if (!window.confirm(`Remove ${facultyName} and invalidate its dean signature?`)) return;
+  setIsRemovingSigner(facultyName);
+  try { const university = new ethers.Contract(configUnivAddress, UNIVERSITY_ABI, signer); const tx = await university.removeFacultySignatory(facultyName); await tx.wait(); await loadSchoolConfig(configUnivAddress); showMsg('success', 'Faculty and dean signature removed.'); }
+  catch (error) { showMsg('error', parseError(error)); }
+  finally { setIsRemovingSigner(null); }
+  };
+
+  const removeSingleInstitutionField = async (field: 'registrar' | 'vc' | 'logo') => {
+  if (!signer || !ethers.isAddress(configUnivAddress)) return;
+  const labels = { registrar: 'Registrar', vc: 'Vice-Chancellor', logo: 'logo' };
+  if (!window.confirm(`Remove only the current ${labels[field]} and its signature?`)) return;
+  setIsRemovingSigner(field);
+  try {
+  const university = new ethers.Contract(configUnivAddress, UNIVERSITY_ABI, signer);
+  const method = field === 'registrar' ? 'removeRegistrar' : field === 'vc' ? 'removeViceChancellor' : 'removeLogo';
+  const tx = await university[method]();
+  await tx.wait();
+  await loadSchoolConfig(configUnivAddress);
+  showMsg('success', `${labels[field]} removed independently.`);
+  } catch (error) { showMsg('error', parseError(error)); }
+  finally { setIsRemovingSigner(null); }
+  };
+
+  const removeCoreSignatories = async () => {
+  if (!signer || !ethers.isAddress(configUnivAddress)) return;
+  if (!window.confirm('Remove the current VC, Registrar, signatures, and logo from this programme?')) return;
+  setIsRemovingSigner('core');
+  try { const university = new ethers.Contract(configUnivAddress, UNIVERSITY_ABI, signer); const tx = await university.removeInstitutionConfig(); await tx.wait(); await loadSchoolConfig(configUnivAddress); showMsg('success', 'Core signatories and branding removed.'); }
+  catch (error) { showMsg('error', parseError(error)); }
+  finally { setIsRemovingSigner(null); }
   };
 
   // Save core signatories (Registrar + Vice-Chancellor)
@@ -2071,8 +2131,17 @@ Jane Smith,jane@uni.edu,0x8ba1f109551bD432803012645Ac136ddd64DBA72,,Physics,Seco
                 placeholder="0x... (the address from Step 1)"
                 value={configUnivAddress}
                 onChange={(e) => setConfigUnivAddress(e.target.value)}
+                onBlur={(e) => loadSchoolConfig(e.target.value.trim())}
               />
+              {isLoadingSchoolConfig && <p className="text-xs text-gray-600 mt-1">Scanning programme contract for saved school information...</p>}
             </div>
+
+            {configuredFaculties.length > 0 && (
+              <div className="rounded-lg border border-blue-200 bg-blue-50/40 p-4 space-y-2">
+                <div className="flex items-center justify-between"><h3 className="text-sm font-semibold text-blue-900">Saved school information</h3><button type="button" onClick={() => loadSchoolConfig(configUnivAddress.trim())} className="text-xs text-blue-700 underline">Refresh</button></div>
+                <p className="text-xs text-blue-900">Current VC, Registrar, logo, and dean records are loaded from this contract. Removing a record removes its signature from future certificate rendering; the name may be added again later with a new signature.</p>
+              </div>
+            )}
 
             {/* CORE SIGNATORIES SECTION */}
             <div className="border border-gray-200 rounded-lg p-4 space-y-6">
@@ -2182,6 +2251,14 @@ Jane Smith,jane@uni.edu,0x8ba1f109551bD432803012645Ac136ddd64DBA72,,Physics,Seco
               <button onClick={saveInstitutionConfig} disabled={isSettingConfig || logoUploading} className={`${btnClass} bg-pax-600 hover:bg-pax-700 w-full`}>
                 {logoUploading ? 'Uploading logo...' : isSettingConfig ? 'Saving... Please wait' : 'Save Core Signatories to Blockchain'}
               </button>
+              <div className="grid gap-2 sm:grid-cols-3">
+                <button type="button" onClick={() => removeSingleInstitutionField('registrar')} disabled={Boolean(isRemovingSigner)} className="rounded-lg border border-red-300 px-3 py-2 text-sm font-semibold text-red-700 hover:bg-red-50 disabled:opacity-50">{isRemovingSigner === 'registrar' ? 'Removing...' : 'Remove Registrar'}</button>
+                <button type="button" onClick={() => removeSingleInstitutionField('vc')} disabled={Boolean(isRemovingSigner)} className="rounded-lg border border-red-300 px-3 py-2 text-sm font-semibold text-red-700 hover:bg-red-50 disabled:opacity-50">{isRemovingSigner === 'vc' ? 'Removing...' : 'Remove VC'}</button>
+                <button type="button" onClick={() => removeSingleInstitutionField('logo')} disabled={Boolean(isRemovingSigner)} className="rounded-lg border border-red-300 px-3 py-2 text-sm font-semibold text-red-700 hover:bg-red-50 disabled:opacity-50">{isRemovingSigner === 'logo' ? 'Removing...' : 'Remove Logo'}</button>
+              </div>
+              <button type="button" onClick={removeCoreSignatories} disabled={Boolean(isRemovingSigner)} className="w-full rounded-lg border border-red-300 px-4 py-2 text-sm font-semibold text-red-700 hover:bg-red-50 disabled:opacity-50">
+                {isRemovingSigner === 'core' ? 'Removing all core information...' : 'Remove all core information'}
+              </button>
             </div>
 
             {/* FACULTIES SECTION */}
@@ -2235,7 +2312,12 @@ Jane Smith,jane@uni.edu,0x8ba1f109551bD432803012645Ac136ddd64DBA72,,Physics,Seco
                         <p className="text-gray-600 font-semibold">{fac.name}</p>
                         <p className="text-xs text-gray-700">Dean: {fac.deanName}</p>
                       </div>
-                      <span className="text-green-700 text-xs">✓ Signature saved</span>
+                      <div className="flex items-center gap-3">
+                        <span className="text-green-700 text-xs">✓ Signature saved</span>
+                        <button type="button" onClick={() => removeFaculty(fac.name)} disabled={isRemovingSigner === fac.name} className="text-xs text-red-700 underline disabled:opacity-50">
+                          {isRemovingSigner === fac.name ? 'Removing...' : 'Remove'}
+                        </button>
+                      </div>
                     </div>
                   ))}
                 </div>

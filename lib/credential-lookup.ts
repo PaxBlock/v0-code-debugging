@@ -5,7 +5,7 @@ import { ethers } from 'ethers';
 // to a credential and reports its status. Mirrors the client-side verify flow exactly,
 // including AES-256-GCM decryption of the personal fields.
 
-const FACTORY_ADDRESS = '0x39D88237DE1ea136006A9123f5787802a23AE4a2';
+const FACTORY_ADDRESS = '0x1D29E1931A4DE7C54F785579adc92C10a68bF201';
 
 const FACTORY_ABI = [
   'function getAllUniversities() external view returns (address[])',

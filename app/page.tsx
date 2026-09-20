@@ -42,7 +42,15 @@ const UNIVERSITY_ABI = [
   'function certificates(uint256 tokenId) external view returns (string candidateName, string courseName, string grade, string paxId, uint256 issuanceDate, address issuer)',
   'function studentToTokenId(address student) external view returns (uint256)',
   'function grantRole(bytes32 role, address account) external',
+  'function grantIssuerRoleWithFee(address account) external payable',
   'function hasRole(bytes32 role, address account) external view returns (bool)',
+  'function issuerAuthorizationFee() external view returns (uint256)',
+  'function certificateIssuanceFee() external view returns (uint256)',
+  'function certificateRevocationFee() external view returns (uint256)',
+  'function treasury() external view returns (address)',
+  'function setFeeSchedule(uint256 issuerAuthorizationFee, uint256 certificateIssuanceFee, uint256 certificateRevocationFee) external',
+  'function setTreasury(address newTreasury) external',
+  'function withdrawPlatformFees() external',
   'function ISSUER_ROLE() external view returns (bytes32)',
   'function DEFAULT_ADMIN_ROLE() external view returns (bytes32)',
   'function revokeCertificate(address student, string memory reason) external',
@@ -866,9 +874,9 @@ export default function Dashboard() {
         return;
       }
 
-      const issuerRole = await university.ISSUER_ROLE();
-      showMsg('info', 'Granting Issuer Role... Please confirm in MetaMask.');
-      const tx = await university.grantRole(issuerRole, grantAddress);
+      const authorizationFee = await university.issuerAuthorizationFee();
+      showMsg('info', `Authorizing issuer. Platform fee: ${ethers.formatEther(authorizationFee)} ETH. Please confirm in MetaMask.`);
+      const tx = await university.grantIssuerRoleWithFee(grantAddress, { value: authorizationFee });
       console.log('[v0] Grant Role transaction sent:', tx.hash);
       await tx.wait();
       console.log('[v0] Grant Role transaction confirmed');
@@ -1236,8 +1244,9 @@ export default function Dashboard() {
       if (!has) { showMsg('error', `No certificate found for PaxID "${paxIdInput}" on the selected programme.`); return; }
       const alreadyRevoked = await university.isRevoked(resolvedStudent);
       if (alreadyRevoked) { showMsg('error', 'This certificate has already been revoked.'); return; }
-      showMsg('info', 'Revoking certificate... Please confirm in MetaMask.');
-      const tx = await university.revokeCertificate(resolvedStudent, finalReason);
+      const revocationFee = await university.certificateRevocationFee();
+      showMsg('info', `Revoking certificate. Platform fee: ${ethers.formatEther(revocationFee)} ETH. Please confirm in MetaMask.`);
+      const tx = await university.revokeCertificate(resolvedStudent, finalReason, { value: revocationFee });
       await tx.wait();
       showMsg('success', `Certificate for ${paxIdInput} revoked. Reason recorded permanently on blockchain: "${finalReason}"`);
 
@@ -1356,7 +1365,9 @@ export default function Dashboard() {
         paxId: normalisedPaxId,
         selectedFaculty: selectedFaculty,
       });
-      const tx = await university.issueCertificate(studentAddress, encryptedName, encryptedCourse, encryptedGrade, normalisedPaxId);
+      const issuanceFee = await university.certificateIssuanceFee();
+  showMsg('info', `Issuing certificate. Platform fee: ${ethers.formatEther(issuanceFee)} ETH. Please confirm in MetaMask.`);
+  const tx = await university.issueCertificate(studentAddress, encryptedName, encryptedCourse, encryptedGrade, normalisedPaxId, { value: issuanceFee });
       console.log('[v0] Transaction sent:', tx.hash);
       const receipt = await tx.wait();
 
@@ -1671,9 +1682,11 @@ export default function Dashboard() {
             console.warn(`[v0] Batch ${batchIdx + 1} gas estimation failed, using computed limit:`, gasLimit.toString(), estimateErr);
           }
 
+          const issuanceFee = await university.certificateIssuanceFee();
+          showMsg('info', `Issuing batch ${batchIdx + 1}/${totalBatches}. Platform fee: ${ethers.formatEther(issuanceFee)} ETH. Please confirm in MetaMask.`);
           const tx = await university.issueCertificatesBatch(
             batchStudents, batchNames, batchCourses, batchGrades, batchPaxIds,
-            { gasLimit }
+            { gasLimit, value: issuanceFee }
           );
           console.log(`[v0] Batch ${batchIdx + 1} transaction sent:`, tx.hash);
           txHashes.push(tx.hash);

@@ -1946,7 +1946,7 @@ Jane Smith,jane@uni.edu,0x8ba1f109551bD432803012645Ac136ddd64DBA72,,Physics,Seco
         <div className="max-w-3xl mx-auto px-4 py-4 flex items-center justify-between">
           <div>
             <h1 className="text-xl font-bold text-black">PAX Certificate System</h1>
-            <p className="text-xs text-gray-700">Blockchain-Verified Academic Credentials</p>
+            <p className="text-xs text-gray-700">Secure academic certificates for universities</p>
           </div>
           <div className="flex items-center gap-2">
             {account && walletRole && (
@@ -1964,7 +1964,7 @@ Jane Smith,jane@uni.edu,0x8ba1f109551bD432803012645Ac136ddd64DBA72,,Physics,Seco
               disabled={isConnecting}
               className={`px-4 py-2 rounded-lg text-sm font-semibold transition-all ${account ? 'bg-green-700 hover:bg-green-600' : 'bg-pax-600 hover:bg-pax-700'} disabled:opacity-50`}
             >
-              {isConnecting ? 'Connecting...' : account ? `${account.slice(0, 6)}...${account.slice(-4)}` : 'Connect Wallet'}
+              {isConnecting ? 'Connecting securely...' : account ? `${account.slice(0, 6)}...${account.slice(-4)}` : 'Connect university wallet'}
             </button>
             {account && (
               <button
@@ -2020,11 +2020,17 @@ Jane Smith,jane@uni.edu,0x8ba1f109551bD432803012645Ac136ddd64DBA72,,Physics,Seco
                   ${canAccess ? 'text-gray-600 hover:text-black cursor-pointer' : 'text-gray-800 cursor-not-allowed opacity-40'}
                 `}
               >
-                {tab === 'deploy' ? 'Register Programme' : tab === 'issue' ? 'Issue Certificate' : 'Verify Certificate'}
+                {tab === 'deploy' ? 'Manage programmes' : tab === 'issue' ? 'Issue certificates' : 'Verify a certificate'}
               </button>
             );
           })}
         </div>
+
+        <section className="mb-8 rounded-xl border border-gray-200 bg-gray-50 px-5 py-4">
+          <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">University certificate administration</p>
+          <h2 className="mt-1 text-lg font-semibold text-gray-900">Choose what you need to do</h2>
+          <p className="mt-1 text-sm leading-6 text-gray-600">Manage your university programme, issue a student certificate, or verify an existing certificate. Your available options depend on the role connected to your wallet.</p>
+        </section>
 
         {/* Access guard — shown when a tab is active but wallet has no permission */}
         {activeTab === 'deploy' && walletRole !== 'owner' && (
@@ -2073,7 +2079,7 @@ Jane Smith,jane@uni.edu,0x8ba1f109551bD432803012645Ac136ddd64DBA72,,Physics,Seco
         {activeTab === 'deploy' && walletRole === 'owner' && (
           <div className="space-y-6">
           <section className="bg-pax-50 rounded-xl p-5 border-2 border-pax-600 space-y-3">
-            <div className="flex items-start justify-between gap-4"><div><p className="text-xs font-bold uppercase tracking-wider text-pax-700">Pax Owner controls</p><h2 className="text-xl font-bold mt-1">Institution signatories</h2><p className="text-sm text-gray-700 mt-1">Change the Vice-Chancellor, Registrar, and faculty Deans independently. Scroll to Step 2 below to select a programme and update signatures.</p></div><span className="shrink-0 rounded-full bg-pax-600 px-3 py-1 text-xs font-bold text-black">Register Programme</span></div>
+            <div className="flex items-start justify-between gap-4"><div><p className="text-xs font-bold uppercase tracking-wider text-pax-700">Pax Owner controls</p><h2 className="text-xl font-bold mt-1">Institution signatories</h2><p className="text-sm text-gray-700 mt-1">Keep your university’s leadership and faculty signatories up to date. Select a programme below to review or update its details.</p></div><span className="shrink-0 rounded-full bg-pax-600 px-3 py-1 text-xs font-bold text-black">Register Programme</span></div>
             <p className="text-xs text-gray-600">This area is only visible when the connected wallet is the Pax Owner.</p>
           </section>
           <section className="hidden bg-white rounded-xl p-6 border border-pax-900/40 space-y-4">
@@ -2088,7 +2094,7 @@ Jane Smith,jane@uni.edu,0x8ba1f109551bD432803012645Ac136ddd64DBA72,,Physics,Seco
             <div>
               <label className={labelClass}>Institution Name</label>
               <input className={inputClass} placeholder="e.g. University of Lagos" value={univName} onChange={(e) => setUnivName(e.target.value)} />
-              <p className="text-xs text-gray-700 mt-1">Your institution's official name. You&apos;ll add different faculties and degree levels in Step 2 (no need to create separate programmes).</p>
+              <p className="text-xs text-gray-700 mt-1">Enter the university’s official name. Add faculties and leadership details after the programme is created; you do not need a separate programme for each faculty.</p>
             </div>
             <div>
               <label className={labelClass}>Certificate Identifier</label>
@@ -2124,7 +2130,7 @@ Jane Smith,jane@uni.edu,0x8ba1f109551bD432803012645Ac136ddd64DBA72,,Physics,Seco
           <div className="bg-white rounded-xl p-6 border border-pax-900/40 space-y-6 mt-6">
             <div className="flex items-center gap-2">
               <span className="bg-pax-700 text-black text-xs font-bold px-2 py-0.5 rounded-full">Step 2</span>
-              <h2 className="text-lg font-bold">Change VC, Registrar & Deans</h2>
+              <h2 className="text-lg font-bold">Manage university signatories</h2>
               <span className="text-xs text-gray-700 ml-auto">Draw real signatures using your mouse</span>
             </div>
             <p className="text-gray-700 text-sm">
@@ -2468,11 +2474,11 @@ Jane Smith,jane@uni.edu,0x8ba1f109551bD432803012645Ac136ddd64DBA72,,Physics,Seco
               <button className={btnClass + ' bg-pax-600 hover:bg-pax-700'} disabled={apiRequestLoading || !apiRequestForm.institutionAddress} onClick={submitApiRequest}>{apiRequestLoading ? 'Submitting...' : 'Request API Key'}</button>
               <div className="rounded-lg bg-gray-50 border border-gray-200 p-4 text-sm text-gray-700"><p className="font-semibold text-gray-900">How to use the API</p><p className="mt-1">Send a server-side POST request to <code>/api/verification/verify</code> with <code>Authorization: Bearer YOUR_API_KEY</code> and a JSON body containing <code>certificateId</code> and <code>studentAddress</code>. Never place the key in public frontend code.</p></div><div className="border-t border-gray-200 pt-4"><div className="flex justify-between items-center"><h3 className="font-semibold">My API requests</h3><button className="text-sm underline" onClick={loadApiRequests}>Refresh</button></div>{apiRequests.map((request) => <div key={request.id} className="mt-3 p-3 border border-gray-200 rounded-lg"><div className="flex justify-between"><span className="font-medium">{request.institution_name}</span><span className="text-xs uppercase">{request.status}</span></div>{request.apiKey && <div className="flex items-center gap-2 mt-2"><code className="flex-1 break-all text-xs bg-gray-100 rounded px-2 py-1">{request.apiKey}</code><button className="px-3 py-1 rounded bg-gray-900 text-white text-xs" onClick={() => navigator.clipboard.writeText(request.apiKey)}>Copy API key</button></div>}{request.status === 'active' && !request.apiKey && <p className="text-xs text-amber-700 mt-2">Your key is approved but unavailable. Refresh or contact Pax Owner.</p>}</div>)}</div>
             </section>
-            {/* Step 1: Grant Role */}
+            {/* Step 1: Choose programme and issuer */}
             <div className="bg-white rounded-xl p-6 border border-amber-700/40 space-y-4">
               <div className="flex items-center gap-2">
                 <span className="bg-amber-600 text-black text-xs font-bold px-2 py-0.5 rounded-full">Step 1</span>
-                <h2 className="text-base font-bold">Authorise a Certificate Issuer</h2>
+                <h2 className="text-base font-bold">Give a staff member permission to issue</h2>
                 <span className="text-xs text-gray-700 ml-auto">One-time setup per programme</span>
               </div>
               <p className="text-gray-700 text-sm">The programme administrator must authorise a staff member before they can issue certificates. This only needs to be done once per issuer.</p>
@@ -2528,7 +2534,7 @@ Jane Smith,jane@uni.edu,0x8ba1f109551bD432803012645Ac136ddd64DBA72,,Physics,Seco
             <div className="bg-white rounded-xl p-6 border border-gray-200 space-y-4">
               <div className="flex items-center gap-2">
                 <span className="bg-green-600 text-black text-xs font-bold px-2 py-0.5 rounded-full">Step 2</span>
-                <h2 className="text-base font-bold">Issue Certificate</h2>
+                <h2 className="text-base font-bold">Create a student certificate</h2>
               </div>
               <p className="text-gray-700 text-sm">Issue a tamper-proof, permanent certificate to a student. The certificate is tied to their wallet and cannot be transferred.</p>
               <div>
@@ -2774,7 +2780,7 @@ Jane Smith,jane@uni.edu,0x8ba1f109551bD432803012645Ac136ddd64DBA72,,Physics,Seco
             <div className="bg-white rounded-xl p-6 border border-pax-900/40 space-y-4">
               <div className="flex items-center gap-2">
                 <span className="bg-red-800 text-black text-xs font-bold px-2 py-0.5 rounded-full">Step 3</span>
-                <h2 className="text-base font-bold">Revoke a Certificate</h2>
+                <h2 className="text-base font-bold">Withdraw a certificate</h2>
                 <span className="text-xs text-gray-700 ml-auto">Admin only</span>
               </div>
               <p className="text-gray-700 text-sm">

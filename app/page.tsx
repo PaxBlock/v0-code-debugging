@@ -197,6 +197,7 @@ export default function Dashboard() {
   const [apiRequests, setApiRequests] = useState<any[]>([]);
   const [apiRequestForm, setApiRequestForm] = useState({ institutionAddress: '', institutionName: '', requesterEmail: '', intendedUse: '' });
   const [apiRequestLoading, setApiRequestLoading] = useState(false);
+  const [expandedApiRequests, setExpandedApiRequests] = useState<Record<number, boolean>>({});
   const [newVerificationKey, setNewVerificationKey] = useState('');
   const [msg, setMsg] = useState<Msg | null>(null);
 
@@ -438,6 +439,12 @@ export default function Dashboard() {
   loadApiRequests();
   }
   }, [activeTab, account, walletRole]);
+
+  useEffect(() => {
+    if (account && (activeTab === 'deploy' || activeTab === 'issue') && universities.length > 0) {
+      loadApiRequests(universities.map((university) => university.address));
+    }
+  }, [universities, activeTab, account, walletRole]);
 
   // Check if current wallet has issuer role when univAddress changes
   useEffect(() => {
@@ -1904,9 +1911,10 @@ Jane Smith,jane@uni.edu,0x8ba1f109551bD432803012645Ac136ddd64DBA72,,Physics,Seco
   const labelClass = 'block text-sm font-medium text-gray-600 mb-1';
   const btnClass = 'w-full py-3 px-6 rounded-lg font-semibold text-black transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed text-sm';
 
-  async function loadApiRequests() {
+  async function loadApiRequests(activeInstitutions: string[] = universities.map((university) => university.address)) {
     if (!account) return;
-    const response = await fetch('/api/verification/requests', { headers: { 'x-wallet-address': account, 'x-pax-owner': walletRole === 'owner' ? 'true' : 'false' } });
+    const query = `?institutionAddresses=${encodeURIComponent(activeInstitutions.join(','))}`;
+    const response = await fetch(`/api/verification/requests${query}`, { headers: { 'x-wallet-address': account, 'x-pax-owner': walletRole === 'owner' ? 'true' : 'false' } });
     if (response.ok) setApiRequests((await response.json()).requests || []);
   }
 
@@ -2068,7 +2076,7 @@ Jane Smith,jane@uni.edu,0x8ba1f109551bD432803012645Ac136ddd64DBA72,,Physics,Seco
             <div className="flex items-start justify-between gap-4"><div><p className="text-xs font-bold uppercase tracking-wider text-pax-700">Pax Owner controls</p><h2 className="text-xl font-bold mt-1">Institution signatories</h2><p className="text-sm text-gray-700 mt-1">Change the Vice-Chancellor, Registrar, and faculty Deans independently. Scroll to Step 2 below to select a programme and update signatures.</p></div><span className="shrink-0 rounded-full bg-pax-600 px-3 py-1 text-xs font-bold text-black">Register Programme</span></div>
             <p className="text-xs text-gray-600">This area is only visible when the connected wallet is the Pax Owner.</p>
           </section>
-          <section className="bg-white rounded-xl p-6 border border-pax-900/40 space-y-4">
+          <section className="hidden bg-white rounded-xl p-6 border border-pax-900/40 space-y-4">
             <div className="flex justify-between items-center"><div><h2 className="text-lg font-bold">Verification API Requests</h2><p className="text-gray-700 text-sm mt-1">Review institution requests and approve keys manually. Approval creates a scoped key automatically.</p></div><button className="px-3 py-2 rounded-lg border border-gray-300 text-sm" onClick={loadApiRequests}>Refresh</button></div>
             {apiRequests.length === 0 ? <p className="text-sm text-gray-600">No API requests loaded yet.</p> : apiRequests.map((request) => <div key={request.id} className="border border-gray-200 rounded-lg p-4 space-y-2"><div className="flex justify-between gap-4"><div><p className="font-semibold">{request.institution_name}</p><p className="text-xs text-gray-600">{request.requester_email}</p></div><span className="text-xs uppercase font-semibold">{request.status}</span></div><p className="text-sm text-gray-700">{request.intended_use}</p>{request.api_key_prefix && <code className="text-xs">{request.api_key_prefix}••••••••</code>}{request.status === 'pending' && <div className="flex gap-2"><button className="px-3 py-2 rounded bg-green-700 text-white text-sm" onClick={() => updateApiRequest(request.id, 'approve')}>Approve and Create Key</button><button className="px-3 py-2 rounded border border-gray-300 text-sm" onClick={() => updateApiRequest(request.id, 'reject')}>Reject</button></div>}{request.status === 'active' && <button className="px-3 py-2 rounded bg-red-700 text-white text-sm" onClick={() => updateApiRequest(request.id, 'deactivate')}>Deactivate Key</button>}</div>)}
           </section>
@@ -2439,13 +2447,17 @@ Jane Smith,jane@uni.edu,0x8ba1f109551bD432803012645Ac136ddd64DBA72,,Physics,Seco
               )}
             </div>
           </div>
+          <section className="bg-white rounded-xl p-6 border border-pax-900/40 space-y-4">
+            <div className="flex items-center justify-between gap-4"><div><h2 className="text-lg font-bold">API Request Approval</h2><p className="text-gray-700 text-sm mt-1">Only requests tied to institutions in this active factory are shown.</p></div><button className="px-3 py-2 rounded-lg border border-gray-300 text-sm" onClick={() => loadApiRequests(universities.map((university) => university.address))}>Refresh</button></div>
+            {apiRequests.length === 0 ? <p className="text-sm text-gray-600">No API requests for the active institutions.</p> : apiRequests.map((request) => { const expanded = expandedApiRequests[request.id]; return <div key={request.id} className="border border-gray-200 rounded-lg p-4 space-y-2"><div className="flex items-center justify-between gap-4"><div><p className="font-semibold">{request.institution_name}</p><p className="text-xs text-gray-600">{request.institution_address}</p></div><span className="text-xs uppercase font-semibold">{request.status}</span></div>{expanded && <div className="text-sm text-gray-700"><p>Requester: {request.requester_email}</p><p className="mt-1">{request.intended_use}</p></div>}<button className="text-xs text-pax-700 underline" onClick={() => setExpandedApiRequests((current) => ({ ...current, [request.id]: !expanded }))}>{expanded ? 'Show less' : 'Show more'}</button>{request.status === 'pending' && <div className="flex gap-2"><button className="px-3 py-1 rounded bg-green-700 text-white text-xs" onClick={() => updateApiRequest(request.id, 'approve')}>Approve</button><button className="px-3 py-1 rounded bg-red-700 text-white text-xs" onClick={() => updateApiRequest(request.id, 'reject')}>Reject</button></div>}{request.status === 'active' && <button className="px-3 py-1 rounded bg-red-700 text-white text-xs" onClick={() => updateApiRequest(request.id, 'deactivate')}>Deactivate</button>}</div>; })}
+          </section>
           </div>
         )}
 
         {/* Issue Certificate Tab */}
         {activeTab === 'issue' && account && (walletRole === 'owner' || walletRole === 'admin' || walletRole === 'issuer') && (
           <div className="space-y-6">
-            <section className="bg-white rounded-xl p-6 border border-pax-900/40 space-y-4">
+            <section className="hidden bg-white rounded-xl p-6 border border-pax-900/40 space-y-4">
               <div><h2 className="text-lg font-bold">Verification API Access</h2><p className="text-gray-700 text-sm mt-1">Request access for a programme assigned to your wallet. Pax approval is required before a key is created.</p></div>
               <select className={inputClass} value={apiRequestForm.institutionAddress} onChange={(e) => { const selected = myUniversities.find((u) => u.address === e.target.value); setApiRequestForm({ ...apiRequestForm, institutionAddress: e.target.value, institutionName: selected?.name || '' }); }}>
                 <option value="">-- Select your institution --</option>
@@ -2855,6 +2867,15 @@ Jane Smith,jane@uni.edu,0x8ba1f109551bD432803012645Ac136ddd64DBA72,,Physics,Seco
                 {isRevoking ? 'Revoking... Please wait' : 'Revoke Certificate'}
               </button>
             </div>
+
+            <section className="bg-white rounded-xl p-6 border border-pax-900/40 space-y-4">
+              <div><h2 className="text-lg font-bold">Verification API Access</h2><p className="text-gray-700 text-sm mt-1">Request access for a programme assigned to your wallet. This section is grouped with revocation and certificate administration.</p></div>
+              <select className={inputClass} value={apiRequestForm.institutionAddress} onChange={(e) => { const selected = myUniversities.find((u) => u.address === e.target.value); setApiRequestForm({ ...apiRequestForm, institutionAddress: e.target.value, institutionName: selected?.name || '' }); }}><option value="">-- Select your institution --</option>{myUniversities.map((u) => <option key={u.address} value={u.address}>{u.name}</option>)}</select>
+              <input className={inputClass} placeholder="Contact email" type="email" value={apiRequestForm.requesterEmail} onChange={(e) => setApiRequestForm({ ...apiRequestForm, requesterEmail: e.target.value })} />
+              <textarea className={inputClass + ' min-h-24'} placeholder="How will your institution use the verification API?" value={apiRequestForm.intendedUse} onChange={(e) => setApiRequestForm({ ...apiRequestForm, intendedUse: e.target.value })} />
+              <button className={btnClass + ' bg-pax-600 hover:bg-pax-700'} disabled={apiRequestLoading || !apiRequestForm.institutionAddress} onClick={submitApiRequest}>{apiRequestLoading ? 'Submitting...' : 'Request API Key'}</button>
+              <div className="border-t border-gray-200 pt-4"><div className="flex items-center justify-between"><h3 className="font-semibold">My API requests</h3><button className="text-sm underline" onClick={() => loadApiRequests(myUniversities.map((university) => university.address))}>Refresh</button></div>{apiRequests.map((request) => { const expanded = expandedApiRequests[request.id]; return <div key={request.id} className="mt-3 p-3 border border-gray-200 rounded-lg"><div className="flex justify-between"><span className="font-medium">{request.institution_name}</span><span className="text-xs uppercase">{request.status}</span></div>{expanded && <><p className="text-xs text-gray-600 mt-2">{request.institution_address}</p><p className="text-sm text-gray-700 mt-1">{request.intended_use}</p>{request.apiKey && <div className="flex items-center gap-2 mt-2"><code className="flex-1 break-all text-xs bg-gray-100 rounded px-2 py-1">{request.apiKey}</code><button className="px-3 py-1 rounded bg-gray-900 text-white text-xs" onClick={() => navigator.clipboard.writeText(request.apiKey)}>Copy API key</button></div>}</>}<button className="text-xs text-pax-700 underline mt-2" onClick={() => setExpandedApiRequests((current) => ({ ...current, [request.id]: !expanded }))}>{expanded ? 'Show less' : 'Show more'}</button></div>; })}</div>
+            </section>
           </div>
         )}
 

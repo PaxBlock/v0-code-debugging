@@ -13,8 +13,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Academic Certificate dApp | Deploy & Manage Soulbound NFTs",
-  description: "Manage your university's soulbound NFT academic certificates on Sepolia testnet",
+  title: "PAX University Certificate System",
+  description: "A clear, secure workspace for university teams to issue and verify academic certificates.",
   icons: {
     icon: "https://hebbkx1anhila5yf.public.blob.vercel-storage.com/Pax-7YjXsywyiRC99UEehcQt9aj3Nw1hQP.jpg",
   },

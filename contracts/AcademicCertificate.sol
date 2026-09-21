@@ -7,12 +7,16 @@ import "@openzeppelin/contracts/access/AccessControl.sol";
 
 contract AcademicCertificate is ERC721, ERC721URIStorage, AccessControl {
     bytes32 public constant ISSUER_ROLE = keccak256("ISSUER_ROLE");
-    bytes32 public constant UPDATER_ROLE = keccak256("UPDATER_ROLE");
+    bytes32 public constant PAX_OWNER_ROLE = keccak256("PAX_OWNER_ROLE");
 
-    uint256 private _nextTokenId;
+    address public treasury;
+    uint256 public issuerAuthorizationFee;
+    uint256 public certificateIssuanceFee;
+    uint256 public certificateRevocationFee;
 
-    // Base URL for the metadata API — set once at deploy time by the Factory
-    string public baseMetadataURI;
+    event FeeScheduleUpdated(uint256 issuerAuthorizationFee, uint256 certificateIssuanceFee, uint256 certificateRevocationFee);
+    event TreasuryUpdated(address indexed previousTreasury, address indexed newTreasury);
+    event PlatformFeePaid(address indexed payer, address indexed treasury, uint256 amount, bytes32 indexed action);
 
     struct CertificateData {
         string candidateName;  // encrypted
@@ -52,6 +56,10 @@ contract AcademicCertificate is ERC721, ERC721URIStorage, AccessControl {
 
     mapping(uint256 => CertificateData) public certificates;
     mapping(address => bool) public hasCertificate;
+
+    // Metadata and token counter used by the certificate issuance functions.
+    string public baseMetadataURI;
+    uint256 private _nextTokenId = 1;
     mapping(address => uint256) public studentToTokenId;
 
     // PaxID <-> wallet address lookups
@@ -93,17 +101,41 @@ contract AcademicCertificate is ERC721, ERC721URIStorage, AccessControl {
         
         // Also grant DEFAULT_ADMIN_ROLE to the Pax owner if different from institution admin
         // This allows Pax owner to configure signatories in Step 2
-        if (paxOwner != institutionAdmin) {
-            _grantRole(DEFAULT_ADMIN_ROLE, paxOwner);
-        }
-        
-        baseMetadataURI = _baseMetadataURI;
+    if (paxOwner != institutionAdmin) {
+      _grantRole(DEFAULT_ADMIN_ROLE, paxOwner);
+    }
+    _grantRole(PAX_OWNER_ROLE, paxOwner);
+    treasury = paxOwner;
+
+    baseMetadataURI = _baseMetadataURI;
     }
 
     /**
      * @dev ADMIN ONLY: Set the institution's core signatories with signature images, verification domain, and logo.
      * Called once after deployment. Can be updated by admin if personnel or branding changes.
      */
+    function setFeeSchedule(
+        uint256 _issuerAuthorizationFee,
+        uint256 _certificateIssuanceFee,
+        uint256 _certificateRevocationFee
+    ) external onlyRole(PAX_OWNER_ROLE) {
+        issuerAuthorizationFee = _issuerAuthorizationFee;
+        certificateIssuanceFee = _certificateIssuanceFee;
+        certificateRevocationFee = _certificateRevocationFee;
+        emit FeeScheduleUpdated(_issuerAuthorizationFee, _certificateIssuanceFee, _certificateRevocationFee);
+    }
+
+    function setTreasury(address newTreasury) external onlyRole(PAX_OWNER_ROLE) {
+        require(newTreasury != address(0), "Treasury cannot be zero address");
+        emit TreasuryUpdated(treasury, newTreasury);
+        treasury = newTreasury;
+    }
+
+    function withdrawPlatformFees() external onlyRole(PAX_OWNER_ROLE) {
+        (bool sent, ) = payable(treasury).call{value: address(this).balance}("");
+        require(sent, "Treasury transfer failed");
+    }
+
     function setInstitutionConfig(
         string memory registrarName,
         string memory registrarSignatureURL,
@@ -214,6 +246,20 @@ contract AcademicCertificate is ERC721, ERC721URIStorage, AccessControl {
         return facultySignatories.length;
     }
 
+    function _collectFee(uint256 expectedFee, bytes32 action) internal {
+        require(msg.value == expectedFee, "Incorrect platform fee");
+        if (expectedFee > 0) {
+            (bool funded, ) = payable(treasury).call{value: expectedFee}("");
+            require(funded, "Treasury payment failed");
+            emit PlatformFeePaid(msg.sender, treasury, expectedFee, action);
+        }
+    }
+
+    function grantIssuerRoleWithFee(address account) external payable onlyRole(DEFAULT_ADMIN_ROLE) {
+        _collectFee(issuerAuthorizationFee, keccak256("ISSUER_AUTHORIZATION"));
+        _grantRole(ISSUER_ROLE, account);
+    }
+
     /**
      * @dev ISSUER ONLY: Mints a new certificate NFT.
      * tokenURI is auto-generated from the baseMetadataURI + student address.
@@ -224,7 +270,8 @@ contract AcademicCertificate is ERC721, ERC721URIStorage, AccessControl {
         string memory _courseName,
         string memory _grade,
         string memory _paxId
-    ) external onlyRole(ISSUER_ROLE) returns (uint256) {
+    ) external payable onlyRole(ISSUER_ROLE) returns (uint256) {
+        _collectFee(certificateIssuanceFee, keccak256("CERTIFICATE_ISSUANCE"));
         require(!hasCertificate[student], "This student already has a certificate.");
         require(bytes(_paxId).length > 0, "PaxID is required.");
         require(paxIdToWallet[_paxId] == address(0), "This PaxID is already in use.");
@@ -273,7 +320,8 @@ contract AcademicCertificate is ERC721, ERC721URIStorage, AccessControl {
         string[] calldata courses,
         string[] calldata grades,
         string[] calldata paxIds
-    ) external onlyRole(ISSUER_ROLE) {
+    ) external payable onlyRole(ISSUER_ROLE) {
+        _collectFee(certificateIssuanceFee, keccak256("CERTIFICATE_BATCH_ISSUANCE"));
         require(
             students.length == names.length &&
             names.length == courses.length &&
@@ -327,7 +375,8 @@ contract AcademicCertificate is ERC721, ERC721URIStorage, AccessControl {
     function revokeCertificate(
         address student,
         string memory reason
-    ) external onlyRole(DEFAULT_ADMIN_ROLE) {
+    ) external payable onlyRole(DEFAULT_ADMIN_ROLE) {
+        _collectFee(certificateRevocationFee, keccak256("CERTIFICATE_REVOCATION"));
         require(hasCertificate[student], "This student does not have a certificate.");
         require(!isRevoked[student], "This certificate is already revoked.");
         require(bytes(reason).length > 0, "A revocation reason is required.");

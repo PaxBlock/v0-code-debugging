@@ -9,9 +9,16 @@ export async function GET(req: NextRequest) {
   const wallet = req.headers.get('x-wallet-address')?.toLowerCase();
   if (!wallet) return jsonError('Wallet address is required.', 401);
   const isAdmin = req.headers.get('x-pax-owner') === 'true';
+  const hasActiveFilter = req.nextUrl.searchParams.has('institutionAddresses');
+  const activeAddresses = (req.nextUrl.searchParams.get('institutionAddresses') || '')
+    .split(',')
+    .map((address) => address.trim().toLowerCase())
+    .filter(Boolean);
+  const select = `SELECT id, institution_address, institution_name, requester_wallet, requester_email, intended_use, status, api_key_prefix, api_key_encrypted, created_at, approved_at, deactivated_at FROM verification_api_requests`;
+  const activeFilter = hasActiveFilter ? ` AND institution_address = ANY($${isAdmin ? 1 : 2}::text[])` : '';
   const result = isAdmin
-    ? await verificationDb.query(`SELECT id, institution_address, institution_name, requester_wallet, requester_email, intended_use, status, api_key_prefix, api_key_encrypted, created_at, approved_at, deactivated_at FROM verification_api_requests ORDER BY created_at DESC`)
-    : await verificationDb.query(`SELECT id, institution_address, institution_name, requester_wallet, requester_email, intended_use, status, api_key_prefix, api_key_encrypted, created_at, approved_at, deactivated_at FROM verification_api_requests WHERE requester_wallet = $1 ORDER BY created_at DESC`, [wallet]);
+    ? await verificationDb.query(`${select} WHERE TRUE${activeFilter} ORDER BY created_at DESC`, activeAddresses.length ? [activeAddresses] : [])
+    : await verificationDb.query(`${select} WHERE requester_wallet = $1${activeFilter} ORDER BY created_at DESC`, activeAddresses.length ? [wallet, activeAddresses] : [wallet]);
   const requests = result.rows.map((row) => ({
     ...row,
     apiKey: !isAdmin && row.api_key_encrypted ? decryptVerificationKey(row.api_key_encrypted) : undefined,

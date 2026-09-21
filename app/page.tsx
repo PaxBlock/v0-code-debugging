@@ -9,10 +9,11 @@ import { logGDPRCompliant } from '@/lib/dataMasking';
 import Chatbot from '@/components/chatbot';
 
 // Factory contract - PaxID, grade, signatory config, logo URL, deactivation support, bulk issuance
-const FACTORY_ADDRESS = '0x1D29E1931A4DE7C54F785579adc92C10a68bF201';
+const FACTORY_ADDRESS = '0x34f423528e7eb822ae9c98792d8377207835fde7';
 const SEPOLIA_CHAIN_ID = 11155111;
 const SEPOLIA_HEX = '0xaa36a7';
 const BASE_METADATA_URI = 'https://ipfs.io/ipfs/'; // Base URI for certificate metadata storage
+const FEE_CURRENCY_RATES = { USD: 2500, NGN: 4000000, GBP: 1950, EUR: 2300 };
 
 const FACTORY_ABI = [
   'function deployUniversity(string memory universityName, string memory symbol, address universityAdmin, string memory baseMetadataURI) external returns (address)',
@@ -42,7 +43,15 @@ const UNIVERSITY_ABI = [
   'function certificates(uint256 tokenId) external view returns (string candidateName, string courseName, string grade, string paxId, uint256 issuanceDate, address issuer)',
   'function studentToTokenId(address student) external view returns (uint256)',
   'function grantRole(bytes32 role, address account) external',
+  'function grantIssuerRoleWithFee(address account) external payable',
   'function hasRole(bytes32 role, address account) external view returns (bool)',
+  'function issuerAuthorizationFee() external view returns (uint256)',
+  'function certificateIssuanceFee() external view returns (uint256)',
+  'function certificateRevocationFee() external view returns (uint256)',
+  'function treasury() external view returns (address)',
+  'function setFeeSchedule(uint256 issuerAuthorizationFee, uint256 certificateIssuanceFee, uint256 certificateRevocationFee) external',
+  'function setTreasury(address newTreasury) external',
+  'function withdrawPlatformFees() external',
   'function ISSUER_ROLE() external view returns (bytes32)',
   'function DEFAULT_ADMIN_ROLE() external view returns (bytes32)',
   'function revokeCertificate(address student, string memory reason) external',
@@ -197,6 +206,7 @@ export default function Dashboard() {
   const [apiRequests, setApiRequests] = useState<any[]>([]);
   const [apiRequestForm, setApiRequestForm] = useState({ institutionAddress: '', institutionName: '', requesterEmail: '', intendedUse: '' });
   const [apiRequestLoading, setApiRequestLoading] = useState(false);
+  const [expandedApiRequests, setExpandedApiRequests] = useState<Record<number, boolean>>({});
   const [newVerificationKey, setNewVerificationKey] = useState('');
   const [msg, setMsg] = useState<Msg | null>(null);
 
@@ -279,6 +289,16 @@ export default function Dashboard() {
   const [deactivateReason, setDeactivateReason] = useState('');
   const [isDeactivating, setIsDeactivating] = useState(false);
   const [isReactivating, setIsReactivating] = useState(''); // stores address being reactivated
+  const [feeManagementAddress, setFeeManagementAddress] = useState('');
+  const [feeSchedule, setFeeSchedule] = useState({ authorization: '0', issuance: '0', revocation: '0', treasury: '' });
+  const [isLoadingFees, setIsLoadingFees] = useState(false);
+  const [isSavingFees, setIsSavingFees] = useState(false);
+  const [feeCurrency, setFeeCurrency] = useState<keyof typeof FEE_CURRENCY_RATES>('NGN');
+
+  const formatLocalFee = (ethAmount: string) => {
+  const value = Number(ethAmount || 0) * FEE_CURRENCY_RATES[feeCurrency];
+  return new Intl.NumberFormat(undefined, { style: 'currency', currency: feeCurrency, maximumFractionDigits: 2 }).format(value);
+  };
 
   // Verify tab
   const [universities, setUniversities] = useState<University[]>([]);
@@ -438,6 +458,12 @@ export default function Dashboard() {
   loadApiRequests();
   }
   }, [activeTab, account, walletRole]);
+
+  useEffect(() => {
+    if (account && (activeTab === 'deploy' || activeTab === 'issue') && universities.length > 0) {
+      loadApiRequests(universities.map((university) => university.address));
+    }
+  }, [universities, activeTab, account, walletRole]);
 
   // Check if current wallet has issuer role when univAddress changes
   useEffect(() => {
@@ -859,9 +885,9 @@ export default function Dashboard() {
         return;
       }
 
-      const issuerRole = await university.ISSUER_ROLE();
-      showMsg('info', 'Granting Issuer Role... Please confirm in MetaMask.');
-      const tx = await university.grantRole(issuerRole, grantAddress);
+      const authorizationFee = await university.issuerAuthorizationFee();
+      showMsg('info', `Authorizing issuer. Platform fee: ${ethers.formatEther(authorizationFee)} ETH. Please confirm in MetaMask.`);
+      const tx = await university.grantIssuerRoleWithFee(grantAddress, { value: authorizationFee });
       console.log('[v0] Grant Role transaction sent:', tx.hash);
       await tx.wait();
       console.log('[v0] Grant Role transaction confirmed');
@@ -1161,6 +1187,50 @@ export default function Dashboard() {
     }
   };
 
+  const loadFeeSchedule = async () => {
+  if (!ethers.isAddress(feeManagementAddress)) { showMsg('error', 'Enter a valid programme contract address first.'); return; }
+  setIsLoadingFees(true);
+  try {
+  const provider = await getReadOnlyProvider();
+  const university = new ethers.Contract(feeManagementAddress, UNIVERSITY_ABI, provider);
+  const [authorization, issuance, revocation, treasury] = await Promise.all([university.issuerAuthorizationFee(), university.certificateIssuanceFee(), university.certificateRevocationFee(), university.treasury()]);
+  setFeeSchedule({ authorization: ethers.formatEther(authorization), issuance: ethers.formatEther(issuance), revocation: ethers.formatEther(revocation), treasury });
+  } catch (error) { showMsg('error', `Could not load fee settings: ${parseError(error)}`); }
+  finally { setIsLoadingFees(false); }
+  };
+
+  const saveFeeSchedule = async () => {
+  if (!signer) { showMsg('error', 'Connect the Pax Owner wallet before saving fee settings.'); return; }
+  if (!ethers.isAddress(feeManagementAddress)) { showMsg('error', 'Enter a valid programme contract address and load its settings first.'); return; }
+  if (!ethers.isAddress(feeSchedule.treasury)) { showMsg('error', 'Enter a valid treasury wallet address.'); return; }
+  if ([feeSchedule.authorization, feeSchedule.issuance, feeSchedule.revocation].some((value) => !/^\d+(\.\d{1,18})?$/.test(value.trim()))) { showMsg('error', 'Fees must be valid ETH amounts with up to 18 decimal places.'); return; }
+  if (!window.confirm('Update the platform fees and treasury address on this programme?')) return;
+  setIsSavingFees(true);
+  try {
+  const university = new ethers.Contract(feeManagementAddress, UNIVERSITY_ABI, signer);
+  const paxOwnerRole = ethers.id('PAX_OWNER_ROLE');
+  const canManageFees = await university.hasRole(paxOwnerRole, account);
+  if (!canManageFees) { showMsg('error', 'This wallet is not the PAX Owner for that programme contract.'); setIsSavingFees(false); return; }
+  showMsg('info', 'Saving fee settings. Confirm the fee transaction in MetaMask.');
+  const tx = await university.setFeeSchedule(ethers.parseEther(feeSchedule.authorization || '0'), ethers.parseEther(feeSchedule.issuance || '0'), ethers.parseEther(feeSchedule.revocation || '0'));
+  await tx.wait();
+  const treasuryTx = await university.setTreasury(feeSchedule.treasury);
+  await treasuryTx.wait();
+  await loadFeeSchedule();
+  showMsg('success', 'Platform fee settings updated.');
+  } catch (error) { showMsg('error', parseError(error)); }
+  finally { setIsSavingFees(false); }
+  };
+
+  const withdrawPlatformFees = async () => {
+  if (!signer || !ethers.isAddress(feeManagementAddress)) return;
+  if (!window.confirm('Withdraw the programme’s accumulated platform fees to its treasury wallet?')) return;
+  setIsSavingFees(true);
+  try { const university = new ethers.Contract(feeManagementAddress, UNIVERSITY_ABI, signer); const tx = await university.withdrawPlatformFees(); await tx.wait(); showMsg('success', 'Accumulated platform fees withdrawn to the treasury.'); }
+  catch (error) { showMsg('error', parseError(error)); }
+  finally { setIsSavingFees(false); }
+  };
+
   const handleDeactivate = async () => {
     if (!signer) { showMsg('error', 'Please connect your wallet first.'); return; }
     if (!ethers.isAddress(deactivateAddress)) { showMsg('error', 'Please enter a valid university contract address.'); return; }
@@ -1229,8 +1299,9 @@ export default function Dashboard() {
       if (!has) { showMsg('error', `No certificate found for PaxID "${paxIdInput}" on the selected programme.`); return; }
       const alreadyRevoked = await university.isRevoked(resolvedStudent);
       if (alreadyRevoked) { showMsg('error', 'This certificate has already been revoked.'); return; }
-      showMsg('info', 'Revoking certificate... Please confirm in MetaMask.');
-      const tx = await university.revokeCertificate(resolvedStudent, finalReason);
+      const revocationFee = await university.certificateRevocationFee();
+      showMsg('info', `Revoking certificate. Platform fee: ${ethers.formatEther(revocationFee)} ETH. Please confirm in MetaMask.`);
+      const tx = await university.revokeCertificate(resolvedStudent, finalReason, { value: revocationFee });
       await tx.wait();
       showMsg('success', `Certificate for ${paxIdInput} revoked. Reason recorded permanently on blockchain: "${finalReason}"`);
 
@@ -1349,7 +1420,9 @@ export default function Dashboard() {
         paxId: normalisedPaxId,
         selectedFaculty: selectedFaculty,
       });
-      const tx = await university.issueCertificate(studentAddress, encryptedName, encryptedCourse, encryptedGrade, normalisedPaxId);
+      const issuanceFee = await university.certificateIssuanceFee();
+  showMsg('info', `Issuing certificate. Platform fee: ${ethers.formatEther(issuanceFee)} ETH. Please confirm in MetaMask.`);
+  const tx = await university.issueCertificate(studentAddress, encryptedName, encryptedCourse, encryptedGrade, normalisedPaxId, { value: issuanceFee });
       console.log('[v0] Transaction sent:', tx.hash);
       const receipt = await tx.wait();
 
@@ -1664,9 +1737,11 @@ export default function Dashboard() {
             console.warn(`[v0] Batch ${batchIdx + 1} gas estimation failed, using computed limit:`, gasLimit.toString(), estimateErr);
           }
 
+          const issuanceFee = await university.certificateIssuanceFee();
+          showMsg('info', `Issuing batch ${batchIdx + 1}/${totalBatches}. Platform fee: ${ethers.formatEther(issuanceFee)} ETH. Please confirm in MetaMask.`);
           const tx = await university.issueCertificatesBatch(
             batchStudents, batchNames, batchCourses, batchGrades, batchPaxIds,
-            { gasLimit }
+            { gasLimit, value: issuanceFee }
           );
           console.log(`[v0] Batch ${batchIdx + 1} transaction sent:`, tx.hash);
           txHashes.push(tx.hash);
@@ -1904,9 +1979,10 @@ Jane Smith,jane@uni.edu,0x8ba1f109551bD432803012645Ac136ddd64DBA72,,Physics,Seco
   const labelClass = 'block text-sm font-medium text-gray-600 mb-1';
   const btnClass = 'w-full py-3 px-6 rounded-lg font-semibold text-black transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed text-sm';
 
-  async function loadApiRequests() {
+  async function loadApiRequests(activeInstitutions: string[] = universities.map((university) => university.address)) {
     if (!account) return;
-    const response = await fetch('/api/verification/requests', { headers: { 'x-wallet-address': account, 'x-pax-owner': walletRole === 'owner' ? 'true' : 'false' } });
+    const query = `?institutionAddresses=${encodeURIComponent(activeInstitutions.join(','))}`;
+    const response = await fetch(`/api/verification/requests${query}`, { headers: { 'x-wallet-address': account, 'x-pax-owner': walletRole === 'owner' ? 'true' : 'false' } });
     if (response.ok) setApiRequests((await response.json()).requests || []);
   }
 
@@ -1938,7 +2014,7 @@ Jane Smith,jane@uni.edu,0x8ba1f109551bD432803012645Ac136ddd64DBA72,,Physics,Seco
         <div className="max-w-3xl mx-auto px-4 py-4 flex items-center justify-between">
           <div>
             <h1 className="text-xl font-bold text-black">PAX Certificate System</h1>
-            <p className="text-xs text-gray-700">Blockchain-Verified Academic Credentials</p>
+            <p className="text-xs text-gray-700">Secure academic certificates for universities</p>
           </div>
           <div className="flex items-center gap-2">
             {account && walletRole && (
@@ -1956,7 +2032,7 @@ Jane Smith,jane@uni.edu,0x8ba1f109551bD432803012645Ac136ddd64DBA72,,Physics,Seco
               disabled={isConnecting}
               className={`px-4 py-2 rounded-lg text-sm font-semibold transition-all ${account ? 'bg-green-700 hover:bg-green-600' : 'bg-pax-600 hover:bg-pax-700'} disabled:opacity-50`}
             >
-              {isConnecting ? 'Connecting...' : account ? `${account.slice(0, 6)}...${account.slice(-4)}` : 'Connect Wallet'}
+              {isConnecting ? 'Connecting securely...' : account ? `${account.slice(0, 6)}...${account.slice(-4)}` : 'Connect university wallet'}
             </button>
             {account && (
               <button
@@ -2012,11 +2088,17 @@ Jane Smith,jane@uni.edu,0x8ba1f109551bD432803012645Ac136ddd64DBA72,,Physics,Seco
                   ${canAccess ? 'text-gray-600 hover:text-black cursor-pointer' : 'text-gray-800 cursor-not-allowed opacity-40'}
                 `}
               >
-                {tab === 'deploy' ? 'Register Programme' : tab === 'issue' ? 'Issue Certificate' : 'Verify Certificate'}
+                {tab === 'deploy' ? 'Manage programmes' : tab === 'issue' ? 'Issue certificates' : 'Verify a certificate'}
               </button>
             );
           })}
         </div>
+
+        <section className="mb-8 rounded-xl border border-gray-200 bg-gray-50 px-5 py-4">
+          <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">University certificate administration</p>
+          <h2 className="mt-1 text-lg font-semibold text-gray-900">Choose what you need to do</h2>
+          <p className="mt-1 text-sm leading-6 text-gray-600">Manage your university programme, issue a student certificate, or verify an existing certificate. Your available options depend on the role connected to your wallet.</p>
+        </section>
 
         {/* Access guard — shown when a tab is active but wallet has no permission */}
         {activeTab === 'deploy' && walletRole !== 'owner' && (
@@ -2065,10 +2147,10 @@ Jane Smith,jane@uni.edu,0x8ba1f109551bD432803012645Ac136ddd64DBA72,,Physics,Seco
         {activeTab === 'deploy' && walletRole === 'owner' && (
           <div className="space-y-6">
           <section className="bg-pax-50 rounded-xl p-5 border-2 border-pax-600 space-y-3">
-            <div className="flex items-start justify-between gap-4"><div><p className="text-xs font-bold uppercase tracking-wider text-pax-700">Pax Owner controls</p><h2 className="text-xl font-bold mt-1">Institution signatories</h2><p className="text-sm text-gray-700 mt-1">Change the Vice-Chancellor, Registrar, and faculty Deans independently. Scroll to Step 2 below to select a programme and update signatures.</p></div><span className="shrink-0 rounded-full bg-pax-600 px-3 py-1 text-xs font-bold text-black">Register Programme</span></div>
+            <div className="flex items-start justify-between gap-4"><div><p className="text-xs font-bold uppercase tracking-wider text-pax-700">Pax Owner controls</p><h2 className="text-xl font-bold mt-1">Institution signatories</h2><p className="text-sm text-gray-700 mt-1">Keep your university’s leadership and faculty signatories up to date. Select a programme below to review or update its details.</p></div><span className="shrink-0 rounded-full bg-pax-600 px-3 py-1 text-xs font-bold text-black">Register Programme</span></div>
             <p className="text-xs text-gray-600">This area is only visible when the connected wallet is the Pax Owner.</p>
           </section>
-          <section className="bg-white rounded-xl p-6 border border-pax-900/40 space-y-4">
+          <section className="hidden bg-white rounded-xl p-6 border border-pax-900/40 space-y-4">
             <div className="flex justify-between items-center"><div><h2 className="text-lg font-bold">Verification API Requests</h2><p className="text-gray-700 text-sm mt-1">Review institution requests and approve keys manually. Approval creates a scoped key automatically.</p></div><button className="px-3 py-2 rounded-lg border border-gray-300 text-sm" onClick={loadApiRequests}>Refresh</button></div>
             {apiRequests.length === 0 ? <p className="text-sm text-gray-600">No API requests loaded yet.</p> : apiRequests.map((request) => <div key={request.id} className="border border-gray-200 rounded-lg p-4 space-y-2"><div className="flex justify-between gap-4"><div><p className="font-semibold">{request.institution_name}</p><p className="text-xs text-gray-600">{request.requester_email}</p></div><span className="text-xs uppercase font-semibold">{request.status}</span></div><p className="text-sm text-gray-700">{request.intended_use}</p>{request.api_key_prefix && <code className="text-xs">{request.api_key_prefix}••••••••</code>}{request.status === 'pending' && <div className="flex gap-2"><button className="px-3 py-2 rounded bg-green-700 text-white text-sm" onClick={() => updateApiRequest(request.id, 'approve')}>Approve and Create Key</button><button className="px-3 py-2 rounded border border-gray-300 text-sm" onClick={() => updateApiRequest(request.id, 'reject')}>Reject</button></div>}{request.status === 'active' && <button className="px-3 py-2 rounded bg-red-700 text-white text-sm" onClick={() => updateApiRequest(request.id, 'deactivate')}>Deactivate Key</button>}</div>)}
           </section>
@@ -2080,7 +2162,7 @@ Jane Smith,jane@uni.edu,0x8ba1f109551bD432803012645Ac136ddd64DBA72,,Physics,Seco
             <div>
               <label className={labelClass}>Institution Name</label>
               <input className={inputClass} placeholder="e.g. University of Lagos" value={univName} onChange={(e) => setUnivName(e.target.value)} />
-              <p className="text-xs text-gray-700 mt-1">Your institution's official name. You&apos;ll add different faculties and degree levels in Step 2 (no need to create separate programmes).</p>
+              <p className="text-xs text-gray-700 mt-1">Enter the university’s official name. Add faculties and leadership details after the programme is created; you do not need a separate programme for each faculty.</p>
             </div>
             <div>
               <label className={labelClass}>Certificate Identifier</label>
@@ -2116,7 +2198,7 @@ Jane Smith,jane@uni.edu,0x8ba1f109551bD432803012645Ac136ddd64DBA72,,Physics,Seco
           <div className="bg-white rounded-xl p-6 border border-pax-900/40 space-y-6 mt-6">
             <div className="flex items-center gap-2">
               <span className="bg-pax-700 text-black text-xs font-bold px-2 py-0.5 rounded-full">Step 2</span>
-              <h2 className="text-lg font-bold">Change VC, Registrar & Deans</h2>
+              <h2 className="text-lg font-bold">Manage university signatories</h2>
               <span className="text-xs text-gray-700 ml-auto">Draw real signatures using your mouse</span>
             </div>
             <p className="text-gray-700 text-sm">
@@ -2336,6 +2418,16 @@ Jane Smith,jane@uni.edu,0x8ba1f109551bD432803012645Ac136ddd64DBA72,,Physics,Seco
               Deactivate an institution to remove them from the platform. Their existing certificates remain permanently verifiable on-chain, but no new certificates can be issued. You can reactivate them at any time.
             </p>
 
+            <div className="space-y-4 border border-pax-200 rounded-lg p-4 bg-pax-50/30">
+              <div><h3 className="text-sm font-semibold text-pax-900">Platform fee settings</h3><p className="text-xs text-gray-600 mt-1">Set fees in ETH for the blockchain. We also show an approximate local-currency value to make the amount easier to understand. The contract still stores and charges ETH.</p></div>
+              <label className="text-xs font-semibold text-gray-700">Display currency<select className={inputClass + ' mt-1'} value={feeCurrency} onChange={(e) => setFeeCurrency(e.target.value as keyof typeof FEE_CURRENCY_RATES)}><option value="NGN">Nigerian naira (NGN)</option><option value="USD">US dollars (USD)</option><option value="GBP">British pounds (GBP)</option><option value="EUR">Euros (EUR)</option></select></label>
+              <div className="flex gap-2"><input className={inputClass} placeholder="Programme contract address" value={feeManagementAddress} onChange={(e) => setFeeManagementAddress(e.target.value)} /><button type="button" onClick={loadFeeSchedule} disabled={isLoadingFees} className="rounded-lg border border-gray-300 px-3 text-sm">{isLoadingFees ? 'Loading...' : 'Load fees'}</button></div>
+              <div className="grid gap-3 md:grid-cols-3"><label className="text-xs font-semibold text-gray-700">Issuer authorization (ETH)<input className={inputClass + ' mt-1'} inputMode="decimal" value={feeSchedule.authorization} onChange={(e) => setFeeSchedule({ ...feeSchedule, authorization: e.target.value })} /><span className="mt-1 block font-normal text-gray-500">≈ {formatLocalFee(feeSchedule.authorization)}</span></label><label className="text-xs font-semibold text-gray-700">Certificate issuance (ETH)<input className={inputClass + ' mt-1'} inputMode="decimal" value={feeSchedule.issuance} onChange={(e) => setFeeSchedule({ ...feeSchedule, issuance: e.target.value })} /><span className="mt-1 block font-normal text-gray-500">≈ {formatLocalFee(feeSchedule.issuance)}</span></label><label className="text-xs font-semibold text-gray-700">Certificate withdrawal (ETH)<input className={inputClass + ' mt-1'} inputMode="decimal" value={feeSchedule.revocation} onChange={(e) => setFeeSchedule({ ...feeSchedule, revocation: e.target.value })} /><span className="mt-1 block font-normal text-gray-500">≈ {formatLocalFee(feeSchedule.revocation)}</span></label></div>
+              <label className="text-xs font-semibold text-gray-700">Treasury wallet address<input className={inputClass + ' mt-1'} placeholder="0x..." value={feeSchedule.treasury} onChange={(e) => setFeeSchedule({ ...feeSchedule, treasury: e.target.value })} /></label>
+              <div className="flex flex-wrap gap-2"><button type="button" onClick={saveFeeSchedule} disabled={isSavingFees || !feeManagementAddress} className={`${btnClass} bg-pax-700 hover:bg-pax-600 disabled:opacity-50`}>{isSavingFees ? 'Saving fee settings...' : 'Save fee settings'}</button><button type="button" onClick={withdrawPlatformFees} disabled={isSavingFees || !feeManagementAddress} className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-semibold">Withdraw accumulated fees</button></div>
+              <p className="text-xs text-gray-600">Changing these values affects future transactions only. Network gas remains separate. Use a treasury wallet or multisig you control.</p>
+            </div>
+
             {/* Deactivate form */}
             <div className="space-y-3 border border-gray-200 rounded-lg p-4">
               <h3 className="text-sm font-semibold text-red-700">Deactivate an Institution</h3>
@@ -2439,13 +2531,17 @@ Jane Smith,jane@uni.edu,0x8ba1f109551bD432803012645Ac136ddd64DBA72,,Physics,Seco
               )}
             </div>
           </div>
+          <section className="bg-white rounded-xl p-6 border border-pax-900/40 space-y-4">
+            <div className="flex items-center justify-between gap-4"><div><h2 className="text-lg font-bold">API Request Approval</h2><p className="text-gray-700 text-sm mt-1">Only requests tied to institutions in this active factory are shown.</p></div><button className="px-3 py-2 rounded-lg border border-gray-300 text-sm" onClick={() => loadApiRequests(universities.map((university) => university.address))}>Refresh</button></div>
+            {apiRequests.length === 0 ? <p className="text-sm text-gray-600">No API requests for the active institutions.</p> : apiRequests.map((request) => { const expanded = expandedApiRequests[request.id]; return <div key={request.id} className="border border-gray-200 rounded-lg p-4 space-y-2"><div className="flex items-center justify-between gap-4"><div><p className="font-semibold">{request.institution_name}</p><p className="text-xs text-gray-600">{request.institution_address}</p></div><span className="text-xs uppercase font-semibold">{request.status}</span></div>{expanded && <div className="text-sm text-gray-700"><p>Requester: {request.requester_email}</p><p className="mt-1">{request.intended_use}</p></div>}<button className="text-xs text-pax-700 underline" onClick={() => setExpandedApiRequests((current) => ({ ...current, [request.id]: !expanded }))}>{expanded ? 'Show less' : 'Show more'}</button>{request.status === 'pending' && <div className="flex gap-2"><button className="px-3 py-1 rounded bg-green-700 text-white text-xs" onClick={() => updateApiRequest(request.id, 'approve')}>Approve</button><button className="px-3 py-1 rounded bg-red-700 text-white text-xs" onClick={() => updateApiRequest(request.id, 'reject')}>Reject</button></div>}{request.status === 'active' && <button className="px-3 py-1 rounded bg-red-700 text-white text-xs" onClick={() => updateApiRequest(request.id, 'deactivate')}>Deactivate</button>}</div>; })}
+          </section>
           </div>
         )}
 
         {/* Issue Certificate Tab */}
         {activeTab === 'issue' && account && (walletRole === 'owner' || walletRole === 'admin' || walletRole === 'issuer') && (
           <div className="space-y-6">
-            <section className="bg-white rounded-xl p-6 border border-pax-900/40 space-y-4">
+            <section className="hidden bg-white rounded-xl p-6 border border-pax-900/40 space-y-4">
               <div><h2 className="text-lg font-bold">Verification API Access</h2><p className="text-gray-700 text-sm mt-1">Request access for a programme assigned to your wallet. Pax approval is required before a key is created.</p></div>
               <select className={inputClass} value={apiRequestForm.institutionAddress} onChange={(e) => { const selected = myUniversities.find((u) => u.address === e.target.value); setApiRequestForm({ ...apiRequestForm, institutionAddress: e.target.value, institutionName: selected?.name || '' }); }}>
                 <option value="">-- Select your institution --</option>
@@ -2456,11 +2552,11 @@ Jane Smith,jane@uni.edu,0x8ba1f109551bD432803012645Ac136ddd64DBA72,,Physics,Seco
               <button className={btnClass + ' bg-pax-600 hover:bg-pax-700'} disabled={apiRequestLoading || !apiRequestForm.institutionAddress} onClick={submitApiRequest}>{apiRequestLoading ? 'Submitting...' : 'Request API Key'}</button>
               <div className="rounded-lg bg-gray-50 border border-gray-200 p-4 text-sm text-gray-700"><p className="font-semibold text-gray-900">How to use the API</p><p className="mt-1">Send a server-side POST request to <code>/api/verification/verify</code> with <code>Authorization: Bearer YOUR_API_KEY</code> and a JSON body containing <code>certificateId</code> and <code>studentAddress</code>. Never place the key in public frontend code.</p></div><div className="border-t border-gray-200 pt-4"><div className="flex justify-between items-center"><h3 className="font-semibold">My API requests</h3><button className="text-sm underline" onClick={loadApiRequests}>Refresh</button></div>{apiRequests.map((request) => <div key={request.id} className="mt-3 p-3 border border-gray-200 rounded-lg"><div className="flex justify-between"><span className="font-medium">{request.institution_name}</span><span className="text-xs uppercase">{request.status}</span></div>{request.apiKey && <div className="flex items-center gap-2 mt-2"><code className="flex-1 break-all text-xs bg-gray-100 rounded px-2 py-1">{request.apiKey}</code><button className="px-3 py-1 rounded bg-gray-900 text-white text-xs" onClick={() => navigator.clipboard.writeText(request.apiKey)}>Copy API key</button></div>}{request.status === 'active' && !request.apiKey && <p className="text-xs text-amber-700 mt-2">Your key is approved but unavailable. Refresh or contact Pax Owner.</p>}</div>)}</div>
             </section>
-            {/* Step 1: Grant Role */}
+            {/* Step 1: Choose programme and issuer */}
             <div className="bg-white rounded-xl p-6 border border-amber-700/40 space-y-4">
               <div className="flex items-center gap-2">
                 <span className="bg-amber-600 text-black text-xs font-bold px-2 py-0.5 rounded-full">Step 1</span>
-                <h2 className="text-base font-bold">Authorise a Certificate Issuer</h2>
+                <h2 className="text-base font-bold">Give a staff member permission to issue</h2>
                 <span className="text-xs text-gray-700 ml-auto">One-time setup per programme</span>
               </div>
               <p className="text-gray-700 text-sm">The programme administrator must authorise a staff member before they can issue certificates. This only needs to be done once per issuer.</p>
@@ -2516,7 +2612,7 @@ Jane Smith,jane@uni.edu,0x8ba1f109551bD432803012645Ac136ddd64DBA72,,Physics,Seco
             <div className="bg-white rounded-xl p-6 border border-gray-200 space-y-4">
               <div className="flex items-center gap-2">
                 <span className="bg-green-600 text-black text-xs font-bold px-2 py-0.5 rounded-full">Step 2</span>
-                <h2 className="text-base font-bold">Issue Certificate</h2>
+                <h2 className="text-base font-bold">Create a student certificate</h2>
               </div>
               <p className="text-gray-700 text-sm">Issue a tamper-proof, permanent certificate to a student. The certificate is tied to their wallet and cannot be transferred.</p>
               <div>
@@ -2762,7 +2858,7 @@ Jane Smith,jane@uni.edu,0x8ba1f109551bD432803012645Ac136ddd64DBA72,,Physics,Seco
             <div className="bg-white rounded-xl p-6 border border-pax-900/40 space-y-4">
               <div className="flex items-center gap-2">
                 <span className="bg-red-800 text-black text-xs font-bold px-2 py-0.5 rounded-full">Step 3</span>
-                <h2 className="text-base font-bold">Revoke a Certificate</h2>
+                <h2 className="text-base font-bold">Withdraw a certificate</h2>
                 <span className="text-xs text-gray-700 ml-auto">Admin only</span>
               </div>
               <p className="text-gray-700 text-sm">
@@ -2855,6 +2951,15 @@ Jane Smith,jane@uni.edu,0x8ba1f109551bD432803012645Ac136ddd64DBA72,,Physics,Seco
                 {isRevoking ? 'Revoking... Please wait' : 'Revoke Certificate'}
               </button>
             </div>
+
+            <section className="bg-white rounded-xl p-6 border border-pax-900/40 space-y-4">
+              <div><h2 className="text-lg font-bold">Verification API Access</h2><p className="text-gray-700 text-sm mt-1">Request access for a programme assigned to your wallet. This section is grouped with revocation and certificate administration.</p></div>
+              <select className={inputClass} value={apiRequestForm.institutionAddress} onChange={(e) => { const selected = myUniversities.find((u) => u.address === e.target.value); setApiRequestForm({ ...apiRequestForm, institutionAddress: e.target.value, institutionName: selected?.name || '' }); }}><option value="">-- Select your institution --</option>{myUniversities.map((u) => <option key={u.address} value={u.address}>{u.name}</option>)}</select>
+              <input className={inputClass} placeholder="Contact email" type="email" value={apiRequestForm.requesterEmail} onChange={(e) => setApiRequestForm({ ...apiRequestForm, requesterEmail: e.target.value })} />
+              <textarea className={inputClass + ' min-h-24'} placeholder="How will your institution use the verification API?" value={apiRequestForm.intendedUse} onChange={(e) => setApiRequestForm({ ...apiRequestForm, intendedUse: e.target.value })} />
+              <button className={btnClass + ' bg-pax-600 hover:bg-pax-700'} disabled={apiRequestLoading || !apiRequestForm.institutionAddress} onClick={submitApiRequest}>{apiRequestLoading ? 'Submitting...' : 'Request API Key'}</button>
+              <div className="border-t border-gray-200 pt-4"><div className="flex items-center justify-between"><h3 className="font-semibold">My API requests</h3><button className="text-sm underline" onClick={() => loadApiRequests(myUniversities.map((university) => university.address))}>Refresh</button></div>{apiRequests.map((request) => { const expanded = expandedApiRequests[request.id]; return <div key={request.id} className="mt-3 p-3 border border-gray-200 rounded-lg"><div className="flex justify-between"><span className="font-medium">{request.institution_name}</span><span className="text-xs uppercase">{request.status}</span></div>{expanded && <><p className="text-xs text-gray-600 mt-2">{request.institution_address}</p><p className="text-sm text-gray-700 mt-1">{request.intended_use}</p>{request.apiKey && <div className="flex items-center gap-2 mt-2"><code className="flex-1 break-all text-xs bg-gray-100 rounded px-2 py-1">{request.apiKey}</code><button className="px-3 py-1 rounded bg-gray-900 text-white text-xs" onClick={() => navigator.clipboard.writeText(request.apiKey)}>Copy API key</button></div>}</>}<button className="text-xs text-pax-700 underline mt-2" onClick={() => setExpandedApiRequests((current) => ({ ...current, [request.id]: !expanded }))}>{expanded ? 'Show less' : 'Show more'}</button></div>; })}</div>
+            </section>
           </div>
         )}
 

@@ -13,6 +13,7 @@ const FACTORY_ADDRESS = '0x34f423528e7eb822ae9c98792d8377207835fde7';
 const SEPOLIA_CHAIN_ID = 11155111;
 const SEPOLIA_HEX = '0xaa36a7';
 const BASE_METADATA_URI = 'https://ipfs.io/ipfs/'; // Base URI for certificate metadata storage
+const FEE_CURRENCY_RATES = { USD: 2500, NGN: 4000000, GBP: 1950, EUR: 2300 };
 
 const FACTORY_ABI = [
   'function deployUniversity(string memory universityName, string memory symbol, address universityAdmin, string memory baseMetadataURI) external returns (address)',
@@ -292,6 +293,12 @@ export default function Dashboard() {
   const [feeSchedule, setFeeSchedule] = useState({ authorization: '0', issuance: '0', revocation: '0', treasury: '' });
   const [isLoadingFees, setIsLoadingFees] = useState(false);
   const [isSavingFees, setIsSavingFees] = useState(false);
+  const [feeCurrency, setFeeCurrency] = useState<keyof typeof FEE_CURRENCY_RATES>('NGN');
+
+  const formatLocalFee = (ethAmount: string) => {
+  const value = Number(ethAmount || 0) * FEE_CURRENCY_RATES[feeCurrency];
+  return new Intl.NumberFormat(undefined, { style: 'currency', currency: feeCurrency, maximumFractionDigits: 2 }).format(value);
+  };
 
   // Verify tab
   const [universities, setUniversities] = useState<University[]>([]);
@@ -1193,12 +1200,18 @@ export default function Dashboard() {
   };
 
   const saveFeeSchedule = async () => {
-  if (!signer || !ethers.isAddress(feeManagementAddress)) return;
+  if (!signer) { showMsg('error', 'Connect the Pax Owner wallet before saving fee settings.'); return; }
+  if (!ethers.isAddress(feeManagementAddress)) { showMsg('error', 'Enter a valid programme contract address and load its settings first.'); return; }
   if (!ethers.isAddress(feeSchedule.treasury)) { showMsg('error', 'Enter a valid treasury wallet address.'); return; }
+  if ([feeSchedule.authorization, feeSchedule.issuance, feeSchedule.revocation].some((value) => !/^\d+(\.\d{1,18})?$/.test(value.trim()))) { showMsg('error', 'Fees must be valid ETH amounts with up to 18 decimal places.'); return; }
   if (!window.confirm('Update the platform fees and treasury address on this programme?')) return;
   setIsSavingFees(true);
   try {
   const university = new ethers.Contract(feeManagementAddress, UNIVERSITY_ABI, signer);
+  const paxOwnerRole = ethers.id('PAX_OWNER_ROLE');
+  const canManageFees = await university.hasRole(paxOwnerRole, account);
+  if (!canManageFees) { showMsg('error', 'This wallet is not the PAX Owner for that programme contract.'); setIsSavingFees(false); return; }
+  showMsg('info', 'Saving fee settings. Confirm the fee transaction in MetaMask.');
   const tx = await university.setFeeSchedule(ethers.parseEther(feeSchedule.authorization || '0'), ethers.parseEther(feeSchedule.issuance || '0'), ethers.parseEther(feeSchedule.revocation || '0'));
   await tx.wait();
   const treasuryTx = await university.setTreasury(feeSchedule.treasury);
@@ -2406,9 +2419,10 @@ Jane Smith,jane@uni.edu,0x8ba1f109551bD432803012645Ac136ddd64DBA72,,Physics,Seco
             </p>
 
             <div className="space-y-4 border border-pax-200 rounded-lg p-4 bg-pax-50/30">
-              <div><h3 className="text-sm font-semibold text-pax-900">Platform fee settings</h3><p className="text-xs text-gray-600 mt-1">Set the fee charged for each confirmed action. Fees are paid in ETH by the wallet submitting the transaction and sent to the treasury.</p></div>
+              <div><h3 className="text-sm font-semibold text-pax-900">Platform fee settings</h3><p className="text-xs text-gray-600 mt-1">Set fees in ETH for the blockchain. We also show an approximate local-currency value to make the amount easier to understand. The contract still stores and charges ETH.</p></div>
+              <label className="text-xs font-semibold text-gray-700">Display currency<select className={inputClass + ' mt-1'} value={feeCurrency} onChange={(e) => setFeeCurrency(e.target.value as keyof typeof FEE_CURRENCY_RATES)}><option value="NGN">Nigerian naira (NGN)</option><option value="USD">US dollars (USD)</option><option value="GBP">British pounds (GBP)</option><option value="EUR">Euros (EUR)</option></select></label>
               <div className="flex gap-2"><input className={inputClass} placeholder="Programme contract address" value={feeManagementAddress} onChange={(e) => setFeeManagementAddress(e.target.value)} /><button type="button" onClick={loadFeeSchedule} disabled={isLoadingFees} className="rounded-lg border border-gray-300 px-3 text-sm">{isLoadingFees ? 'Loading...' : 'Load fees'}</button></div>
-              <div className="grid gap-3 md:grid-cols-3"><label className="text-xs font-semibold text-gray-700">Issuer authorization (ETH)<input className={inputClass + ' mt-1'} inputMode="decimal" value={feeSchedule.authorization} onChange={(e) => setFeeSchedule({ ...feeSchedule, authorization: e.target.value })} /></label><label className="text-xs font-semibold text-gray-700">Certificate issuance (ETH)<input className={inputClass + ' mt-1'} inputMode="decimal" value={feeSchedule.issuance} onChange={(e) => setFeeSchedule({ ...feeSchedule, issuance: e.target.value })} /></label><label className="text-xs font-semibold text-gray-700">Certificate withdrawal (ETH)<input className={inputClass + ' mt-1'} inputMode="decimal" value={feeSchedule.revocation} onChange={(e) => setFeeSchedule({ ...feeSchedule, revocation: e.target.value })} /></label></div>
+              <div className="grid gap-3 md:grid-cols-3"><label className="text-xs font-semibold text-gray-700">Issuer authorization (ETH)<input className={inputClass + ' mt-1'} inputMode="decimal" value={feeSchedule.authorization} onChange={(e) => setFeeSchedule({ ...feeSchedule, authorization: e.target.value })} /><span className="mt-1 block font-normal text-gray-500">≈ {formatLocalFee(feeSchedule.authorization)}</span></label><label className="text-xs font-semibold text-gray-700">Certificate issuance (ETH)<input className={inputClass + ' mt-1'} inputMode="decimal" value={feeSchedule.issuance} onChange={(e) => setFeeSchedule({ ...feeSchedule, issuance: e.target.value })} /><span className="mt-1 block font-normal text-gray-500">≈ {formatLocalFee(feeSchedule.issuance)}</span></label><label className="text-xs font-semibold text-gray-700">Certificate withdrawal (ETH)<input className={inputClass + ' mt-1'} inputMode="decimal" value={feeSchedule.revocation} onChange={(e) => setFeeSchedule({ ...feeSchedule, revocation: e.target.value })} /><span className="mt-1 block font-normal text-gray-500">≈ {formatLocalFee(feeSchedule.revocation)}</span></label></div>
               <label className="text-xs font-semibold text-gray-700">Treasury wallet address<input className={inputClass + ' mt-1'} placeholder="0x..." value={feeSchedule.treasury} onChange={(e) => setFeeSchedule({ ...feeSchedule, treasury: e.target.value })} /></label>
               <div className="flex flex-wrap gap-2"><button type="button" onClick={saveFeeSchedule} disabled={isSavingFees || !feeManagementAddress} className={`${btnClass} bg-pax-700 hover:bg-pax-600 disabled:opacity-50`}>{isSavingFees ? 'Saving fee settings...' : 'Save fee settings'}</button><button type="button" onClick={withdrawPlatformFees} disabled={isSavingFees || !feeManagementAddress} className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-semibold">Withdraw accumulated fees</button></div>
               <p className="text-xs text-gray-600">Changing these values affects future transactions only. Network gas remains separate. Use a treasury wallet or multisig you control.</p>

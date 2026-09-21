@@ -288,6 +288,10 @@ export default function Dashboard() {
   const [deactivateReason, setDeactivateReason] = useState('');
   const [isDeactivating, setIsDeactivating] = useState(false);
   const [isReactivating, setIsReactivating] = useState(''); // stores address being reactivated
+  const [feeManagementAddress, setFeeManagementAddress] = useState('');
+  const [feeSchedule, setFeeSchedule] = useState({ authorization: '0', issuance: '0', revocation: '0', treasury: '' });
+  const [isLoadingFees, setIsLoadingFees] = useState(false);
+  const [isSavingFees, setIsSavingFees] = useState(false);
 
   // Verify tab
   const [universities, setUniversities] = useState<University[]>([]);
@@ -1174,6 +1178,44 @@ export default function Dashboard() {
     } finally {
       setIsSavingFaculty(false);
     }
+  };
+
+  const loadFeeSchedule = async () => {
+  if (!ethers.isAddress(feeManagementAddress)) { showMsg('error', 'Enter a valid programme contract address first.'); return; }
+  setIsLoadingFees(true);
+  try {
+  const provider = await getReadOnlyProvider();
+  const university = new ethers.Contract(feeManagementAddress, UNIVERSITY_ABI, provider);
+  const [authorization, issuance, revocation, treasury] = await Promise.all([university.issuerAuthorizationFee(), university.certificateIssuanceFee(), university.certificateRevocationFee(), university.treasury()]);
+  setFeeSchedule({ authorization: ethers.formatEther(authorization), issuance: ethers.formatEther(issuance), revocation: ethers.formatEther(revocation), treasury });
+  } catch (error) { showMsg('error', `Could not load fee settings: ${parseError(error)}`); }
+  finally { setIsLoadingFees(false); }
+  };
+
+  const saveFeeSchedule = async () => {
+  if (!signer || !ethers.isAddress(feeManagementAddress)) return;
+  if (!ethers.isAddress(feeSchedule.treasury)) { showMsg('error', 'Enter a valid treasury wallet address.'); return; }
+  if (!window.confirm('Update the platform fees and treasury address on this programme?')) return;
+  setIsSavingFees(true);
+  try {
+  const university = new ethers.Contract(feeManagementAddress, UNIVERSITY_ABI, signer);
+  const tx = await university.setFeeSchedule(ethers.parseEther(feeSchedule.authorization || '0'), ethers.parseEther(feeSchedule.issuance || '0'), ethers.parseEther(feeSchedule.revocation || '0'));
+  await tx.wait();
+  const treasuryTx = await university.setTreasury(feeSchedule.treasury);
+  await treasuryTx.wait();
+  await loadFeeSchedule();
+  showMsg('success', 'Platform fee settings updated.');
+  } catch (error) { showMsg('error', parseError(error)); }
+  finally { setIsSavingFees(false); }
+  };
+
+  const withdrawPlatformFees = async () => {
+  if (!signer || !ethers.isAddress(feeManagementAddress)) return;
+  if (!window.confirm('Withdraw the programme’s accumulated platform fees to its treasury wallet?')) return;
+  setIsSavingFees(true);
+  try { const university = new ethers.Contract(feeManagementAddress, UNIVERSITY_ABI, signer); const tx = await university.withdrawPlatformFees(); await tx.wait(); showMsg('success', 'Accumulated platform fees withdrawn to the treasury.'); }
+  catch (error) { showMsg('error', parseError(error)); }
+  finally { setIsSavingFees(false); }
   };
 
   const handleDeactivate = async () => {
@@ -2362,6 +2404,15 @@ Jane Smith,jane@uni.edu,0x8ba1f109551bD432803012645Ac136ddd64DBA72,,Physics,Seco
             <p className="text-gray-700 text-sm">
               Deactivate an institution to remove them from the platform. Their existing certificates remain permanently verifiable on-chain, but no new certificates can be issued. You can reactivate them at any time.
             </p>
+
+            <div className="space-y-4 border border-pax-200 rounded-lg p-4 bg-pax-50/30">
+              <div><h3 className="text-sm font-semibold text-pax-900">Platform fee settings</h3><p className="text-xs text-gray-600 mt-1">Set the fee charged for each confirmed action. Fees are paid in ETH by the wallet submitting the transaction and sent to the treasury.</p></div>
+              <div className="flex gap-2"><input className={inputClass} placeholder="Programme contract address" value={feeManagementAddress} onChange={(e) => setFeeManagementAddress(e.target.value)} /><button type="button" onClick={loadFeeSchedule} disabled={isLoadingFees} className="rounded-lg border border-gray-300 px-3 text-sm">{isLoadingFees ? 'Loading...' : 'Load fees'}</button></div>
+              <div className="grid gap-3 md:grid-cols-3"><label className="text-xs font-semibold text-gray-700">Issuer authorization (ETH)<input className={inputClass + ' mt-1'} inputMode="decimal" value={feeSchedule.authorization} onChange={(e) => setFeeSchedule({ ...feeSchedule, authorization: e.target.value })} /></label><label className="text-xs font-semibold text-gray-700">Certificate issuance (ETH)<input className={inputClass + ' mt-1'} inputMode="decimal" value={feeSchedule.issuance} onChange={(e) => setFeeSchedule({ ...feeSchedule, issuance: e.target.value })} /></label><label className="text-xs font-semibold text-gray-700">Certificate withdrawal (ETH)<input className={inputClass + ' mt-1'} inputMode="decimal" value={feeSchedule.revocation} onChange={(e) => setFeeSchedule({ ...feeSchedule, revocation: e.target.value })} /></label></div>
+              <label className="text-xs font-semibold text-gray-700">Treasury wallet address<input className={inputClass + ' mt-1'} placeholder="0x..." value={feeSchedule.treasury} onChange={(e) => setFeeSchedule({ ...feeSchedule, treasury: e.target.value })} /></label>
+              <div className="flex flex-wrap gap-2"><button type="button" onClick={saveFeeSchedule} disabled={isSavingFees || !feeManagementAddress} className={`${btnClass} bg-pax-700 hover:bg-pax-600 disabled:opacity-50`}>{isSavingFees ? 'Saving fee settings...' : 'Save fee settings'}</button><button type="button" onClick={withdrawPlatformFees} disabled={isSavingFees || !feeManagementAddress} className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-semibold">Withdraw accumulated fees</button></div>
+              <p className="text-xs text-gray-600">Changing these values affects future transactions only. Network gas remains separate. Use a treasury wallet or multisig you control.</p>
+            </div>
 
             {/* Deactivate form */}
             <div className="space-y-3 border border-gray-200 rounded-lg p-4">

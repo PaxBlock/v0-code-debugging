@@ -9,7 +9,7 @@ import { logGDPRCompliant } from '@/lib/dataMasking';
 import Chatbot from '@/components/chatbot';
 
 // Factory contract - PaxID, grade, signatory config, logo URL, deactivation support, bulk issuance
-const FACTORY_ADDRESS = '0x1D29E1931A4DE7C54F785579adc92C10a68bF201';
+const FACTORY_ADDRESS = '0x34f423528e7eb822ae9c98792d8377207835fde7';
 const SEPOLIA_CHAIN_ID = 11155111;
 const SEPOLIA_HEX = '0xaa36a7';
 const BASE_METADATA_URI = 'https://ipfs.io/ipfs/'; // Base URI for certificate metadata storage

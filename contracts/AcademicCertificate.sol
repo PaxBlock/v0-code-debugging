@@ -56,6 +56,10 @@ contract AcademicCertificate is ERC721, ERC721URIStorage, AccessControl {
 
     mapping(uint256 => CertificateData) public certificates;
     mapping(address => bool) public hasCertificate;
+
+    // Metadata and token counter used by the certificate issuance functions.
+    string public baseMetadataURI;
+    uint256 private _nextTokenId = 1;
     mapping(address => uint256) public studentToTokenId;
 
     // PaxID <-> wallet address lookups

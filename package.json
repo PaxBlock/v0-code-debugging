@@ -14,6 +14,8 @@
     "@ai-sdk/react": "^4.0.50",
     "@vercel/blob": "^2.3.3",
     "ai": "^7.0.47",
+    "better-auth": "^1.7.6",
+    "drizzle-orm": "^0.45.3",
     "ethers": "^6.16.0",
     "next": "^16.0.0",
     "papaparse": "^5.5.4",

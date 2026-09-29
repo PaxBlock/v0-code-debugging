@@ -29,7 +29,7 @@ export async function POST(request: Request) {
   const expires = Date.now() + 1000 * 60 * 60 * 8
   const value = `${ADMIN_EMAIL}.${expires}.${signature(`${ADMIN_EMAIL}.${expires}`)}`
   const response = NextResponse.json({ authenticated: true, email: ADMIN_EMAIL })
-  response.cookies.set(COOKIE_NAME, value, { httpOnly: true, secure: true, sameSite: 'lax', path: '/', maxAge: 60 * 60 * 8 })
+  response.cookies.set(COOKIE_NAME, value, { httpOnly: true, secure: process.env.NODE_ENV === 'production', sameSite: 'lax', path: '/', maxAge: 60 * 60 * 8 })
   return response
 }
 

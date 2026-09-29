@@ -13,12 +13,17 @@ export function AuthForm({ mode }: { mode: "sign-in" | "sign-up" }) {
     event.preventDefault();
     setPending(true); setError("");
     const data = new FormData(event.currentTarget);
-    const result = mode === "sign-in"
-      ? await authClient.signIn.email({ email: String(data.get("email")), password: String(data.get("password")) })
-      : await authClient.signUp.email({ name: String(data.get("name")), email: String(data.get("email")), password: String(data.get("password")) });
-    if (result.error) setError("We could not complete that request. Check your details and try again.");
-    else { router.push("/"); router.refresh(); }
-    setPending(false);
+    try {
+      const result = mode === "sign-in"
+        ? await authClient.signIn.email({ email: String(data.get("email")), password: String(data.get("password")) })
+        : await authClient.signUp.email({ name: String(data.get("name")), email: String(data.get("email")), password: String(data.get("password")) });
+      if (result.error) setError("We could not complete that request. Check your details and try again.");
+      else { window.location.assign("/"); return; }
+    } catch {
+      setError("PAX could not reach the sign-in service. Please try again.");
+    } finally {
+      setPending(false);
+    }
   }
 
   return <form onSubmit={submit} className="mx-auto flex w-full max-w-md flex-col gap-4 rounded-2xl border border-slate-200 bg-white p-8 shadow-xl">

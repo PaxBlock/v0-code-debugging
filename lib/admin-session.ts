@@ -14,9 +14,14 @@ export function createAdminSession(expires: number) {
 
 export function isValidAdminSession(value: string | undefined) {
   if (!value) return false
-  const [email, expires, digest] = value.split('.')
+  const separator = value.lastIndexOf('.')
+  const payload = separator > 0 ? value.slice(0, separator) : ''
+  const digest = separator > 0 ? value.slice(separator + 1) : ''
+  const payloadSeparator = payload.lastIndexOf('.')
+  const email = payloadSeparator > 0 ? payload.slice(0, payloadSeparator) : ''
+  const expires = payloadSeparator > 0 ? payload.slice(payloadSeparator + 1) : ''
   if (!email || !expires || !digest || email !== ADMIN_EMAIL || !Number.isFinite(Number(expires)) || Number(expires) < Date.now()) return false
-  const expected = signature(`${email}.${expires}`)
+  const expected = signature(payload)
   return digest.length === expected.length && timingSafeEqual(Buffer.from(digest), Buffer.from(expected))
 }
 

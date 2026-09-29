@@ -90,5 +90,6 @@ export async function getInstitutionAccess() {
   const institution = await getRepresentativeInstitution(session.user.id);
   const members = await db.select({ memberId: institutionMembers.id, userId: user.id, name: user.name, email: user.email, role: institutionMembers.role, status: institutionMembers.status, createdAt: institutionMembers.createdAt }).from(institutionMembers).innerJoin(user, eq(user.id, institutionMembers.userId)).where(eq(institutionMembers.institutionId, institution.id));
   const logs = await db.select().from(auditLogs).where(eq(auditLogs.institutionId, institution.id));
-  return { institution, members, logs };
+  const deans = await db.select().from(institutionDeans).where(eq(institutionDeans.institutionId, institution.id));
+  return { institution, members, logs, deans };
 }

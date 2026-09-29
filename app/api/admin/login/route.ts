@@ -1,24 +1,9 @@
-import { createHmac, timingSafeEqual } from 'node:crypto'
 import { NextResponse } from 'next/server'
-
-const ADMIN_EMAIL = 'paxblockchain1@gmail.com'
-const COOKIE_NAME = 'pax_admin_session'
-
-function signature(value: string) {
-  return createHmac('sha256', process.env.BETTER_AUTH_SECRET!).update(value).digest('hex')
-}
-
-function validSession(value: string | undefined) {
-  if (!value) return false
-  const [email, expires, digest] = value.split('.')
-  if (!email || !expires || !digest || email !== ADMIN_EMAIL || Number(expires) < Date.now()) return false
-  const expected = signature(`${email}.${expires}`)
-  return digest.length === expected.length && timingSafeEqual(Buffer.from(digest), Buffer.from(expected))
-}
+import { ADMIN_COOKIE_NAME, ADMIN_EMAIL, createAdminSession, getAdminCookie, isValidAdminSession } from '@/lib/admin-session'
 
 export async function GET(request: Request) {
-  const cookie = request.headers.get('cookie')?.split('; ').find((item) => item.startsWith(`${COOKIE_NAME}=`))?.slice(COOKIE_NAME.length + 1)
-  return NextResponse.json({ authenticated: validSession(cookie), email: validSession(cookie) ? ADMIN_EMAIL : null })
+  const cookie = getAdminCookie(request)
+  return NextResponse.json({ authenticated: isValidAdminSession(cookie), email: isValidAdminSession(cookie) ? ADMIN_EMAIL : null })
 }
 
 export async function POST(request: Request) {
@@ -27,14 +12,14 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Invalid administrator credentials.' }, { status: 401 })
   }
   const expires = Date.now() + 1000 * 60 * 60 * 8
-  const value = `${ADMIN_EMAIL}.${expires}.${signature(`${ADMIN_EMAIL}.${expires}`)}`
+  const value = createAdminSession(expires)
   const response = NextResponse.json({ authenticated: true, email: ADMIN_EMAIL })
-  response.cookies.set(COOKIE_NAME, value, { httpOnly: true, secure: request.headers.get('x-forwarded-proto') === 'https' || process.env.NODE_ENV === 'production', sameSite: 'lax', path: '/', maxAge: 60 * 60 * 8 })
+  response.cookies.set(ADMIN_COOKIE_NAME, value, { httpOnly: true, secure: request.headers.get('x-forwarded-proto') === 'https' || process.env.NODE_ENV === 'production', sameSite: 'lax', path: '/', maxAge: 60 * 60 * 8 })
   return response
 }
 
 export async function DELETE() {
   const response = NextResponse.json({ authenticated: false })
-  response.cookies.set(COOKIE_NAME, '', { httpOnly: true, secure: true, sameSite: 'lax', path: '/', maxAge: 0 })
+  response.cookies.set(ADMIN_COOKIE_NAME, '', { httpOnly: true, secure: false, sameSite: 'lax', path: '/', maxAge: 0 })
   return response
 }

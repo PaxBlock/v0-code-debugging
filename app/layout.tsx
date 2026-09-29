@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 
@@ -18,11 +18,13 @@ export const metadata: Metadata = {
   icons: {
     icon: "https://hebbkx1anhila5yf.public.blob.vercel-storage.com/Pax-7YjXsywyiRC99UEehcQt9aj3Nw1hQP.jpg",
   },
-  viewport: {
-    width: "device-width",
-    initialScale: 1,
-    maximumScale: 1,
-  },
+};
+
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  maximumScale: 1,
+  userScalable: false,
 };
 
 export default function RootLayout({
@@ -31,7 +33,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en" className="bg-white">
+    <html lang="en" className="bg-white" data-scroll-behavior="smooth">
       <body
         className={`${geistSans.variable} ${geistMono.variable} font-sans antialiased text-black bg-white`}
       >

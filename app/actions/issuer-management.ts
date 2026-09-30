@@ -70,7 +70,7 @@ export async function addFacultyDean(formData: FormData) {
   const facultyName = String(formData.get('facultyName') || '').trim();
   const deanName = String(formData.get('deanName') || '').trim();
   if (!facultyName || !deanName) throw new Error('Faculty and dean name are required.');
-  await db.insert(institutionDeans).values({ id: randomUUID(), institutionId: institution.id, facultyName, deanName, signatureUrl: String(formData.get('signatureUrl') || '').trim() || null, createdAt: new Date(), updatedAt: new Date() });
+  await db.insert(institutionDeans).values({ id: randomUUID(), institutionId: institution.id, facultyName, deanName, signatureUrl: String(formData.get('dean_signature_data') || formData.get('signatureUrl') || '').trim() || null, createdAt: new Date(), updatedAt: new Date() });
   await writeAudit(institution.id, session.user.id, 'faculty_dean_added', undefined, { facultyName, deanName });
   redirect('/institution-settings?dean=added');
 }
@@ -78,7 +78,7 @@ export async function addFacultyDean(formData: FormData) {
 export async function updateSchoolProfile(formData: FormData) {
   const session = await getSession();
   const institution = await getRepresentativeInstitution(session.user.id);
-  const values = { name: String(formData.get('name') || '').trim(), country: String(formData.get('country') || '').trim() || null, verificationDomain: String(formData.get('verificationDomain') || '').trim() || null, viceChancellorName: String(formData.get('viceChancellorName') || '').trim() || null, viceChancellorSignatureUrl: String(formData.get('viceChancellorSignatureUrl') || '').trim() || null, registrarName: String(formData.get('registrarName') || '').trim() || null, registrarSignatureUrl: String(formData.get('registrarSignatureUrl') || '').trim() || null, updatedAt: new Date() };
+  const values = { name: String(formData.get('name') || '').trim(), country: String(formData.get('country') || '').trim() || null, verificationDomain: String(formData.get('verificationDomain') || '').trim() || null, viceChancellorName: String(formData.get('viceChancellorName') || '').trim() || null, viceChancellorSignatureUrl: String(formData.get('vice_chancellor_signature_data') || formData.get('viceChancellorSignatureUrl') || '').trim() || null, registrarName: String(formData.get('registrarName') || '').trim() || null, registrarSignatureUrl: String(formData.get('registrar_signature_data') || formData.get('registrarSignatureUrl') || '').trim() || null, updatedAt: new Date() };
   if (!values.name) throw new Error('School name is required.');
   await db.update(institutions).set(values).where(eq(institutions.id, institution.id));
   await writeAudit(institution.id, session.user.id, 'school_profile_updated', undefined, { fields: 'profile_and_signatories' });

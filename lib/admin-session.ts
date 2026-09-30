@@ -14,6 +14,7 @@ export function createAdminSession(expires: number) {
 
 export function isValidAdminSession(value: string | undefined) {
   if (!value) return false
+  try { value = decodeURIComponent(value) } catch { return false }
   const separator = value.lastIndexOf('.')
   const payload = separator > 0 ? value.slice(0, separator) : ''
   const digest = separator > 0 ? value.slice(separator + 1) : ''
@@ -26,5 +27,6 @@ export function isValidAdminSession(value: string | undefined) {
 }
 
 export function getAdminCookie(request: Request) {
-  return request.headers.get('cookie')?.split('; ').find((item) => item.startsWith(`${ADMIN_COOKIE_NAME}=`))?.slice(ADMIN_COOKIE_NAME.length + 1)
+  const raw = request.headers.get('cookie')?.split('; ').find((item) => item.startsWith(`${ADMIN_COOKIE_NAME}=`))?.slice(ADMIN_COOKIE_NAME.length + 1)
+  return raw ? decodeURIComponent(raw) : undefined
 }

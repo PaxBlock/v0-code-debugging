@@ -43,7 +43,7 @@ export async function addIssuer(formData: FormData) {
   const email = String(formData.get("email") || "").trim().toLowerCase();
   if (!email || !email.includes("@")) throw new Error("Enter a valid issuer email.");
   const [issuer] = await db.select({ id: user.id, email: user.email }).from(user).where(eq(user.email, email)).limit(1);
-  if (!issuer) throw new Error("That email does not have a PAX account yet. Ask the issuer to create an account first.");
+  if (!issuer) throw new Error("That email does not have a PAX account yet. Ask the issuer to create an account first. After signup, add the same email again to activate issuer access.");
   const [existing] = await db.select().from(institutionMembers).where(and(eq(institutionMembers.institutionId, institution.id), eq(institutionMembers.userId, issuer.id))).limit(1);
   if (existing) throw new Error("This user is already connected to the school.");
   await db.insert(institutionMembers).values({ id: randomUUID(), institutionId: institution.id, userId: issuer.id, role: "issuer", status: "active", invitedByUserId: session.user.id, createdAt: new Date() });

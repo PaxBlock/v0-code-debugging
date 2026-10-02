@@ -34,7 +34,7 @@ export async function addSchoolAdmin(formData: FormData) {
   if (!memberUser) throw new Error('That email does not have a PAX account yet.');
   await db.insert(institutionMembers).values({ id: randomUUID(), institutionId: institution.id, userId: memberUser.id, role: 'admin', status: 'active', invitedByUserId: session.user.id, createdAt: new Date() });
   await writeAudit(institution.id, session.user.id, 'school_admin_added', memberUser.id, { email });
-  redirect('/institution-settings?admin=added');
+  redirect('/?membership=admin-added');
 }
 
 export async function addIssuer(formData: FormData) {
@@ -48,7 +48,7 @@ export async function addIssuer(formData: FormData) {
   if (existing) throw new Error("This user is already connected to the school.");
   await db.insert(institutionMembers).values({ id: randomUUID(), institutionId: institution.id, userId: issuer.id, role: "issuer", status: "active", invitedByUserId: session.user.id, createdAt: new Date() });
   await writeAudit(institution.id, session.user.id, "issuer_added", issuer.id, { email });
-  redirect("/institution-settings?issuer=added");
+  redirect('/?membership=issuer-added');
 }
 
 export async function changeIssuerStatus(formData: FormData) {
@@ -61,7 +61,7 @@ export async function changeIssuerStatus(formData: FormData) {
   if (!member) throw new Error("Issuer membership not found.");
   await db.update(institutionMembers).set({ status }).where(eq(institutionMembers.id, memberId));
   await writeAudit(institution.id, session.user.id, `issuer_${status}`, member.userId);
-  redirect("/institution-settings?issuer=updated");
+  redirect('/?membership=issuer-updated');
 }
 
 export async function addFacultyDean(formData: FormData) {
@@ -72,7 +72,7 @@ export async function addFacultyDean(formData: FormData) {
   if (!facultyName || !deanName) throw new Error('Faculty and dean name are required.');
   await db.insert(institutionDeans).values({ id: randomUUID(), institutionId: institution.id, facultyName, deanName, signatureUrl: String(formData.get('dean_signature_data') || formData.get('signatureUrl') || '').trim() || null, createdAt: new Date(), updatedAt: new Date() });
   await writeAudit(institution.id, session.user.id, 'faculty_dean_added', undefined, { facultyName, deanName });
-  redirect('/institution-settings?dean=added');
+  redirect('/?profile=dean-added');
 }
 
 export async function updateSchoolProfile(formData: FormData) {
@@ -82,7 +82,7 @@ export async function updateSchoolProfile(formData: FormData) {
   if (!values.name) throw new Error('School name is required.');
   await db.update(institutions).set(values).where(eq(institutions.id, institution.id));
   await writeAudit(institution.id, session.user.id, 'school_profile_updated', undefined, { fields: 'profile_and_signatories' });
-  redirect('/institution-settings?profile=updated');
+  redirect('/?profile=updated');
 }
 
 export async function getInstitutionAccess() {

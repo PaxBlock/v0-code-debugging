@@ -1,0 +1,14 @@
+"use client";
+
+import { useState } from "react";
+
+const columns = ["StudentName", "StudentEmail", "WalletAddress", "PrivateKey", "CourseName", "Grade", "PaxID", "FacultyName"];
+
+export function IssueCredentialsUI() {
+  const [file, setFile] = useState<File | null>(null);
+  function downloadTemplate() {
+    const url = URL.createObjectURL(new Blob([[columns.join(","), "\n"].join("")], { type: "text/csv" }));
+    const link = document.createElement("a"); link.href = url; link.download = "pax-certificate-template.csv"; link.click(); URL.revokeObjectURL(url);
+  }
+  return <section className="rounded-2xl border border-[#d9a28e] bg-white p-6 md:p-9" aria-labelledby="bulk-issue-title"><div className="flex flex-wrap items-center justify-between gap-3"><h2 id="bulk-issue-title" className="flex items-center gap-3 text-2xl font-bold"><span className="rounded-full bg-[#ed4b1f] px-3 py-1 text-base text-black">Bulk</span>Issue Multiple Certificates (CSV)</h2><span className="text-sm font-medium">Issuer only</span></div><p className="mt-6 max-w-4xl text-lg leading-7 text-[#183f68]">Upload a CSV to issue certificates in batches. Students may provide their own wallet address, or the institution can create one at wallet.paxblockchain.com. Add a PrivateKey only for institution-created wallets; it is used for the one-time student email and never retained by Pax.</p><div className="mt-7"><h3 className="text-xl font-semibold text-[#294c70]">Step 1: Download CSV Template</h3><button type="button" onClick={downloadTemplate} className="mt-3 rounded-md bg-[#f7f8f9] px-4 py-3 shadow-sm">Download Template</button><p className="mt-2 text-base leading-6 text-[#294c70]">Columns: {columns.join(", ")}. Leave PrivateKey blank when the student supplied the wallet. StudentEmail is required when PrivateKey is present.</p></div><div className="mt-7"><h3 className="text-xl font-semibold text-[#294c70]">Step 2: Upload CSV File</h3><label className="mt-3 flex cursor-pointer items-center rounded-xl border border-[#cfd9d5] px-6 py-5 text-lg hover:border-[#3b806a]"><input type="file" accept=".csv,text/csv" className="sr-only" onChange={(e) => setFile(e.target.files?.[0] ?? null)} /><span className="rounded-md border border-[#888] px-3 py-2">Choose File</span><span className="ml-3">{file?.name ?? "No file chosen"}</span></label><p className="mt-2 text-base text-[#294c70]">Select a CSV file with student data.</p>{file && <div className="mt-4 rounded-xl border border-[#b8d8c6] bg-[#f1fbf4] px-4 py-3 text-sm">{file.name} · {(file.size / 1024).toFixed(1)} KB selected</div>}<button type="button" disabled={!file} className="mt-5 w-full rounded-xl bg-[#ed4b1f] px-5 py-3 font-bold disabled:opacity-40">Review CSV before issuing</button><p className="mt-2 text-xs text-[#71877c]">UI preview only. Blockchain issuance and backend validation will be connected next.</p></div></section>;
+}

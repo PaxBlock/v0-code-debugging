@@ -17,6 +17,7 @@ function downloadTemplate() {
 
 export function IssuerWorkspace({ userName, institutionName }: { userName: string; institutionName: string }) {
   const [fileName, setFileName] = useState("");
+  const [fileSize, setFileSize] = useState(0);
 
   return (
     <main className="min-h-screen bg-[#f6f8f7] text-[#10251f]">
@@ -52,11 +53,11 @@ export function IssuerWorkspace({ userName, institutionName }: { userName: strin
           <div className="mt-7">
             <h4 className="text-xl font-semibold text-[#294c70]">Step 2: Upload CSV File</h4>
             <label className="mt-3 flex cursor-pointer items-center rounded-xl border border-[#cfd9d5] bg-white px-6 py-5 text-lg shadow-sm hover:border-[#3b806a]">
-              <input type="file" accept=".csv,text/csv" className="sr-only" onChange={(event) => setFileName(event.target.files?.[0]?.name ?? "")} />
+              <input type="file" accept=".csv,text/csv" className="sr-only" onChange={(event) => { const file = event.target.files?.[0]; setFileName(file?.name ?? ""); setFileSize(file?.size ?? 0); }} />
               <span className="rounded-md border border-[#888] px-3 py-2 text-base">Choose File</span>
               <span className="ml-3">{fileName || "No file chosen"}</span>
             </label>
-            <p className="mt-2 text-base text-[#294c70]">Select a CSV file with student data.</p>
+            <p className="mt-2 text-base text-[#294c70]">Select a CSV file with student data.</p>{fileName && <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-[#b8d8c6] bg-[#f1fbf4] px-4 py-3 text-sm"><span><strong>{fileName}</strong><span className="ml-2 text-[#61756c]">{(fileSize / 1024).toFixed(1)} KB selected</span></span><button type="button" onClick={() => { setFileName(""); setFileSize(0); }} className="font-semibold text-[#a33b22]">Remove</button></div>}<button type="button" disabled={!fileName} className="mt-5 w-full rounded-xl bg-[#ed4b1f] px-5 py-3 font-bold text-black disabled:cursor-not-allowed disabled:opacity-40">Review CSV before issuing</button><p className="mt-2 text-xs text-[#71877c]">Issuance is not connected yet. Review and blockchain submission will be enabled in the next step.</p>
           </div>
         </section>
       </div>

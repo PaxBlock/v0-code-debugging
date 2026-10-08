@@ -1,0 +1,21 @@
+"use client";
+
+import { useState } from "react";
+
+const stats = [
+  { label: "Certificates issued", value: "0", note: "Ready for your first batch", tone: "bg-[#e8f7ed] text-[#24734a]" },
+  { label: "Active issuers", value: "0", note: "Invite an issuer to begin", tone: "bg-[#fff0e9] text-[#a33b22]" },
+  { label: "API status", value: "Not connected", note: "Request access when ready", tone: "bg-[#eaf2ff] text-[#315b91]" },
+];
+
+export function OverviewDashboard({ institutionName }: { institutionName?: string | null }) {
+  const [period, setPeriod] = useState("30 days");
+  const school = institutionName || "Your institution";
+  return <div className="mt-6 space-y-6">
+    <section className="overflow-hidden rounded-3xl bg-[#10251f] p-6 text-white shadow-sm md:p-8">
+      <div className="flex flex-col justify-between gap-8 md:flex-row md:items-end"><div><p className="text-sm font-semibold text-[#b9f36b]">Institution command centre</p><h3 className="mt-3 max-w-2xl text-3xl font-black tracking-tight md:text-4xl">Everything your school needs to issue trusted credentials.</h3><p className="mt-4 max-w-xl leading-7 text-[#c0d2ca]">Manage your institution profile, prepare certificate batches, and keep your issuing team moving from one secure workspace.</p></div><div className="rounded-2xl border border-white/15 bg-white/10 px-5 py-4 md:min-w-56"><p className="text-xs uppercase tracking-[0.18em] text-[#b7ccc3]">Current institution</p><p className="mt-2 text-lg font-bold">{school}</p><p className="mt-1 text-sm text-[#b7ccc3]">Workspace active</p></div></div>
+    </section>
+    <div className="grid gap-4 md:grid-cols-3">{stats.map((stat) => <article key={stat.label} className="rounded-2xl border border-[#dce8e2] bg-white p-5"><div className={`inline-flex rounded-full px-3 py-1 text-xs font-bold ${stat.tone}`}>{stat.label}</div><p className="mt-5 text-3xl font-black tracking-tight">{stat.value}</p><p className="mt-2 text-sm text-[#61756c]">{stat.note}</p></article>)}</div>
+    <section className="grid gap-6 lg:grid-cols-[1.25fr_.75fr]"><article className="rounded-2xl border border-[#dce8e2] bg-white p-6"><div className="flex items-center justify-between gap-4"><div><h3 className="text-xl font-bold">Issuance activity</h3><p className="mt-1 text-sm text-[#61756c]">Certificate volume will appear here after your first batch.</p></div><select value={period} onChange={(event) => setPeriod(event.target.value)} className="rounded-xl border border-[#dce8e2] bg-white px-3 py-2 text-sm font-semibold"><option>30 days</option><option>90 days</option><option>This year</option></select></div><div className="mt-8 flex h-40 items-center justify-center rounded-2xl border border-dashed border-[#bdd2c5] bg-[#f7fbf8] text-center"><div><div className="mx-auto flex h-11 w-11 items-center justify-center rounded-full bg-[#e8f7ed] text-xl font-black text-[#24734a]">+</div><p className="mt-3 text-sm font-semibold">No issuance activity yet</p><p className="mt-1 text-xs text-[#71877c]">Upload a CSV from Issue Credentials to get started.</p></div></div></article><article className="rounded-2xl border border-[#dce8e2] bg-white p-6"><h3 className="text-xl font-bold">Workspace checklist</h3><p className="mt-1 text-sm text-[#61756c]">Complete these steps before issuing.</p><div className="mt-5 space-y-4"><div className="flex gap-3"><span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-[#e8f7ed] text-xs font-bold text-[#24734a]">1</span><div><p className="text-sm font-semibold">Complete school profile</p><p className="mt-1 text-xs text-[#71877c]">Add signatories and your institution logo.</p></div></div><div className="flex gap-3"><span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-[#fff0e9] text-xs font-bold text-[#a33b22]">2</span><div><p className="text-sm font-semibold">Add an issuer</p><p className="mt-1 text-xs text-[#71877c]">Give a trusted team member issuance access.</p></div></div><div className="flex gap-3"><span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-[#eaf2ff] text-xs font-bold text-[#315b91]">3</span><div><p className="text-sm font-semibold">Prepare your CSV</p><p className="mt-1 text-xs text-[#71877c]">Use the template for a smooth batch upload.</p></div></div></div></article></section>
+  </div>;
+}

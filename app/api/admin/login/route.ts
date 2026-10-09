@@ -14,12 +14,12 @@ export async function POST(request: Request) {
   const expires = Date.now() + 1000 * 60 * 60 * 8
   const value = createAdminSession(expires)
   const response = NextResponse.json({ authenticated: true, email: ADMIN_EMAIL })
-  response.cookies.set(ADMIN_COOKIE_NAME, value, { httpOnly: true, secure: request.url.startsWith('https://'), sameSite: 'lax', path: '/', maxAge: 60 * 60 * 8 })
+  response.cookies.set(ADMIN_COOKIE_NAME, value, { httpOnly: true, secure: true, sameSite: 'none', path: '/', maxAge: 60 * 60 * 8 })
   return response
 }
 
 export async function DELETE() {
   const response = NextResponse.json({ authenticated: false })
-  response.cookies.set(ADMIN_COOKIE_NAME, '', { httpOnly: true, secure: false, sameSite: 'lax', path: '/', maxAge: 0 })
+  response.cookies.set(ADMIN_COOKIE_NAME, '', { httpOnly: true, secure: true, sameSite: 'none', path: '/', maxAge: 0 })
   return response
 }

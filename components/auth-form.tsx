@@ -17,7 +17,7 @@ export function AuthForm({ mode }: { mode: "sign-in" | "sign-up" }) {
       if (mode === "sign-in" && loginAs === "admin") {
         const response = await fetch("/api/admin/login", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ email: data.get("email"), password: data.get("password") }) });
         if (!response.ok) throw new Error("Invalid administrator credentials.");
-        window.location.assign("/admin");
+        window.location.replace("/admin");
         return;
       }
       const result = mode === "sign-in"

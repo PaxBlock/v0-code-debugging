@@ -43,6 +43,6 @@ export function AuthForm({ mode }: { mode: "sign-in" | "sign-up" }) {
     <label className="text-sm font-medium text-slate-700">Password<div className="relative mt-2"><input name="password" type={showPassword ? "text" : "password"} minLength={8} required className="w-full rounded-xl border border-slate-300 px-4 py-3 pr-24" /><button type="button" onClick={() => setShowPassword((visible) => !visible)} className="absolute inset-y-0 right-3 text-sm font-semibold text-emerald-700">{showPassword ? "Hide" : "Show password"}</button></div></label>
     {error && <p role="alert" className="rounded-xl bg-red-50 p-3 text-sm text-red-700">{error}</p>}
     <button disabled={pending} className="rounded-xl bg-emerald-700 px-4 py-3 font-semibold text-white disabled:opacity-60">{pending ? "Please wait..." : mode === "sign-in" ? "Sign in" : "Create account"}</button>
-    <a href={mode === "sign-in" ? "/sign-up" : "/sign-in"} className="text-center text-sm text-emerald-700">{mode === "sign-in" ? "New to PAX? Create an account" : "Already have an account? Sign in"}</a>
+    <div className="flex flex-col gap-2 text-center text-sm"><a href={mode === "sign-in" ? "/sign-up" : "/sign-in"} className="text-emerald-700">{mode === "sign-in" ? "New to PAX? Create an account" : "Already have an account? Sign in"}</a>{mode === "sign-in" && <a href="/verify" className="font-semibold text-slate-600 underline underline-offset-4">Verify a certificate without signing in</a>}</div>
   </form>;
 }

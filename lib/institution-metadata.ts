@@ -1,5 +1,5 @@
 import { createCipheriv, createHash, randomBytes } from "node:crypto";
-import { put } from "@vercel/blob";
+import { get, put } from "@vercel/blob";
 
 const ALGORITHM = "aes-256-gcm";
 const VERSION = 1;
@@ -26,6 +26,17 @@ export async function storeEncryptedInstitutionMetadata(input: {
   const digest = createHash("sha256").update(envelope).digest("hex");
   const blob = await put(`institutions/${input.id}/metadata-${digest}.json`, envelope, { access: "private", contentType: "application/json", addRandomSuffix: false });
   return { pathname: blob.pathname, hash: `0x${digest}` };
+}
+
+export async function readEncryptedInstitutionMetadata(pathname: string) {
+  const result = await get(pathname, { access: "private" });
+  if (!result) throw new Error("Institution metadata was not found.");
+  const envelope = JSON.parse(await new Response(result.stream).text()) as { version: number; algorithm: string; iv: string; authTag: string; ciphertext: string };
+  if (envelope.version !== VERSION || envelope.algorithm !== ALGORITHM) throw new Error("Unsupported institution metadata format.");
+  const decipher = (await import("node:crypto")).createDecipheriv(ALGORITHM, getEncryptionKey(), Buffer.from(envelope.iv, "base64"));
+  decipher.setAuthTag(Buffer.from(envelope.authTag, "base64"));
+  const plaintext = Buffer.concat([decipher.update(Buffer.from(envelope.ciphertext, "base64")), decipher.final()]);
+  return JSON.parse(plaintext.toString("utf8")) as Record<string, unknown>;
 }
 
 export function canonicalInstitutionProfile(profile: Record<string, unknown>) {

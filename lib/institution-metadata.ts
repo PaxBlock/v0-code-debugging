@@ -1,5 +1,5 @@
 import { createCipheriv, createHash, randomBytes } from "node:crypto";
-import { get, put } from "@vercel/blob";
+import { put } from "@vercel/blob";
 
 const ALGORITHM = "aes-256-gcm";
 const VERSION = 1;
@@ -30,14 +30,14 @@ export async function storeEncryptedInstitutionMetadata(input: {
   const authTag = cipher.getAuthTag();
   const envelope = JSON.stringify({ version: VERSION, algorithm: ALGORITHM, iv: iv.toString("base64"), authTag: authTag.toString("base64"), ciphertext: ciphertext.toString("base64") });
   const digest = createHash("sha256").update(envelope).digest("hex");
-  const blob = await put(`institutions/${input.id}/metadata-${digest}.json`, envelope, { access: "private", contentType: "application/json", addRandomSuffix: false });
-  return { pathname: blob.pathname, hash: `0x${digest}` };
+  const blob = await put(`institutions/${input.id}/metadata-${digest}.json`, envelope, { access: "public", contentType: "application/json", addRandomSuffix: false });
+  return { pathname: blob.pathname, url: blob.url, hash: `0x${digest}` };
 }
 
-export async function readEncryptedInstitutionMetadata(pathname: string) {
-  const result = await get(pathname, { access: "private" });
-  if (!result) throw new Error("Institution metadata was not found.");
-  const envelope = JSON.parse(await new Response(result.stream).text()) as { version: number; algorithm: string; iv: string; authTag: string; ciphertext: string };
+export async function readEncryptedInstitutionMetadata(url: string) {
+  const response = await fetch(url, { cache: "no-store" });
+  if (!response.ok) throw new Error("Institution metadata was not found.");
+  const envelope = (await response.json()) as { version: number; algorithm: string; iv: string; authTag: string; ciphertext: string };
   if (envelope.version !== VERSION || envelope.algorithm !== ALGORITHM) throw new Error("Unsupported institution metadata format.");
   const decipher = (await import("node:crypto")).createDecipheriv(ALGORITHM, getEncryptionKey(), Buffer.from(envelope.iv, "base64"));
   decipher.setAuthTag(Buffer.from(envelope.authTag, "base64"));

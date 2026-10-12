@@ -5,10 +5,16 @@ const ALGORITHM = "aes-256-gcm";
 const VERSION = 1;
 
 function getEncryptionKey() {
-  const encoded = process.env.INSTITUTION_ENCRYPTION_KEY;
+  const encoded = process.env.INSTITUTION_ENCRYPTION_KEY?.trim().replace(/^['\"]|['\"]$/g, "");
   if (!encoded) throw new Error("Institution encryption is not configured.");
-  const key = Buffer.from(encoded, "base64");
-  if (key.length !== 32) throw new Error("INSTITUTION_ENCRYPTION_KEY must decode to 32 bytes.");
+
+  const key = /^[0-9a-fA-F]{64}$/.test(encoded)
+    ? Buffer.from(encoded, "hex")
+    : Buffer.from(encoded.replace(/-/g, "+").replace(/_/g, "/"), "base64");
+
+  if (key.length !== 32) {
+    throw new Error("INSTITUTION_ENCRYPTION_KEY must be a 32-byte key encoded as 64 hex characters or base64.");
+  }
   return key;
 }
 
